@@ -1,3 +1,5 @@
 *.parquet
 *.db
+*.html
 *.idea
+*.DS_Store
