@@ -56,7 +56,8 @@ def write_divisions(divisions: list[Division]) -> None:
                division_uid TEXT NOT NULL,
                name TEXT NOT NULL,
                weight_lbs INTEGER NOT NULL,
-               PRIMARY KEY (promotion_uid, division_uid)
+               PRIMARY KEY (promotion_uid, division_uid),
+               FOREIGN KEY (promotion_uid) references promotions(promotion_uid)
               );
 
            """
