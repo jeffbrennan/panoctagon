@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import requests
 import bs4
 
-from panoctagon.common import write_tuples_to_db, get_con
+from panoctagon.common import write_tuples_to_db, get_con, get_table_rows
 
 
 @dataclass(frozen=True)
@@ -38,18 +38,7 @@ def get_events() -> list[UFCEvent]:
     soup = bs4.BeautifulSoup(requests.get(url).content, "html.parser")
 
     data: list[UFCEvent] = []
-    table = soup.find("table")
-    if table is None:
-        raise ValueError("No table found")
-
-    table_body = table.find("tbody")
-    if not isinstance(table_body, bs4.Tag):
-        raise TypeError(f"expected bs4.Tag, got {type(table_body)}")
-
-    rows = table_body.find_all("tr")
-    if rows is None:
-        raise ValueError()
-
+    rows = get_table_rows(soup)
     unparsed_events = []
     for row in rows:
         cols = row.find_all("td")
