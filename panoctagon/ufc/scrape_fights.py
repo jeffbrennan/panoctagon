@@ -1,11 +1,14 @@
 import sqlite3
-import requests
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from common import write_tuples_to_db, get_con, get_table_rows
-import bs4
 from enum import Enum
 from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor
+from typing import Any
+
+import bs4
+import requests
+
+from common import write_tuples_to_db, get_con, get_table_rows
 
 
 class FightStyle(str, Enum):
@@ -29,7 +32,7 @@ class Decision(str, Enum):
     DQ = "Disqualificaton"
 
 
-@dataclass(frozen=True)
+@dataclass
 class Fight:
     event_uid: str
     fight_uid: str
@@ -42,7 +45,7 @@ class Fight:
     referee: str
 
 
-@dataclass(frozen=True)
+@dataclass
 class RoundSigStats:
     fight_uid: str
     fighter_uid: str
@@ -63,7 +66,7 @@ class RoundSigStats:
     sig_strikes_grounded_attempted: int
 
 
-@dataclass(frozen=True)
+@dataclass
 class RoundTotalStats:
     fight_uid: str
     fighter_uid: str
@@ -78,7 +81,7 @@ class RoundTotalStats:
     control_time_seconds: int
 
 
-@dataclass(frozen=True)
+@dataclass
 class RoundStats:
     fight_uid: str
     fighter_uid: str
@@ -87,7 +90,7 @@ class RoundStats:
     sig_stats: RoundSigStats
 
 
-@dataclass(frozen=True)
+@dataclass
 class FightContents:
     fight_uid: str
     contents: str
@@ -106,39 +109,102 @@ def read_event_uids():
     return uids
 
 
-def parse_sig_totals(
+def get_round_vals(
+    round_data: bs4.Tag, actual_cols: list[str], expected_cols: list[str]
+) -> list[dict[str, Any]]:
+    vals = [
+        val.text.strip()
+        for val in round_data.findAll("p", class_="b-fight-details__table-text")
+    ]
+    f1_vals = [val for i, val in enumerate(vals) if i % 2 == 0]
+    f2_vals = [val for i, val in enumerate(vals) if i % 2 == 1]
+
+    f1_uid, f2_uid = [i["href"].split("/")[-1] for i in round_data.findAll("a")]
+    if len(f1_vals) != len(actual_cols) or len(f2_vals) != len(actual_cols):
+        raise ValueError(f"Expecting {len(expected_cols)} cols. Got {len(vals)} values")
+
+    f1_sig_stats_raw = dict(zip(actual_cols, f1_vals))
+    f2_sig_stats_raw = dict(zip(actual_cols, f2_vals))
+
+    f1_sig_stats_raw["Fighter"] = f1_uid
+    f2_sig_stats_raw["Fighter"] = f2_uid
+    all_sig_stats_raw = [f1_sig_stats_raw, f2_sig_stats_raw]
+    return all_sig_stats_raw
+
+
+def parse_sig_stats(
     fight_html: bs4.BeautifulSoup, fight_uid: str
 ) -> list[RoundSigStats]:
-    tbl = get_table_rows(fight_html, 3)
-    if len(tbl) != 1:
-        raise ValueError()
-
-    tbl = tbl[0]
-    totals_cols = [i.text.strip() for i in tbl.findAll("th")][:-3]
+    sig_stats_cols = [
+        i.text.strip() for i in fight_html.findAll("table")[2].findAll("th")
+    ]
     expected_cols = [
         "Fighter",
-        "KD" "Sig. str.",
+        "Sig. str",
         "Sig. str. %",
-        "Total str.",
-        "Td %",
-        "Td %",
-        "Sub. att",
-        "Rev.",
-        "Ctrl",
+        "Head",
+        "Body",
+        "Leg",
+        "Distance",
+        "Clinch",
+        "Ground",
     ]
-    if totals_cols != expected_cols:
+
+    if sig_stats_cols != expected_cols:
         raise ValueError()
 
-    totals_per_round = get_table_rows(fight_html, 1)
-    totals = []
-    for round_num, round in enumerate(totals_per_round, 1):
-        vals = [
-            i.text.strip()
-            for i in round.findAll("p", class_="b-fight-details__table-text")
-        ]
-        totals_raw = dict(zip(totals_cols, vals))
+    sig_stats_per_round = get_table_rows(fight_html, 3)
+    sig_stats = []
+    for round_num, round_data in enumerate(sig_stats_per_round, 1):
+        all_sig_stats_raw = get_round_vals(round_data, sig_stats_cols, expected_cols)
 
-    return totals
+        for sig_stats_raw in all_sig_stats_raw:
+            sig_strikes_landed, sig_strikes_attempted = get_split_stat(
+                sig_stats_raw["Sig. str"], "of"
+            )
+
+            sig_strikes_head_landed, sig_strikes_head_attempted = get_split_stat(
+                sig_stats_raw["Head"], "of"
+            )
+            sig_strikes_body_landed, sig_strikes_body_attempted = get_split_stat(
+                sig_stats_raw["Body"], "of"
+            )
+            sig_strikes_leg_landed, sig_strikes_leg_attempted = get_split_stat(
+                sig_stats_raw["Leg"], "of"
+            )
+            sig_strikes_distance_landed, sig_strikes_distance_attempted = (
+                get_split_stat(sig_stats_raw["Distance"], "of")
+            )
+            sig_strikes_clinch_landed, sig_strikes_clinch_attempted = get_split_stat(
+                sig_stats_raw["Clinch"], "of"
+            )
+            sig_strikes_ground_landed, sig_strikes_ground_attempted = get_split_stat(
+                sig_stats_raw["Ground"], "of"
+            )
+
+            sig_stats.append(
+                RoundSigStats(
+                    fight_uid=fight_uid,
+                    fighter_uid=sig_stats_raw["Fighter"],
+                    round_num=round_num,
+                    sig_strikes_landed=sig_strikes_landed,
+                    sig_strikes_attempted=sig_strikes_attempted,
+                    sig_strikes_head_landed=sig_strikes_head_landed,
+                    sig_strikes_head_attempted=sig_strikes_head_attempted,
+                    sig_strikes_body_landed=sig_strikes_body_landed,
+                    sig_strikes_body_attempted=sig_strikes_body_attempted,
+                    sig_strikes_leg_landed=sig_strikes_leg_landed,
+                    sig_strikes_leg_attempted=sig_strikes_leg_attempted,
+                    sig_strikes_distance_landed=sig_strikes_distance_landed,
+                    sig_strikes_distance_attempted=sig_strikes_distance_attempted,
+                    sig_strikes_clinch_landed=sig_strikes_clinch_landed,
+                    sig_strikes_clinch_attempted=sig_strikes_clinch_attempted,
+                    sig_strikes_grounded_landed=sig_strikes_ground_landed,
+                    sig_strikes_grounded_attempted=sig_strikes_ground_attempted,
+                )
+            )
+
+    return sig_stats
 
 
 def get_split_stat(stat: str, sep: str) -> tuple[int, int]:
@@ -168,27 +234,8 @@ def parse_round_totals(
 
     totals_per_round = get_table_rows(fight_html, 1)
     totals = []
-    for round_num, round in enumerate(totals_per_round, 1):
-        vals = [
-            val.text.strip()
-            for val in round.findAll("p", class_="b-fight-details__table-text")
-        ]
-        f1_vals = [val for i, val in enumerate(vals) if i % 2 == 0]
-        f2_vals = [val for i, val in enumerate(vals) if i % 2 == 1]
-
-        f1_uid, f2_uid = [i["href"].split("/")[-1] for i in round.findAll("a")]
-        if len(f1_vals) != len(totals_cols) or len(f2_vals) != len(totals_cols):
-            raise ValueError(
-                f"Round {round_num} has {len(totals_cols)} cols. Got {len(vals)} values"
-            )
-
-        f1_totals_raw = dict(zip(totals_cols, f1_vals))
-        f2_totals_raw = dict(zip(totals_cols, f2_vals))
-
-        f1_totals_raw["Fighter"] = f1_uid
-        f2_totals_raw["Fighter"] = f2_uid
-        all_totals_raw = [f1_totals_raw, f2_totals_raw]
-
+    for round_num, round_data in enumerate(totals_per_round, 1):
+        all_totals_raw = get_round_vals(round_data, totals_cols, expected_cols)
         for totals_raw in all_totals_raw:
             total_strikes_landed, total_strikes_attempted = get_split_stat(
                 totals_raw["Total str."], "of"
@@ -236,9 +283,8 @@ def parse_fight(fight_contents: FightContents) -> tuple[Fight, list[RoundStats]]
 
     event_uid = get_event_uid(fight_html)
     total_stats = parse_round_totals(fight_html, fight_contents.fight_uid)
-    sig_stats = parse_sig_totals(fight_html, fight_contents.fight_uid)
+    sig_stats = parse_sig_stats(fight_html, fight_contents.fight_uid)
 
-    # merge total stats and sig strikes
 
 
 def get_fight_html_files() -> list[FightContents]:
