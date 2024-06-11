@@ -3,6 +3,7 @@ from dataclasses import dataclass, astuple, fields
 from pathlib import Path
 import bs4
 
+
 @dataclass(frozen=True)
 class Promotion:
     promotion_uid: str
@@ -29,8 +30,11 @@ def get_con() -> tuple[sqlite3.Connection, sqlite3.Cursor]:
     return con, cur
 
 
-def get_table_rows(soup: bs4.BeautifulSoup) -> bs4.ResultSet:
-    table = soup.find("table")
+def get_table_rows(
+    soup: bs4.BeautifulSoup, table_num: int = 0
+) -> bs4.ResultSet[bs4.Tag]:
+    tables = soup.findAll("table")
+    table = tables[table_num]
     if table is None:
         raise ValueError("No table found")
 
