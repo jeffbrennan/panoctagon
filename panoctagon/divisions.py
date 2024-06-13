@@ -11,12 +11,18 @@ class UFCDivisionNames(str, Enum):
     FLYWEIGHT = "Flyweight"
     WOMENS_FLYWEIGHT = "Women's Flyweight"
     BANTAMWEIGHT = "Bantamweight"
+    WOMENS_BANTAMWEIGHT = "Women's Bantamweight"
     FEATHERWEIGHT = "Featherweight"
+    WOMENS_FEATHERWEIGHT = "Women's Featherweight"
     LIGHTWEIGHT = "Lightweight"
     WELTERWEIGHT = "Welterweight"
     MIDDLEWEIGHT = "Middleweight"
-    LIGHT_HEAVYWEIGHT = "Light heavyweight"
+    LIGHT_HEAVYWEIGHT = "Light Heavyweight"
     HEAVYWEIGHT = "Heavyweight"
+    SUPER_HEAVYWEIGHT = "Super Heavyweight"
+    CATCH_WEIGHT = "Catch Weight"
+    OPEN_WEIGHT = "Open Weight"
+
 
 class ONEDivisionNames(str, Enum):
     ATOMWEIGHT = "Atomweight"
