@@ -1,14 +1,16 @@
+import re
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import bs4
 import requests
 
 from common import write_tuples_to_db, get_con, get_table_rows
+from divisions import UFCDivisionNames
 
 
 class FightStyle(str, Enum):
@@ -18,18 +20,28 @@ class FightStyle(str, Enum):
 
 
 class FightType(str, Enum):
-    BOUT = "bout"
-    TITLE = "title"
+    BOUT = "Bout"
+    TITLE = "Title Bout"
 
 
+# fight level outcome
 class Decision(str, Enum):
     KO = "Knockout"
     TKO = "Technical Knockout"
-    UNANIMOUS_DECISION = "Unanimous Decision"
-    SPLIT_DECISION = "Split Decision"
+    SUB = "Submission"
+    UNANIMOUS_DECISION = "Decision - Unanimous"
+    SPLIT_DECISION = "Decision - Split"
     DRAW = "Draw"
     NO_CONTEST = "No Contest"
     DQ = "Disqualificaton"
+
+
+# fighter level outcome
+class FightResult(str, Enum):
+    WIN = "Win"
+    LOSS = "Loss"
+    NO_CONTEST = "No Contest"
+    DQ = "Disqualification"
 
 
 @dataclass
@@ -37,12 +49,15 @@ class Fight:
     event_uid: str
     fight_uid: str
     fight_style: FightStyle
-    fight_type: FightType
-    decision: str
-    method: str
-    decision_round: int
-    decision_time_seconds: int
-    referee: str
+    fight_type: Optional[FightType]
+    fighter1_uid: str
+    fighter2_uid: str
+    fighter1_result: FightResult
+    fighter2_result: FightResult
+    decision: Optional[Decision]
+    decision_round: Optional[int]
+    decision_time_seconds: Optional[int]
+    referee: Optional[str]
 
 
 @dataclass
@@ -50,6 +65,35 @@ class RoundSigStats:
     fight_uid: str
     fighter_uid: str
     round_num: int
+    sig_strikes_landed: int
+    sig_strikes_attempted: int
+    sig_strikes_head_landed: int
+    sig_strikes_head_attempted: int
+    sig_strikes_body_landed: int
+    sig_strikes_body_attempted: int
+    sig_strikes_leg_landed: int
+    sig_strikes_leg_attempted: int
+    sig_strikes_distance_landed: int
+    sig_strikes_distance_attempted: int
+    sig_strikes_clinch_landed: int
+    sig_strikes_clinch_attempted: int
+    sig_strikes_grounded_landed: int
+    sig_strikes_grounded_attempted: int
+
+
+@dataclass
+class RoundStats:
+    fight_uid: str
+    fighter_uid: str
+    round_num: int
+    knockdowns: int
+    total_strikes_landed: int
+    total_strikes_attempted: int
+    takedowns_landed: int
+    takedowns_attempted: int
+    submissions_attempted: int
+    reversals: int
+    control_time_seconds: int
     sig_strikes_landed: int
     sig_strikes_attempted: int
     sig_strikes_head_landed: int
@@ -79,15 +123,6 @@ class RoundTotalStats:
     submissions_attempted: int
     reversals: int
     control_time_seconds: int
-
-
-@dataclass
-class RoundStats:
-    fight_uid: str
-    fighter_uid: str
-    round_num: int
-    total_stats: RoundTotalStats
-    sig_stats: RoundSigStats
 
 
 @dataclass
@@ -264,6 +299,26 @@ def parse_round_totals(
     return totals
 
 
+def combine_dataclasses(class1, class2):
+    fields1 = {f.name: f.type for f in fields(class1)}
+    fields2 = {f.name: f.type for f in fields(class2)}
+    common_fields = set(fields1.keys()) & set(fields2.keys())
+
+    combined_class_fields = []
+    for field_name in common_fields:
+        combined_class_fields.append((field_name, fields1[field_name]))
+
+    combined_class_name = f"{class1.__name__}{class2.__name__}Combined"
+
+    combined_class = type(
+        combined_class_name,
+        (),
+        {name: field_type for name, field_type in combined_class_fields},
+    )
+
+    return combined_class
+
+
 def get_event_uid(fight_html: bs4.BeautifulSoup) -> str:
     event_uid_results = [
         i for i in fight_html.findAll("a") if "event-details" in str(i)
@@ -275,16 +330,134 @@ def get_event_uid(fight_html: bs4.BeautifulSoup) -> str:
     return event_uid
 
 
-def parse_fight(fight_contents: FightContents) -> tuple[Fight, list[RoundStats]]:
-    fight_html = bs4.BeautifulSoup(fight_contents.contents)
+def parse_fight_details(
+    fight_html: bs4.BeautifulSoup, event_uid: str, fight_uid: str
+) -> Fight:
+    tbl = get_table_rows(fight_html, 0)
+    detail_headers = [
+        i.text.strip() for i in fight_html.findAll("i", class_="b-fight-details__label")
+    ][1:]
+    detail_headers = [i.replace(":", "").strip() for i in detail_headers]
+
+    decision_details = [
+        re.sub("[ \t\n]+", " ", i.text).strip()
+        for i in fight_html.findAll("i", class_="b-fight-details__text-item")
+    ]
+    decision_details_values = [i.split(": ")[-1] for i in decision_details]
+
+    decision_round = None
+    decision_time_seconds = None
+    referee = None
+
+    if "Round" in detail_headers:
+        decision_round = int(decision_details_values[detail_headers.index("Round")])
+
+    if "Time" in detail_headers:
+        decision_round_time = decision_details_values[detail_headers.index("Time")]
+        round_min, round_sec = decision_round_time.split(":")
+        decision_time_seconds = (int(round_min) * 60) + int(round_sec)
+
+    if "Referee" in detail_headers:
+        referee = decision_details_values[detail_headers.index("Referee")]
+
+    decision = fight_html.find("i", attrs={"style": "font-style: normal"})
+    if decision is not None:
+        decision = (
+            decision.text.replace("KO/TKO", "TKO")
+            .replace("TKO", "Technical Knockout")
+            .replace("KO", "Knockout")
+            .strip()
+        )
+        try:
+            decision = Decision(decision)
+        except ValueError as e:
+            print(e)
+            decision = None
+
+    f1_uid, f2_uid = [i["href"].split("/")[-1] for i in tbl[0].findAll("a")]
+    f1_result, f2_result = [
+        i.findAll("i")[0].text.strip()
+        for i in fight_html.findAll("div", "b-fight-details__person")
+    ]
+
+    division_fight_type = fight_html.find("i", class_="b-fight-details__fight-title")
+    weight_division = None
+    fight_type = None
+    if division_fight_type is not None:
+        division_fight_type = division_fight_type.text.replace("UFC", "").strip()
+        division_fight_type_split = division_fight_type.split(" ")
+        n_words = len(division_fight_type_split)
+
+        if n_words == 4:
+            weight_division = " ".join(division_fight_type_split[0:2])
+            fight_type = " ".join(division_fight_type_split[2:4])
+        elif n_words == 3:
+            if "Title" in division_fight_type_split:
+                weight_division = " ".join(division_fight_type_split[0:1])
+                fight_type = " ".join(division_fight_type_split[1:3])
+            elif "Women's" in division_fight_type_split:
+                weight_division = " ".join(division_fight_type_split[0:2])
+                fight_type = " ".join(division_fight_type_split[2:3])
+            else:
+                print("unhandled!")
+                weight_division = None
+                fight_type = None
+
+        elif n_words == 2:
+            weight_division, fight_type = division_fight_type.split(" ")
+        else:
+            print("unhandled!")
+            weight_division = None
+            fight_type = None
+
+        try:
+            fight_type = FightType(fight_type)
+        except ValueError as e:
+            print(e)
+            fight_type = None
+
+        try:
+            weight_division = UFCDivisionNames(weight_division)
+        except ValueError as e:
+            print(e)
+            weight_division = None
+
+    output = Fight(
+        event_uid=event_uid,
+        fight_uid=fight_uid,
+        fight_style=FightStyle.MMA,
+        fight_type=fight_type,
+        fighter1_uid=f1_uid,
+        fighter2_uid=f2_uid,
+        fighter1_result=f1_result,
+        fighter2_result=f2_result,
+        decision=decision,
+        decision_round=decision_round,
+        decision_time_seconds=decision_time_seconds,
+        referee=referee,
+    )
+
+    print(output)
+    return output
+
+
+def parse_fight(
+    fight_contents: FightContents,
+) -> Optional[tuple[Fight, list[RoundTotalStats], list[RoundSigStats]]]:
+    fight_html = bs4.BeautifulSoup(fight_contents.contents, features="lxml")
+    if "Internal Server Error" in fight_html.text:
+        print("Internal Server Error")
+        return None
     fight_tables = fight_html.findAll("table")
     if len(fight_tables) != 4:
         raise ValueError(f"Expected 4 tables, got {len(fight_tables)}")
 
     event_uid = get_event_uid(fight_html)
+    fight = parse_fight_details(fight_html, event_uid, fight_contents.fight_uid)
     total_stats = parse_round_totals(fight_html, fight_contents.fight_uid)
     sig_stats = parse_sig_stats(fight_html, fight_contents.fight_uid)
 
+    return fight, total_stats, sig_stats
 
 
 def get_fight_html_files() -> list[FightContents]:
@@ -349,10 +522,12 @@ def main() -> None:
     #     print(f"[{i:03d}/{n_events:03d}] processing event : {uid}")
     #     get_fights_from_event(uid)
 
-    fights = get_fight_html_files()[0:1]
+    fights = get_fight_html_files()
     print(len(fights))
-    for i, fight in enumerate(fights):
-        print("processing fight", i)
+    # test_uid = "66eddbe35056c06d"
+    # test_fight = [i for i in fights if i.fight_uid == test_uid]
+    for i, fight in enumerate(fights, 1):
+        print(f"[{i} / {len(fights)}] processing fight {fight.fight_uid}")
         parse_fight(fight)
 
 
