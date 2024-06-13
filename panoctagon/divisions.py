@@ -7,7 +7,9 @@ from common import get_con, write_tuples_to_db
 
 class UFCDivisionNames(str, Enum):
     STRAWWEIGHT = "Strawweight"
+    WOMENS_STRAWWEIGHT = "Women's Strawweight"
     FLYWEIGHT = "Flyweight"
+    WOMENS_FLYWEIGHT = "Women's Flyweight"
     BANTAMWEIGHT = "Bantamweight"
     FEATHERWEIGHT = "Featherweight"
     LIGHTWEIGHT = "Lightweight"
@@ -15,7 +17,6 @@ class UFCDivisionNames(str, Enum):
     MIDDLEWEIGHT = "Middleweight"
     LIGHT_HEAVYWEIGHT = "Light heavyweight"
     HEAVYWEIGHT = "Heavyweight"
-
 
 class ONEDivisionNames(str, Enum):
     ATOMWEIGHT = "Atomweight"
@@ -26,7 +27,7 @@ class ONEDivisionNames(str, Enum):
     LIGHTWEIGHT = "Lightweight"
     WELTERWEIGHT = "Welterweight"
     MIDDLEWEIGHT = "Middleweight"
-    LIGHT_HEAVYWEIGHT = "Light heavyweight"
+    LIGHT_HEAVYWEIGHT = "Light Heavyweight"
     HEAVYWEIGHT = "Heavyweight"
 
 
