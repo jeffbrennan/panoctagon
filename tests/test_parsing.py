@@ -1,16 +1,16 @@
-from panoctagon.ufc.scrape_fights import (
-    parse_fight,
-    FightContents,
-    FightParsingResult,
-    FightDetailsParsingResult,
-    get_fight_html_files,
+from panoctagon.ufc.parse_fights import (
+    Decision,
     Fight,
+    FightContents,
+    FightDetailsParsingResult,
+    FightParsingResult,
+    FightResult,
     FightStyle,
     FightType,
-    FightResult,
-    Decision,
-    RoundTotalStats,
     RoundSigStats,
+    RoundTotalStats,
+    get_fight_html_files,
+    parse_fight,
 )
 
 
