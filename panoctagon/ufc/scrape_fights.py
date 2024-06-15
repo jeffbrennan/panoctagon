@@ -10,8 +10,8 @@ from typing import Any, Optional
 import bs4
 import requests
 
-from common import write_tuples_to_db, get_con, get_table_rows
-from divisions import UFCDivisionNames
+from panoctagon.common import write_tuples_to_db, get_con, get_table_rows
+from panoctagon.divisions import UFCDivisionNames
 
 
 class FightStyle(str, Enum):
@@ -134,9 +134,16 @@ class RoundTotalStats:
 @dataclass
 class FightContents:
     fight_uid: str
+    path: Path
     contents: str
     fight_num: int
     n_fights: int
+
+
+@dataclass
+class ParsingIssue:
+    issue: str
+    fight_uids: list[str]
 
 
 def write_fight_stats(fight: Fight) -> None:
@@ -399,10 +406,22 @@ def parse_fight_details(
             decision = None
 
     f1_uid, f2_uid = [i["href"].split("/")[-1] for i in tbl[0].findAll("a")]
-    f1_result, f2_result = [
+    f1_result_raw, f2_result_raw = [
         i.findAll("i")[0].text.strip()
         for i in fight_html.findAll("div", "b-fight-details__person")
     ]
+
+    fighter_results = []
+    for result in [f1_result_raw, f2_result_raw]:
+        result_clean = result.replace("W", "Win").replace("L", "Loss").strip()
+
+        try:
+            fighter_results.append(FightResult(result_clean))
+        except ValueError as e:
+            parsing_issues.append(str(e))
+            fighter_results.append(None)
+
+    f1_result, f2_result = fighter_results
 
     division_fight_type = fight_html.find("i", class_="b-fight-details__fight-title")
     weight_division = None
@@ -417,11 +436,14 @@ def parse_fight_details(
             .replace("Australia vs. UK", "")
             .replace("TUF Nations Canada vs. Australia", "")
             .replace("Japan", "")
+            .replace("Championship", "Title")
+            .replace("Superfight", "Open Weight")
+            .replace("Tournament", "Open Weight")
             .strip()
         )
 
         division_fight_type = (
-            re.sub("\d", "", division_fight_type)
+            re.sub("\\d", "", division_fight_type)
             .strip()
             .replace("Brazil", "")
             .replace("China", "")
@@ -486,10 +508,40 @@ def parse_fight_details(
 
 @dataclass
 class FightParsingResult:
+    fight_uid: str
     fight_result: Optional[FightDetailsParsingResult]
     total_stats: Optional[list[RoundTotalStats]]
     sig_stats: Optional[list[RoundSigStats]]
     file_issues: list[str]
+
+
+def check_file_issues(
+    fight_contents: FightContents, fight_html: bs4.BeautifulSoup
+) -> Optional[FightParsingResult]:
+    file_error_indicators = [
+        "Internal Server Error",
+        "Round-by-round stats not currently available.",
+    ]
+    result = FightParsingResult(
+        fight_uid=fight_contents.fight_uid,
+        fight_result=None,
+        total_stats=None,
+        sig_stats=None,
+        file_issues=[],
+    )
+    fight_text = fight_html.text
+
+    for error_indicator in file_error_indicators:
+        if error_indicator in fight_text:
+            result.file_issues = [error_indicator]
+            print(f"[deleting {fight_contents.fight_uid}] - {error_indicator}")
+            fight_contents.path.unlink()
+            return result
+
+    fight_tables = fight_html.findAll("table")
+    if len(fight_tables) != 4:
+        result.file_issues = [f"unhandled number of tables: {len(fight_tables)}"]
+    return None
 
 
 def parse_fight(
@@ -498,21 +550,11 @@ def parse_fight(
     file_issues = []
     if fight_contents.fight_num % 100 == 0:
         print(f"[{fight_contents.fight_num:05d} / {fight_contents.n_fights-1:05d}]")
-    fight_html = bs4.BeautifulSoup(fight_contents.contents, features="lxml")
-    if "Internal Server Error" in fight_html.text:
-        file_issues.append("Internal Server Error")
-        return FightParsingResult(
-            fight_result=None, total_stats=None, sig_stats=None, file_issues=file_issues
-        )
-    if "Round-by-round stats not currently available." in fight_html.text:
-        file_issues.append("Round-by-round stats not currently available.")
-        return FightParsingResult(
-            fight_result=None, total_stats=None, sig_stats=None, file_issues=file_issues
-        )
 
-    fight_tables = fight_html.findAll("table")
-    if len(fight_tables) != 4:
-        raise ValueError(f"Expected 4 tables, got {len(fight_tables)}")
+    fight_html = bs4.BeautifulSoup(fight_contents.contents, features="lxml")
+    check_results = check_file_issues(fight_contents, fight_html)
+    if check_results is not None:
+        return check_results
 
     event_uid = get_event_uid(fight_html)
     fight_parsing_results = parse_fight_details(
@@ -522,6 +564,7 @@ def parse_fight(
     sig_stats = parse_sig_stats(fight_html, fight_contents.fight_uid)
 
     return FightParsingResult(
+        fight_uid=fight_contents.fight_uid,
         fight_result=fight_parsing_results,
         total_stats=total_stats,
         sig_stats=sig_stats,
@@ -529,9 +572,11 @@ def parse_fight(
     )
 
 
-def get_fight_html_files() -> list[FightContents]:
+def get_fight_html_files(uid: Optional[str] = None) -> list[FightContents]:
     base_dir = Path(__file__).parents[2] / "data/raw/ufc/fights"
     all_files = list(base_dir.glob("*.html"))
+    if uid is not None:
+        all_files = [f for f in all_files if uid in f.name]
 
     all_fight_contents = []
     for i, fight_file in enumerate(all_files):
@@ -540,6 +585,7 @@ def get_fight_html_files() -> list[FightContents]:
             all_fight_contents.append(
                 FightContents(
                     fight_uid=fight_uid,
+                    path=fight_file,
                     contents=f.read(),
                     fight_num=i,
                     n_fights=len(all_files),
@@ -589,6 +635,33 @@ def get_fights_from_event(uid):
         executor.map(dump_fight_html, fight_uids)
 
 
+def handle_parsing_issues(results: list[FightParsingResult]) -> None:
+
+    all_parsing_issues: list[ParsingIssue] = []
+    for result in results:
+        if result.fight_result is None:
+            continue
+
+        parsing_issues = result.fight_result.parsing_issues
+        if not parsing_issues:
+            continue
+
+        existing_issues = [i.issue for i in all_parsing_issues]
+        for issue in parsing_issues:
+            if issue in existing_issues:
+                issue_index = existing_issues.index(issue)
+                all_parsing_issues[issue_index].fight_uids += [result.fight_uid]
+                continue
+
+            all_parsing_issues.append(ParsingIssue(issue, [result.fight_uid]))
+
+    n_parsing_issues = len(all_parsing_issues)
+    if n_parsing_issues > 0:
+        for i in all_parsing_issues:
+            print(i)
+        assert n_parsing_issues == 0
+
+
 def main() -> None:
     cpu_count = os.cpu_count()
     if cpu_count is None:
@@ -602,22 +675,10 @@ def main() -> None:
 
     fights = get_fight_html_files()
 
-
     with ProcessPoolExecutor(max_workers=cpu_count - 1) as executor:
-        results = executor.map(parse_fight, fights)
+        results = list(executor.map(parse_fight, fights[0:500]))
 
-    all_parsing_issues = []
-    for i in results:
-        if i.fight_result is None:
-            continue
-        all_parsing_issues.extend(i.fight_result.parsing_issues)
-
-    parsing_issues_unique = sorted(list(set(all_parsing_issues)))
-    n_parsing_issues = len(parsing_issues_unique)
-    if n_parsing_issues > 0:
-        for i in parsing_issues_unique:
-            print(i)
-        assert len(parsing_issues_unique) == 0
+    handle_parsing_issues(results)
 
 
 if __name__ == "__main__":
