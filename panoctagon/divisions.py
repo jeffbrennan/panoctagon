@@ -2,7 +2,7 @@ import uuid
 from enum import Enum
 from dataclasses import dataclass
 
-from common import get_con, write_tuples_to_db
+from panoctagon.common import get_con, write_tuples_to_db
 
 
 class UFCDivisionNames(str, Enum):
@@ -22,7 +22,6 @@ class UFCDivisionNames(str, Enum):
     SUPER_HEAVYWEIGHT = "Super Heavyweight"
     CATCH_WEIGHT = "Catch Weight"
     OPEN_WEIGHT = "Open Weight"
-
 
 class ONEDivisionNames(str, Enum):
     ATOMWEIGHT = "Atomweight"
