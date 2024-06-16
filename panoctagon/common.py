@@ -4,12 +4,34 @@ from pathlib import Path
 from typing import Optional, Any
 
 import bs4
+import requests
 
 
 @dataclass(frozen=True)
 class Promotion:
     promotion_uid: str
     name: str
+
+
+@dataclass
+class ScrapingConfig:
+    uid: str
+    description: str
+    base_url: str
+    base_dir: Path
+    fname: str
+
+
+def dump_html(config: ScrapingConfig, log_uid: bool) -> None:
+    if log_uid:
+        print(f"saving {config.description}: {config.uid}")
+    url = f"{config.base_url}/{config.uid}"
+    output_path = config.base_dir / f"{config.uid}.html"
+    response = requests.get(url)
+    soup = bs4.BeautifulSoup(response.text, "html.parser")
+
+    with output_path.open("w") as f:
+        f.write(str(soup))
 
 
 def write_data_to_db(
