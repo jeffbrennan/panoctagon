@@ -12,6 +12,7 @@ from panoctagon.ufc.parse_fights import (
     get_fight_html_files,
     parse_fight,
 )
+from panoctagon.divisions import UFCDivisionNames
 
 
 def _test_parsing(fight_contents: FightContents, expected: FightParsingResult):
@@ -49,6 +50,7 @@ def test_superfight():
                     fight_uid="6a060498e60756af",
                     fight_style=FightStyle.MMA,
                     fight_type=FightType.TITLE,
+                    fight_division=UFCDivisionNames.OPEN_WEIGHT,
                     fighter1_uid="c670aa48827d6be6",
                     fighter2_uid="63b65af1c5cb02cb",
                     fighter1_result=FightResult.WIN,
@@ -275,6 +277,7 @@ def test_title():
                     fight_uid="f29eec19aa5c1303",
                     fight_style=FightStyle.MMA,
                     fight_type=FightType.TITLE,
+                    fight_division=UFCDivisionNames.OPEN_WEIGHT,
                     fighter1_uid="429e7d3725852ce9",
                     fighter2_uid="c670aa48827d6be6",
                     fighter1_result=FightResult.WIN,
@@ -364,6 +367,7 @@ def test_title():
                     fight_uid="00835554f95fa911",
                     fight_style=FightStyle.MMA,
                     fight_type=FightType.TITLE,
+                    fight_division=UFCDivisionNames.OPEN_WEIGHT,
                     fighter1_uid="429e7d3725852ce9",
                     fighter2_uid="46c8ec317aff28ac",
                     fighter1_result=FightResult.WIN,
