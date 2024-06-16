@@ -23,7 +23,6 @@ class FightType(str, Enum):
     TITLE = "Title Bout"
 
 
-# fight level outcome
 class Decision(str, Enum):
     KO = "Knockout"
     TKO = "Technical Knockout"
@@ -413,13 +412,14 @@ def parse_fight_details(
 
     f1_result, f2_result = fighter_results
 
-    division_fight_type = fight_html.find("i", class_="b-fight-details__fight-title")
+    division_fight_type_raw = fight_html.find(
+        "i", class_="b-fight-details__fight-title"
+    )
     weight_division = None
     fight_type = None
-    if division_fight_type is not None:
+    if division_fight_type_raw is not None:
         division_fight_type = (
-            division_fight_type.text.replace("UFC", "")
-            .replace("Tournament", "")
+            division_fight_type_raw.text.replace("UFC", "")
             .replace("Ultimate Fighter", "")
             .replace("Ultimate", "")
             .replace("Latin America", "")
@@ -586,7 +586,6 @@ def get_fight_html_files(uid: Optional[str] = None) -> list[FightContents]:
 
 
 def handle_parsing_issues(results: list[FightParsingResult]) -> None:
-
     all_parsing_issues: list[ParsingIssue] = []
     for result in results:
         if result.fight_result is None:
