@@ -2,7 +2,7 @@ import uuid
 from enum import Enum
 from dataclasses import dataclass
 
-from panoctagon.common import get_con, write_tuples_to_db
+from panoctagon.common import get_con, write_data_to_db
 
 
 class UFCDivisionNames(str, Enum):
@@ -69,7 +69,7 @@ def write_divisions(divisions: list[Division]) -> None:
            """
     )
 
-    write_tuples_to_db(con, "divisions", divisions)
+    write_data_to_db(con, "divisions", divisions)
 
 
 def get_ufc_divisions() -> list[Division]:

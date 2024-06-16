@@ -1,15 +1,19 @@
 import os
 import re
+import polars as pl
 from concurrent.futures import ProcessPoolExecutor
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, fields, asdict
 from enum import Enum
 from pathlib import Path
-from typing import Any, Optional
-
+from typing import Any, Optional, TYPE_CHECKING
 import bs4
 
-from panoctagon.common import write_tuples_to_db, get_con, get_table_rows
+from panoctagon.common import write_data_to_db, get_con, get_table_rows
 from panoctagon.divisions import UFCDivisionNames
+
+
+if TYPE_CHECKING:
+    from _typeshed import DataclassInstance
 
 
 class FightStyle(str, Enum):
@@ -141,11 +145,6 @@ class FightContents:
 class ParsingIssue:
     issue: str
     fight_uids: list[str]
-
-
-def write_fight_stats(fight: Fight) -> None:
-    con, _ = get_con()
-    write_tuples_to_db(con, "raw_fights", [fight])
 
 
 def get_round_vals(
@@ -611,6 +610,32 @@ def handle_parsing_issues(results: list[FightParsingResult]) -> None:
         assert n_parsing_issues == 0
 
 
+def convert_dataclass_to_dataframe(dc) -> pl.DataFrame:
+    dc_flat = [asdict(item) for sublist in dc for item in sublist]
+    return pl.DataFrame(dc_flat)
+
+
+def write_results_to_db(results: list[FightParsingResult]) -> None:
+    con, _ = get_con()
+    sig_stats_flat = convert_dataclass_to_dataframe([i.sig_stats for i in results])
+    total_stats_flat = convert_dataclass_to_dataframe(
+        ([i.total_stats for i in results])
+    )
+
+    stats_combined = total_stats_flat.join(
+        sig_stats_flat, on=["fight_uid", "fighter_uid", "round_num"]
+    )
+
+    stats_combined.head()
+    stats_combined_tuples: list[tuple] = stats_combined.rows(named=False)
+    headers = stats_combined.columns
+    write_data_to_db(con, "ufc_fight_stats", stats_combined_tuples, headers)
+    fights: list[DataclassInstance] = [
+        i.fight_result.fight for i in results if i.fight_result is not None
+    ]
+    write_data_to_db(con, "ufc_fights", fights, None)
+
+
 def main() -> None:
     cpu_count = os.cpu_count()
     if cpu_count is None:
@@ -622,6 +647,8 @@ def main() -> None:
         results = list(executor.map(parse_fight, fights[0:500]))
 
     handle_parsing_issues(results)
+
+    write_results_to_db(results)
 
 
 if __name__ == "__main__":

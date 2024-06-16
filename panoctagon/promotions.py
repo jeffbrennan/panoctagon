@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import uuid
-from panoctagon.common import get_con, write_tuples_to_db
+from panoctagon.common import get_con, write_data_to_db
 
 
 @dataclass(frozen=True)
@@ -25,7 +25,7 @@ def write_promotions(promotions: list[Promotion]) -> None:
         """
     )
 
-    write_tuples_to_db(con, "promotions", promotions)
+    write_data_to_db(con, "promotions", promotions)
 
 
 def main():

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import requests
 import bs4
 
-from panoctagon.common import write_tuples_to_db, get_con, get_table_rows
+from panoctagon.common import write_data_to_db, get_con, get_table_rows
 
 
 @dataclass(frozen=True)
@@ -30,7 +30,7 @@ def write_events(urls: list[UFCEvent]) -> None:
         """
     )
 
-    write_tuples_to_db(con, "ufc_events", urls)
+    write_data_to_db(con, "ufc_events", urls)
 
 
 def get_events() -> list[UFCEvent]:

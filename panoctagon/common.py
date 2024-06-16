@@ -1,7 +1,13 @@
 import sqlite3
-from dataclasses import dataclass, astuple, fields
+from dataclasses import dataclass, astuple, fields, is_dataclass
 from pathlib import Path
+from typing import Optional
+from typing import TYPE_CHECKING
+
 import bs4
+
+if TYPE_CHECKING:
+    from _typeshed import DataclassInstance
 
 
 @dataclass(frozen=True)
@@ -10,16 +16,38 @@ class Promotion:
     name: str
 
 
-def write_tuples_to_db(con: sqlite3.Connection, tbl_name: str, data: list[dataclass]):
+def write_data_to_db(
+    con: sqlite3.Connection,
+    tbl_name: str,
+    data: list[tuple] | list[DataclassInstance],
+    col_names: Optional[list[str]],
+) -> None:
     cur = con.cursor()
-    col_names = [f.name for f in fields(data[0])]
+
+    if is_dataclass(data[0]):
+        col_names = [f.name for f in fields(data[0])]
+        tuples = [astuple(i) for i in data]  # pyright: ignore [reportArgumentType]
+    elif isinstance(data[0], tuple):
+        if col_names is None:
+            raise ValueError(
+                "expecting headers to be specified when data is a list of tuples"
+            )
+        tuples = data
+    else:
+        raise NotImplementedError(f"unsupported data type: {type(data[0])}")
+
+    if col_names is None:
+        raise ValueError("expecting headers")
+
+    if not isinstance(tuples[0], tuple):
+        raise TypeError("expecting tuples")
+
     n_cols = len(col_names)
     headers = ",".join(col_names)
-    tuples = [astuple(i) for i in data]
     placeholders = ", ".join(["?"] * n_cols)
 
     query = f"INSERT INTO {tbl_name} ({headers}) VALUES ({placeholders})"
-    cur.executemany(query, tuples)
+    cur.executemany(query, tuples)  # pyright: ignore [reportArgumentType]
     con.commit()
 
 
