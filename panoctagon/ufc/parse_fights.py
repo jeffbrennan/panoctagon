@@ -1,5 +1,7 @@
 import os
 import re
+import sqlite3
+
 import polars as pl
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, fields, asdict
@@ -45,6 +47,7 @@ class FightResult(str, Enum):
     LOSS = "Loss"
     NO_CONTEST = "No Contest"
     DQ = "Disqualification"
+    DRAW = "Draw"
 
 
 @dataclass
@@ -53,6 +56,7 @@ class Fight:
     fight_uid: str
     fight_style: FightStyle
     fight_type: Optional[FightType]
+    fight_division: Optional[UFCDivisionNames]
     fighter1_uid: str
     fighter2_uid: str
     fighter1_result: FightResult
@@ -68,35 +72,6 @@ class RoundSigStats:
     fight_uid: str
     fighter_uid: str
     round_num: int
-    sig_strikes_landed: int
-    sig_strikes_attempted: int
-    sig_strikes_head_landed: int
-    sig_strikes_head_attempted: int
-    sig_strikes_body_landed: int
-    sig_strikes_body_attempted: int
-    sig_strikes_leg_landed: int
-    sig_strikes_leg_attempted: int
-    sig_strikes_distance_landed: int
-    sig_strikes_distance_attempted: int
-    sig_strikes_clinch_landed: int
-    sig_strikes_clinch_attempted: int
-    sig_strikes_grounded_landed: int
-    sig_strikes_grounded_attempted: int
-
-
-@dataclass
-class RoundStats:
-    fight_uid: str
-    fighter_uid: str
-    round_num: int
-    knockdowns: int
-    total_strikes_landed: int
-    total_strikes_attempted: int
-    takedowns_landed: int
-    takedowns_attempted: int
-    submissions_attempted: int
-    reversals: int
-    control_time_seconds: int
     sig_strikes_landed: int
     sig_strikes_attempted: int
     sig_strikes_head_landed: int
@@ -397,7 +372,13 @@ def parse_fight_details(
 
     fighter_results = []
     for result in [f1_result_raw, f2_result_raw]:
-        result_clean = result.replace("W", "Win").replace("L", "Loss").strip()
+        result_clean = (
+            result.replace("W", "Win")
+            .replace("L", "Loss")
+            .replace("D", "Draw")
+            .replace("NC", "No Contest")
+            .strip()
+        )
 
         try:
             fighter_results.append(FightResult(result_clean))
@@ -423,6 +404,7 @@ def parse_fight_details(
             .replace("Japan", "")
             .replace("Championship", "Title")
             .replace("Superfight", "Open Weight")
+            .replace("Tournament Title", "Title")
             .replace("Tournament", "Open Weight")
             .strip()
         )
@@ -454,7 +436,11 @@ def parse_fight_details(
                 )
 
         elif n_words == 2:
-            weight_division, fight_type = division_fight_type.split(" ")
+            if division_fight_type == "Title Bout":
+                weight_division = "Open Weight"
+                fight_type = "Title Bout"
+            else:
+                weight_division, fight_type = division_fight_type.split(" ")
         else:
             parsing_issues.append(
                 f"unhandled number of words  < 2 and > 4 {division_fight_type_split}"
@@ -477,6 +463,7 @@ def parse_fight_details(
         fight_uid=fight_uid,
         fight_style=FightStyle.MMA,
         fight_type=fight_type,
+        fight_division=weight_division,
         fighter1_uid=f1_uid,
         fighter2_uid=f2_uid,
         fighter1_result=f1_result,
@@ -611,8 +598,73 @@ def convert_dataclass_to_dataframe(dc) -> pl.DataFrame:
     return pl.DataFrame(dc_flat)
 
 
-def write_results_to_db(results: list[FightParsingResult]) -> None:
-    con, _ = get_con()
+def create_fight_tables(cur: sqlite3.Cursor) -> None:
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS
+        ufc_fights(
+            event_uid TEXT NOT NULL,
+            fight_uid TEXT NOT NULL,
+            fight_style TEXT NOT NULL,
+            fight_type TEXT,
+            fight_division TEXT,
+            fighter1_uid TEXT NOT NULL,
+            fighter2_uid TEXT NOT NULL,
+            fighter1_result TEXT NOT NULL,
+            fighter2_result TEXT NOT NULL,
+            decision TEXT, 
+            decision_round INTEGER,
+            decision_time_seconds INTEGER,
+            referee TEXT,
+            PRIMARY KEY (event_uid, fight_uid),
+            FOREIGN KEY (event_uid) references ufc_events(event_uid)
+            ) STRICT;
+
+    """
+    )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS
+        ufc_fight_stats(
+            fight_uid TEXT NOT NULL,
+            fighter_uid TEXT NOT NULL,
+            round_num INTEGER NOT NULL,
+            knockdowns INTEGER,
+            total_strikes_landed INTEGER,
+            total_strikes_attempted INTEGER,
+            takedowns_landed INTEGER,
+            takedowns_attempted INTEGER,
+            submissions_attempted INTEGER,
+            reversals INTEGER,
+            control_time_seconds INTEGER, 
+            sig_strikes_landed INTEGER,
+            sig_strikes_attempted INTEGER,
+            sig_strikes_head_landed INTEGER,
+            sig_strikes_head_attempted INTEGER,
+            sig_strikes_body_landed INTEGER,
+            sig_strikes_body_attempted INTEGER,
+            sig_strikes_leg_landed INTEGER,
+            sig_strikes_leg_attempted INTEGER,
+            sig_strikes_distance_landed INTEGER,
+            sig_strikes_distance_attempted INTEGER,
+            sig_strikes_clinch_landed INTEGER,
+            sig_strikes_clinch_attempted INTEGER,
+            sig_strikes_grounded_landed INTEGER,
+            sig_strikes_grounded_attempted INTEGER,
+            PRIMARY KEY (fight_uid, fighter_uid, round_num),
+            FOREIGN KEY (fight_uid) references ufc_fights(fight_uid)
+            ) STRICT;
+
+    """
+    )
+
+
+def write_fight_results_to_db(results: list[FightParsingResult]) -> None:
+    con, cur = get_con()
+    create_fight_tables(cur)
+
     sig_stats_flat = convert_dataclass_to_dataframe([i.sig_stats for i in results])
     total_stats_flat = convert_dataclass_to_dataframe(
         ([i.total_stats for i in results])
@@ -630,6 +682,10 @@ def write_results_to_db(results: list[FightParsingResult]) -> None:
     write_data_to_db(con, "ufc_fights", fights, None)
 
 
+def get_unparsed_fights(all_fights: list[FightContents]) -> list[FightContents]:
+    pass
+
+
 def main() -> None:
     cpu_count = os.cpu_count()
     if cpu_count is None:
@@ -641,8 +697,7 @@ def main() -> None:
         results = list(executor.map(parse_fight, fights[0:500]))
 
     handle_parsing_issues(results)
-
-    write_results_to_db(results)
+    write_fight_results_to_db(results)
 
 
 if __name__ == "__main__":
