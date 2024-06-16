@@ -30,7 +30,7 @@ def write_events(urls: list[UFCEvent]) -> None:
         """
     )
 
-    write_data_to_db(con, "ufc_events", urls)
+    write_data_to_db(con, "ufc_events", urls, None)
 
 
 def get_events() -> list[UFCEvent]:
@@ -45,12 +45,23 @@ def get_events() -> list[UFCEvent]:
         if len(cols) != 2:
             continue
 
+        if row.a is None:
+            continue
+
         url = row.a["href"]
+        if not isinstance(url, str):
+            raise TypeError()
+
         event_uid = url.split("/")[-1]
         title = row.a.text.strip()
         fight_location = cols[-1].text.strip()
 
-        fight_date_txt: str = row.find("span", class_="b-statistics__date").text.strip()
+        fight_date_txt_raw = row.find("span", class_="b-statistics__date")
+        if fight_date_txt_raw is None:
+            unparsed_events.append(event_uid)
+            continue
+
+        fight_date_txt = fight_date_txt_raw.text.strip()
         if fight_date_txt is None:
             unparsed_events.append(event_uid)
             continue
