@@ -406,6 +406,7 @@ def parse_fight_details(
             .replace("Superfight", "Open Weight")
             .replace("Tournament Title", "Title")
             .replace("Tournament", "Open Weight")
+            .replace("'", "")
             .strip()
         )
 
