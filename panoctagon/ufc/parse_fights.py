@@ -550,21 +550,24 @@ def get_fight_html_files(uid: Optional[str] = None) -> list[FightContents]:
     if uid is not None:
         all_files = [f for f in all_files if uid in f.name]
 
-    all_fight_contents = []
-    for i, fight_file in enumerate(all_files):
+    existing_uids = get_parsed_uids()
+    files_to_parse = [i for i in all_files if i.stem not in existing_uids]
+
+    fight_contents_to_parse = []
+    for i, fight_file in enumerate(files_to_parse):
         fight_uid = fight_file.stem
         with fight_file.open("r") as f:
-            all_fight_contents.append(
+            fight_contents_to_parse.append(
                 FightContents(
                     fight_uid=fight_uid,
                     path=fight_file,
                     contents=f.read(),
                     fight_num=i,
-                    n_fights=len(all_files),
+                    n_fights=len(files_to_parse),
                 )
             )
 
-    return all_fight_contents
+    return fight_contents_to_parse
 
 
 def handle_parsing_issues(results: list[FightParsingResult]) -> None:
@@ -682,8 +685,11 @@ def write_fight_results_to_db(results: list[FightParsingResult]) -> None:
     write_data_to_db(con, "ufc_fights", fights, None)
 
 
-def get_unparsed_fights(all_fights: list[FightContents]) -> list[FightContents]:
-    pass
+def get_parsed_uids() -> list[str]:
+    _, cur = get_con()
+    cur.execute("select fight_uid from ufc_fights")
+    uids = [i[0] for i in cur.fetchall()]
+    return uids
 
 
 def main() -> None:
