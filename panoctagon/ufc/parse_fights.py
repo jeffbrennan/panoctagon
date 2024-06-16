@@ -570,9 +570,11 @@ def get_fight_html_files(uid: Optional[str] = None) -> list[FightContents]:
     return fight_contents_to_parse
 
 
-def handle_parsing_issues(results: list[FightParsingResult]) -> None:
+def handle_parsing_issues(
+    results: list[FightParsingResult], raise_error: bool
+) -> list[FightParsingResult]:
     all_parsing_issues: list[ParsingIssue] = []
-    for result in results:
+    for i, result in enumerate(results):
         if result.fight_result is None:
             continue
 
@@ -590,10 +592,21 @@ def handle_parsing_issues(results: list[FightParsingResult]) -> None:
             all_parsing_issues.append(ParsingIssue(issue, [result.fight_uid]))
 
     n_parsing_issues = len(all_parsing_issues)
+    clean_results = results
     if n_parsing_issues > 0:
         for i in all_parsing_issues:
             print(i)
-        assert n_parsing_issues == 0
+        if raise_error:
+            assert n_parsing_issues == 0
+        problem_uids = [
+            item
+            for sublist in [i.fight_uids for i in all_parsing_issues]
+            for item in sublist
+        ]
+        problem_uids_deduped = sorted(list(set(problem_uids)))
+        print(f"removing {problem_uids} from insert")
+        clean_results = [i for i in results if i.fight_uid not in problem_uids_deduped]
+    return clean_results
 
 
 def convert_dataclass_to_dataframe(dc) -> pl.DataFrame:
@@ -700,10 +713,12 @@ def main() -> None:
     fights = get_fight_html_files()
 
     with ProcessPoolExecutor(max_workers=cpu_count - 1) as executor:
-        results = list(executor.map(parse_fight, fights[0:500]))
+        results = list(executor.map(parse_fight, fights))
 
-    handle_parsing_issues(results)
-    write_fight_results_to_db(results)
+    clean_results = handle_parsing_issues(results, False)
+    assert len(clean_results) > 0
+
+    write_fight_results_to_db(clean_results)
 
 
 if __name__ == "__main__":
