@@ -1,13 +1,9 @@
 import sqlite3
 from dataclasses import dataclass, astuple, fields, is_dataclass
 from pathlib import Path
-from typing import Optional
-from typing import TYPE_CHECKING
+from typing import Optional, Any
 
 import bs4
-
-if TYPE_CHECKING:
-    from _typeshed import DataclassInstance
 
 
 @dataclass(frozen=True)
@@ -19,7 +15,7 @@ class Promotion:
 def write_data_to_db(
     con: sqlite3.Connection,
     tbl_name: str,
-    data: list[tuple] | list[DataclassInstance],
+    data: list[tuple] | list[Any],
     col_names: Optional[list[str]],
 ) -> None:
     cur = con.cursor()

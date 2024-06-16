@@ -5,15 +5,11 @@ from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, fields, asdict
 from enum import Enum
 from pathlib import Path
-from typing import Any, Optional, TYPE_CHECKING
+from typing import Any, Optional
 import bs4
 
 from panoctagon.common import write_data_to_db, get_con, get_table_rows
 from panoctagon.divisions import UFCDivisionNames
-
-
-if TYPE_CHECKING:
-    from _typeshed import DataclassInstance
 
 
 class FightStyle(str, Enum):
@@ -630,9 +626,7 @@ def write_results_to_db(results: list[FightParsingResult]) -> None:
     stats_combined_tuples: list[tuple] = stats_combined.rows(named=False)
     headers = stats_combined.columns
     write_data_to_db(con, "ufc_fight_stats", stats_combined_tuples, headers)
-    fights: list[DataclassInstance] = [
-        i.fight_result.fight for i in results if i.fight_result is not None
-    ]
+    fights = [i.fight_result.fight for i in results if i.fight_result is not None]
     write_data_to_db(con, "ufc_fights", fights, None)
 
 
