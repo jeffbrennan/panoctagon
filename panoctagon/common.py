@@ -22,6 +22,49 @@ class ScrapingConfig:
     fname: str
 
 
+@dataclass
+class FileContents:
+    uid: str
+    path: Path
+    contents: str
+    file_num: int
+    n_files: int
+
+
+def get_parsed_uids(uid_col: str, tbl: str) -> list[str]:
+    _, cur = get_con()
+    cur.execute(f"select {uid_col} from {tbl}")
+    uids = [i[0] for i in cur.fetchall()]
+    return uids
+
+
+def get_html_files(
+    dir: Path, uid_col: str, tbl: str, uid: Optional[str] = None
+) -> list[FileContents]:
+    all_files = list(dir.glob("*.html"))
+    if uid is not None:
+        all_files = [f for f in all_files if uid in f.name]
+
+    existing_uids = get_parsed_uids(uid_col, tbl)
+    files_to_parse = [i for i in all_files if i.stem not in existing_uids]
+
+    fight_contents_to_parse = []
+    for i, fpath in enumerate(files_to_parse):
+        uid = fpath.stem
+        with fpath.open("r") as f:
+            fight_contents_to_parse.append(
+                FileContents(
+                    uid=uid,
+                    path=fpath,
+                    contents=f.read(),
+                    file_num=i,
+                    n_files=len(files_to_parse),
+                )
+            )
+
+    return fight_contents_to_parse
+
+
 def dump_html(config: ScrapingConfig, log_uid: bool) -> None:
     if log_uid:
         print(f"saving {config.description}: {config.uid}")

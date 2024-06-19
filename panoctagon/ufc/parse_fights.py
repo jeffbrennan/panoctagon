@@ -10,7 +10,13 @@ from pathlib import Path
 from typing import Any, Optional
 import bs4
 
-from panoctagon.common import write_data_to_db, get_con, get_table_rows
+from panoctagon.common import (
+    write_data_to_db,
+    get_con,
+    get_table_rows,
+    FileContents,
+    get_html_files,
+)
 from panoctagon.divisions import UFCDivisionNames
 
 
@@ -101,15 +107,6 @@ class RoundTotalStats:
     submissions_attempted: int
     reversals: int
     control_time_seconds: Optional[int]
-
-
-@dataclass
-class FightContents:
-    fight_uid: str
-    path: Path
-    contents: str
-    fight_num: int
-    n_fights: int
 
 
 @dataclass
@@ -489,14 +486,14 @@ class FightParsingResult:
 
 
 def check_file_issues(
-    fight_contents: FightContents, fight_html: bs4.BeautifulSoup
+    fight_contents: FileContents, fight_html: bs4.BeautifulSoup
 ) -> Optional[FightParsingResult]:
     file_error_indicators = [
         "Internal Server Error",
         "Round-by-round stats not currently available.",
     ]
     result = FightParsingResult(
-        fight_uid=fight_contents.fight_uid,
+        fight_uid=fight_contents.uid,
         fight_result=None,
         total_stats=None,
         sig_stats=None,
@@ -507,7 +504,7 @@ def check_file_issues(
     for error_indicator in file_error_indicators:
         if error_indicator in fight_text:
             result.file_issues = [error_indicator]
-            print(f"[deleting {fight_contents.fight_uid}] - {error_indicator}")
+            print(f"[deleting {fight_contents.uid}] - {error_indicator}")
             fight_contents.path.unlink()
             return result
 
@@ -518,11 +515,11 @@ def check_file_issues(
 
 
 def parse_fight(
-    fight_contents: FightContents,
+    fight_contents: FileContents,
 ) -> FightParsingResult:
     file_issues = []
-    if fight_contents.fight_num % 100 == 0:
-        print(f"[{fight_contents.fight_num:05d} / {fight_contents.n_fights-1:05d}]")
+    if fight_contents.file_num % 100 == 0:
+        print(f"[{fight_contents.file_num:05d} / {fight_contents.n_files-1:05d}]")
 
     fight_html = bs4.BeautifulSoup(fight_contents.contents, features="lxml")
     check_results = check_file_issues(fight_contents, fight_html)
@@ -531,44 +528,18 @@ def parse_fight(
 
     event_uid = get_event_uid(fight_html)
     fight_parsing_results = parse_fight_details(
-        fight_html, event_uid, fight_contents.fight_uid
+        fight_html, event_uid, fight_contents.uid
     )
-    total_stats = parse_round_totals(fight_html, fight_contents.fight_uid)
-    sig_stats = parse_sig_stats(fight_html, fight_contents.fight_uid)
+    total_stats = parse_round_totals(fight_html, fight_contents.uid)
+    sig_stats = parse_sig_stats(fight_html, fight_contents.uid)
 
     return FightParsingResult(
-        fight_uid=fight_contents.fight_uid,
+        fight_uid=fight_contents.uid,
         fight_result=fight_parsing_results,
         total_stats=total_stats,
         sig_stats=sig_stats,
         file_issues=file_issues,
     )
-
-
-def get_fight_html_files(uid: Optional[str] = None) -> list[FightContents]:
-    base_dir = Path(__file__).parents[2] / "data/raw/ufc/fights"
-    all_files = list(base_dir.glob("*.html"))
-    if uid is not None:
-        all_files = [f for f in all_files if uid in f.name]
-
-    existing_uids = get_parsed_uids()
-    files_to_parse = [i for i in all_files if i.stem not in existing_uids]
-
-    fight_contents_to_parse = []
-    for i, fight_file in enumerate(files_to_parse):
-        fight_uid = fight_file.stem
-        with fight_file.open("r") as f:
-            fight_contents_to_parse.append(
-                FightContents(
-                    fight_uid=fight_uid,
-                    path=fight_file,
-                    contents=f.read(),
-                    fight_num=i,
-                    n_fights=len(files_to_parse),
-                )
-            )
-
-    return fight_contents_to_parse
 
 
 def handle_parsing_issues(
@@ -699,19 +670,13 @@ def write_fight_results_to_db(results: list[FightParsingResult]) -> None:
     write_data_to_db(con, "ufc_fights", fights, None)
 
 
-def get_parsed_uids() -> list[str]:
-    _, cur = get_con()
-    cur.execute("select fight_uid from ufc_fights")
-    uids = [i[0] for i in cur.fetchall()]
-    return uids
-
-
 def main() -> None:
     cpu_count = os.cpu_count()
     if cpu_count is None:
         cpu_count = 4
 
-    fights = get_fight_html_files()
+    dir = Path(__file__).parents[2] / "data/raw/ufc/fights"
+    fights = get_html_files(dir, "fight_uid", "ufc_fights")
 
     with ProcessPoolExecutor(max_workers=cpu_count - 1) as executor:
         results = list(executor.map(parse_fight, fights))

@@ -6,18 +6,6 @@ from pathlib import Path
 from panoctagon.common import get_con, dump_html, ScrapingConfig
 
 
-@dataclass(frozen=True)
-class Fighter:
-    fighter_uid: str
-    name_first: str
-    name_last: str
-    dob: str
-    stance: str
-    reach_inches: int
-    leg_reach_inches: int
-    height_inches: int
-    division: str
-
 
 def get_all_fighter_uids() -> list[str]:
     _, cur = get_con()

@@ -1,7 +1,7 @@
 from panoctagon.ufc.parse_fights import (
     Decision,
     Fight,
-    FightContents,
+    FileContents,
     FightDetailsParsingResult,
     FightParsingResult,
     FightResult,
@@ -15,7 +15,7 @@ from panoctagon.ufc.parse_fights import (
 from panoctagon.divisions import UFCDivisionNames
 
 
-def _test_parsing(fight_contents: FightContents, expected: FightParsingResult):
+def _test_parsing(fight_contents: FileContents, expected: FightParsingResult):
     actual = parse_fight(fight_contents)
     fight_result_matches = actual.fight_result == expected.fight_result
     sig_stats_match = actual.sig_stats == expected.sig_stats
