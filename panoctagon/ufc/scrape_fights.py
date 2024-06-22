@@ -277,7 +277,7 @@ def main() -> None:
     for result in results:
         if result.write is None:
             continue
-        if result.message == "no fight uids parsed":
+        if result.message in ["no fight uids parsed", "no files to download"]:
             continue
         for write in result.write:
             if write.success:
@@ -297,7 +297,7 @@ def main() -> None:
     print(f"elapsed time: {elapsed_time_seconds:.2f} seconds")
     print(f"elapsed time per event: {elapsed_time_seconds_per_event:.2f} seconds")
 
-    successful_results = [i for i in results if i.success]
+    successful_results = [i for i in results if i.success and i.message is None]
     if len(successful_results) > 0:
         print(create_header(80, "UPDATING UFC_EVENTS", True, "-"))
         write_parsing_timestamp(successful_results)
