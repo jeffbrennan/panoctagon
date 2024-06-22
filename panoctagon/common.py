@@ -1,5 +1,6 @@
 import sqlite3
 from dataclasses import dataclass, astuple, fields, is_dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Optional, Any
 
@@ -19,7 +20,7 @@ class ScrapingConfig:
     description: str
     base_url: str
     base_dir: Path
-    fname: str
+    path: Path
 
 
 @dataclass
@@ -29,6 +30,24 @@ class FileContents:
     contents: str
     file_num: int
     n_files: int
+
+
+class Symbols(Enum):
+    DOWN_ARROW = "\u2193"
+    DELETED = "\u2717"
+
+
+def create_header(header_length: int, title: str, center: bool, spacer: str):
+    if center:
+        spacer_len = (header_length - len(title)) // 2
+        output = f"{spacer * spacer_len}{title}{spacer * spacer_len}"
+    else:
+        output = f"{title}{spacer * (header_length - len(title))}"
+
+    if len(output) < header_length:
+        output = output + spacer * (header_length - len(output))
+
+    return output
 
 
 def get_parsed_uids(uid_col: str, tbl: str) -> list[str]:
@@ -65,15 +84,14 @@ def get_html_files(
     return fight_contents_to_parse
 
 
-def dump_html(config: ScrapingConfig, log_uid: bool) -> None:
+def dump_html(config: ScrapingConfig, log_uid: bool = False) -> None:
     if log_uid:
         print(f"saving {config.description}: {config.uid}")
     url = f"{config.base_url}/{config.uid}"
-    output_path = config.base_dir / f"{config.uid}.html"
     response = requests.get(url)
     soup = bs4.BeautifulSoup(response.text, "html.parser")
 
-    with output_path.open("w") as f:
+    with config.path.open("w") as f:
         f.write(str(soup))
 
 
@@ -81,7 +99,7 @@ def write_data_to_db(
     con: sqlite3.Connection,
     tbl_name: str,
     data: list[tuple] | list[Any],
-    col_names: Optional[list[str]],
+    col_names: Optional[list[str]] = None,
 ) -> None:
     cur = con.cursor()
 
