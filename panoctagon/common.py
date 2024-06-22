@@ -50,10 +50,13 @@ def create_header(header_length: int, title: str, center: bool, spacer: str):
     return output
 
 
-def get_parsed_uids(uid_col: str, tbl: str) -> list[str]:
+def get_parsed_uids(uid_col: str, tbl: str) -> Optional[list[str]]:
     _, cur = get_con()
-    cur.execute(f"select {uid_col} from {tbl}")
-    uids = [i[0] for i in cur.fetchall()]
+    try:
+        cur.execute(f"select {uid_col} from {tbl}")
+        uids = [i[0] for i in cur.fetchall()]
+    except sqlite3.OperationalError:
+        return None
     return uids
 
 
@@ -65,7 +68,10 @@ def get_html_files(
         all_files = [f for f in all_files if uid in f.name]
 
     existing_uids = get_parsed_uids(uid_col, tbl)
-    files_to_parse = [i for i in all_files if i.stem not in existing_uids]
+    if existing_uids is None:
+        files_to_parse = all_files
+    else:
+        files_to_parse = [i for i in all_files if i.stem not in existing_uids]
 
     fight_contents_to_parse: list[FileContents] = []
     for i, fpath in enumerate(files_to_parse):
