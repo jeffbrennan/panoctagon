@@ -45,9 +45,14 @@ class FightScrapingResult:
     message: Optional[str]
 
 
-def read_event_uids() -> list[str]:
+def read_event_uids(force_run: bool) -> list[str]:
     _, cur = get_con()
-    cur.execute("select event_uid from ufc_events where downloaded_ts is null")
+    if force_run:
+        cmd = "select event_uid from ufc_events where event_date < date('now')"
+    else:
+        cmd = "select event_uid from ufc_events where downloaded_ts is null and event_date < date('now')"
+
+    cur.execute(cmd)
     uids = [i[0] for i in cur.fetchall()]
     return uids
 
@@ -72,15 +77,24 @@ def get_list_of_fights(soup: bs4.BeautifulSoup) -> list[str]:
 
 
 def check_write_success(config: ScrapingConfig) -> bool:
+    issue_indicators = ["Internal Server Error", "Too Many Requests"]
     with config.path.open("r") as f:
         contents = "".join(f.readlines())
 
-    issue_indicators = ["Internal Server Error", "Too Many Requests"]
-    issues_exist = any(i in contents for i in issue_indicators)
+    file_size_bytes = config.path.stat().st_size
+    file_too_small = file_size_bytes < 1024
+    issues_exist = any(i in contents for i in issue_indicators) or file_too_small
     return not issues_exist
 
 
-def get_fight_uids(event: EventToParse) -> Optional[list[str]]:
+@dataclass
+class FightUidResult:
+    success: bool
+    uids: Optional[list[str]]
+    message: Optional[str]
+
+
+def get_fight_uids(event: EventToParse) -> FightUidResult:
     url = f"http://www.ufcstats.com/event-details/{event.uid}"
     success = False
     event_attempts = 0
@@ -93,31 +107,30 @@ def get_fight_uids(event: EventToParse) -> Optional[list[str]]:
         time.sleep(1)
 
     if not success or response is None:
-        return None
+        return FightUidResult(success=False, uids=None, message="could not load page")
 
     soup = bs4.BeautifulSoup(response.content, "html.parser")
-
     try:
         fight_uids = get_list_of_fights(soup)
     except IndexError as e:
         print(e)
-        return None
+        return FightUidResult(success=False, uids=None, message="html parsing error")
 
-    return fight_uids
+    return FightUidResult(success=True, uids=fight_uids, message=None)
 
 
 def get_fights_from_event(event: EventToParse) -> FightScrapingResult:
     header_title = f"[{event.i:03d}/{event.n_events:03d}] {event.uid}"
-    fight_uids = get_fight_uids(event)
+    fight_uid_result = get_fight_uids(event)
     write_results: list[ScrapingWriteResult] = []
 
-    if fight_uids is None:
+    if not fight_uid_result.success or fight_uid_result.uids is None:
         return FightScrapingResult(
             event=event,
             write=None,
             n_fight_links=None,
-            success=False,
-            message="no fight uids parsed",
+            success=fight_uid_result.success,
+            message=fight_uid_result.message,
         )
 
     downloaded_fights = [i.stem for i in event.base_dir.glob("*.html")]
@@ -129,7 +142,7 @@ def get_fights_from_event(event: EventToParse) -> FightScrapingResult:
             base_dir=event.base_dir,
             path=event.base_dir / f"{fight_uid}.html",
         )
-        for fight_uid in fight_uids
+        for fight_uid in fight_uid_result.uids
         if fight_uid not in downloaded_fights
     ]
 
@@ -147,7 +160,7 @@ def get_fights_from_event(event: EventToParse) -> FightScrapingResult:
             message="no files to download",
         )
 
-    max_attempts = 5
+    max_attempts = 3
     for config in configs:
         write_success = False
         attempts = 0
@@ -217,8 +230,13 @@ def write_parsing_timestamp(results: list[FightScrapingResult]) -> None:
 
 
 def main() -> None:
+    print(create_header(80, "PANOCTAGON", True, "="))
+    footer = create_header(80, "", True, "=")
     n_cores = os.cpu_count()
+
+    # todo make these cli args
     sequential = False
+    force_run = True
 
     if n_cores is None:
         n_cores = 4
@@ -226,8 +244,12 @@ def main() -> None:
     base_dir = Path(__file__).parents[2] / "data" / "raw" / "ufc" / "fights"
     base_dir.mkdir(exist_ok=True, parents=True)
 
-    event_uids = read_event_uids()
+    event_uids = read_event_uids(force_run)
     n_events = len(event_uids)
+    if n_events == 0:
+        print("No events to parse. Exiting!")
+        print(footer)
+        return
 
     events_to_parse = [
         EventToParse(uid=uid, i=i, n_events=n_events, base_dir=base_dir)
@@ -238,13 +260,12 @@ def main() -> None:
     if len(events_to_parse) < n_cores:
         n_workers = len(events_to_parse)
 
-    print(create_header(80, "PANOCTAGON", True, "="))
     start_header = create_header(
         80, f"SCRAPING n={len(events_to_parse)} UFC EVENTS", True, "-"
     )
     print(start_header)
     start_time = time.time()
-    if sequential:
+    if sequential or len(events_to_parse) < n_cores:
         results = [get_fights_from_event(event) for event in events_to_parse]
     else:
         with ProcessPoolExecutor(max_workers=n_workers) as executor:
@@ -281,7 +302,7 @@ def main() -> None:
         print(create_header(80, "UPDATING UFC_EVENTS", True, "-"))
         write_parsing_timestamp(successful_results)
 
-    print(create_header(80, "", center=True, spacer="="))
+    print(footer)
 
 
 if __name__ == "__main__":
