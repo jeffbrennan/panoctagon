@@ -6,3 +6,4 @@
 *.tmp
 *.driveupload
 *pyc
+*.vscode
