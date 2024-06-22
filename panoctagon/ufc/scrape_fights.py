@@ -201,7 +201,7 @@ def get_fights_from_event(event: EventToParse) -> FightScrapingResult:
 
 
 def write_parsing_timestamp(results: list[FightScrapingResult]) -> None:
-    _, cur = get_con()
+    con, cur = get_con()
     current_timestamp = datetime.datetime.now().isoformat(timespec="seconds")
     update_info = (
         {"downloaded_uid": i.event.uid, "downloaded_ts": current_timestamp}
@@ -213,6 +213,7 @@ def write_parsing_timestamp(results: list[FightScrapingResult]) -> None:
         "UPDATE ufc_events SET downloaded_ts=:downloaded_ts WHERE event_uid=:downloaded_uid",
         update_info,
     )
+    con.commit()
 
 
 def main() -> None:
