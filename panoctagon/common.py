@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import sqlite3
 import time
 from dataclasses import dataclass, astuple, fields, is_dataclass
@@ -58,6 +60,81 @@ class RunStats:
     failures: Optional[int]
 
 
+@dataclass
+class ParsingIssue:
+    issue: str
+    uids: list[str]
+
+
+@dataclass
+class ParsingResult:
+    uid: str
+    result: Optional[Any]
+    issues: list[str]
+
+
+def handle_parsing_issues(
+    parsing_results: list[ParsingResult], raise_error: bool
+) -> list[ParsingResult]:
+    all_parsing_issues: list[ParsingIssue] = []
+    for i, parsing_result in enumerate(parsing_results):
+        if parsing_result.result is None:
+            continue
+
+        parsing_issues = parsing_result.issues
+        if not parsing_issues:
+            continue
+
+        existing_issues = [i.issue for i in all_parsing_issues]
+        for issue in parsing_issues:
+            if issue in existing_issues:
+                issue_index = existing_issues.index(issue)
+                all_parsing_issues[issue_index].uids += [parsing_result.uid]
+                continue
+
+            all_parsing_issues.append(ParsingIssue(issue, [parsing_result.uid]))
+
+    all_parsing_issues = sorted(
+        all_parsing_issues, key=lambda x: len(x.uids), reverse=True
+    )
+
+    n_parsing_issues = len(all_parsing_issues)
+    clean_results = parsing_results
+    if n_parsing_issues > 0:
+        print(create_header(80, "parsing issues", False, "."))
+
+        for parsing_issue in all_parsing_issues:
+            n_uids = len(parsing_issue.uids)
+            uids = parsing_issue.uids
+
+            if len(uids) > 5:
+                uids = random.sample(uids, 5)
+            if len(parsing_issue.issue) > 80 - 16:
+                issue = parsing_issue.issue[0:80-20] + '...'
+
+            else:
+                issue = parsing_issue.issue
+
+            summary_title = f"[n={n_uids:12,d}] {issue}"
+            print(create_header(80, summary_title, False, ""))
+            for uid in uids:
+                print(uid)
+
+        if raise_error:
+            assert n_parsing_issues == 0
+        problem_uids = [
+            item for sublist in [i.uids for i in all_parsing_issues] for item in sublist
+        ]
+        problem_uids_deduped = sorted(list(set(problem_uids)))
+
+        print(create_header(80, "", True, "."))
+        print(f"[n={len(problem_uids):5,d}] removing invalid records from insert")
+        clean_results = [
+            i for i in parsing_results if i.uid not in problem_uids_deduped
+        ]
+    return clean_results
+
+
 def report_stats(stats: RunStats):
     print(create_header(80, "RUN STATS", True, "-"))
 
@@ -78,7 +155,7 @@ def report_stats(stats: RunStats):
 
 def check_write_success(config: ScrapingConfig) -> bool:
     issue_indicators = ["Internal Server Error", "Too Many Requests"]
-    with config.path.open("r") as f:
+    with config.path.open() as f:
         contents = "".join(f.readlines())
 
     file_size_bytes = config.path.stat().st_size
@@ -95,13 +172,18 @@ def create_header(header_length: int, title: str, center: bool, spacer: str):
         output = f"{title}{spacer * (header_length - len(title))}"
 
     if len(output) < header_length:
-        output = output + spacer * (header_length - len(output))
+        output += spacer * (header_length - len(output))
+    if len(output) > header_length:
+        output = spacer * header_length + "\n" + output
 
     return output
 
 
-def get_parsed_uids(uid_col: str, tbl: str) -> Optional[list[str]]:
+def get_parsed_uids(uid_col: str, tbl: str, force_run: bool) -> Optional[list[str]]:
     _, cur = get_con()
+    if force_run:
+        return None
+
     try:
         cur.execute(f"select {uid_col} from {tbl}")
         uids = [i[0] for i in cur.fetchall()]
@@ -136,13 +218,13 @@ def scrape_page(
 
 
 def get_html_files(
-    dir: Path, uid_col: str, tbl: str, uid: Optional[str] = None
+    path: Path, uid_col: str, tbl: str, force_run: bool, uid: Optional[str] = None
 ) -> list[FileContents]:
-    all_files = list(dir.glob("*.html"))
+    all_files = list(path.glob("*.html"))
     if uid is not None:
         all_files = [f for f in all_files if uid in f.name]
 
-    existing_uids = get_parsed_uids(uid_col, tbl)
+    existing_uids = get_parsed_uids(uid_col, tbl, force_run)
     if existing_uids is None:
         files_to_parse = all_files
     else:
@@ -151,7 +233,7 @@ def get_html_files(
     fight_contents_to_parse: list[FileContents] = []
     for i, fpath in enumerate(files_to_parse):
         uid = fpath.stem
-        with fpath.open("r") as f:
+        with fpath.open() as f:
             fight_contents_to_parse.append(
                 FileContents(
                     uid=uid,

@@ -16,6 +16,9 @@ from panoctagon.common import (
     get_table_rows,
     FileContents,
     get_html_files,
+    ParsingResult,
+    handle_parsing_issues,
+    create_header,
 )
 from panoctagon.divisions import UFCDivisionNames
 
@@ -112,7 +115,7 @@ class RoundTotalStats:
 @dataclass
 class ParsingIssue:
     issue: str
-    fight_uids: list[str]
+    uids: list[str]
 
 
 def get_round_vals(
@@ -138,9 +141,7 @@ def get_round_vals(
     return all_sig_stats_raw
 
 
-def parse_sig_stats(
-    fight_html: bs4.BeautifulSoup, fight_uid: str
-) -> list[RoundSigStats]:
+def parse_sig_stats(fight_html: bs4.BeautifulSoup, fight_uid: str) -> ParsingResult:
     sig_stats_cols = [
         i.text.strip() for i in fight_html.findAll("table")[2].findAll("th")
     ]
@@ -161,6 +162,7 @@ def parse_sig_stats(
 
     sig_stats_per_round = get_table_rows(fight_html, 3)
     sig_stats = []
+    issues = []
     for round_num, round_data in enumerate(sig_stats_per_round, 1):
         all_sig_stats_raw = get_round_vals(round_data, sig_stats_cols, expected_cols)
 
@@ -210,18 +212,16 @@ def parse_sig_stats(
                 )
             )
 
-    return sig_stats
+    return ParsingResult(uid=fight_uid, result=sig_stats, issues=issues)
 
 
 def get_split_stat(stat: str, sep: str) -> tuple[int, int]:
-    "parses stat like `1 of 2` to a tuple containing `1` and `2`"
+    """parses stat like `1 of 2` to a tuple containing `1` and `2`"""
     val1, val2 = stat.split(f" {sep} ")
-    return (int(val1), int(val2))
+    return int(val1), int(val2)
 
 
-def parse_round_totals(
-    fight_html: bs4.BeautifulSoup, fight_uid: str
-) -> list[RoundTotalStats]:
+def parse_round_totals(fight_html: bs4.BeautifulSoup, fight_uid: str) -> ParsingResult:
     totals_cols = [i.text.strip() for i in fight_html.findAll("table")[0].findAll("th")]
     expected_cols = [
         "Fighter",
@@ -240,6 +240,7 @@ def parse_round_totals(
 
     totals_per_round = get_table_rows(fight_html, 1)
     totals = []
+    issues = []
     for round_num, round_data in enumerate(totals_per_round, 1):
         all_totals_raw = get_round_vals(round_data, totals_cols, expected_cols)
         for totals_raw in all_totals_raw:
@@ -272,7 +273,7 @@ def parse_round_totals(
                 )
             )
 
-    return totals
+    return ParsingResult(uid=fight_uid, result=totals, issues=issues)
 
 
 def combine_dataclasses(class1, class2):
@@ -314,8 +315,8 @@ class FightDetailsParsingResult:
 
 def parse_fight_details(
     fight_html: bs4.BeautifulSoup, event_uid: str, fight_uid: str
-) -> FightDetailsParsingResult:
-    tbl = get_table_rows(fight_html, 0)
+) -> ParsingResult:
+    tbl = get_table_rows(fight_html)
     parsing_issues = []
     detail_headers = [
         i.text.strip() for i in fight_html.findAll("i", class_="b-fight-details__label")
@@ -472,16 +473,15 @@ def parse_fight_details(
         referee=referee,
     )
 
-    output = FightDetailsParsingResult(fight=fight, parsing_issues=parsing_issues)
-    return output
+    return ParsingResult(uid=fight_uid, result=fight, issues=parsing_issues)
 
 
 @dataclass
 class FightParsingResult:
     fight_uid: str
-    fight_result: Optional[FightDetailsParsingResult]
-    total_stats: Optional[list[RoundTotalStats]]
-    sig_stats: Optional[list[RoundSigStats]]
+    fight_result: Optional[ParsingResult]
+    total_stats: Optional[ParsingResult]
+    sig_stats: Optional[ParsingResult]
     file_issues: list[str]
 
 
@@ -518,7 +518,8 @@ def parse_fight(
 ) -> FightParsingResult:
     file_issues = []
     if fight_contents.file_num % 100 == 0:
-        print(f"[{fight_contents.file_num:05d} / {fight_contents.n_files-1:05d}]")
+        title = f"[{fight_contents.file_num:05d} / {fight_contents.n_files-1:05d}]"
+        print(create_header(80, title, False, "."))
 
     fight_html = bs4.BeautifulSoup(fight_contents.contents, features="lxml")
     check_results = check_file_issues(fight_contents, fight_html)
@@ -539,45 +540,6 @@ def parse_fight(
         sig_stats=sig_stats,
         file_issues=file_issues,
     )
-
-
-def handle_parsing_issues(
-    results: list[FightParsingResult], raise_error: bool
-) -> list[FightParsingResult]:
-    all_parsing_issues: list[ParsingIssue] = []
-    for i, result in enumerate(results):
-        if result.fight_result is None:
-            continue
-
-        parsing_issues = result.fight_result.parsing_issues
-        if not parsing_issues:
-            continue
-
-        existing_issues = [i.issue for i in all_parsing_issues]
-        for issue in parsing_issues:
-            if issue in existing_issues:
-                issue_index = existing_issues.index(issue)
-                all_parsing_issues[issue_index].fight_uids += [result.fight_uid]
-                continue
-
-            all_parsing_issues.append(ParsingIssue(issue, [result.fight_uid]))
-
-    n_parsing_issues = len(all_parsing_issues)
-    clean_results = results
-    if n_parsing_issues > 0:
-        for i in all_parsing_issues:
-            print(i)
-        if raise_error:
-            assert n_parsing_issues == 0
-        problem_uids = [
-            item
-            for sublist in [i.fight_uids for i in all_parsing_issues]
-            for item in sublist
-        ]
-        problem_uids_deduped = sorted(list(set(problem_uids)))
-        print(f"removing {problem_uids} from insert")
-        clean_results = [i for i in results if i.fight_uid not in problem_uids_deduped]
-    return clean_results
 
 
 def convert_dataclass_to_dataframe(dc) -> pl.DataFrame:
@@ -648,44 +610,100 @@ def create_fight_tables(cur: sqlite3.Cursor) -> None:
     )
 
 
-def write_fight_results_to_db(results: list[FightParsingResult]) -> None:
+def delete_existing_records(tbl_name: str, uid_name: str, uids: tuple[str, ...]):
+    con, cur = get_con()
+    print(f"[n={len(uids):5,d}] deleting records")
+    placeholder = ", ".join("?" * len(uids))
+    cmd = f"DELETE FROM {tbl_name} WHERE {uid_name} IN ({placeholder})"
+
+    cur.execute(cmd, uids)
+    con.commit()
+
+
+def write_fight_results_to_db(
+    results: list[FightParsingResult], force_run: bool
+) -> None:
+    tbl_name = "ufc_fights"
+    print(create_header(80, tbl_name, True, spacer="-"))
     con, cur = get_con()
     create_fight_tables(cur)
 
-    sig_stats_flat = convert_dataclass_to_dataframe(
-        [i.sig_stats for i in results if i.sig_stats is not None]
+    clean_fight_results = handle_parsing_issues(
+        [i.fight_result for i in results if i.fight_result is not None], False
     )
+    if len(clean_fight_results) == 0:
+        print("no fights to write")
+        return
+
+    fights: list[Fight] = [
+        i.result for i in clean_fight_results
+    ]  # pyright: ignore [reportAssignmentType]
+
+    if force_run:
+        uids: tuple[str, ...] = tuple(
+            (str(i.fight_uid) for i in fights if i is not None)
+        )
+        delete_existing_records(tbl_name, "fight_uid", uids)
+
+    print(f"[n={len(fights):5,d}] records")
+    write_data_to_db(con, tbl_name, fights)
+
+
+def write_stats_to_db(results: list[FightParsingResult], force_run: bool) -> None:
+    tbl_name = "ufc_fight_stats"
+    print(create_header(80, tbl_name, True, spacer="-"))
+    con, cur = get_con()
+    create_fight_tables(cur)
+    clean_sig_stats = handle_parsing_issues(
+        [i.sig_stats for i in results if i.sig_stats is not None], False
+    )
+    clean_total_stats = handle_parsing_issues(
+        [i.total_stats for i in results if i.total_stats is not None], False
+    )
+
+    sig_stats_flat = convert_dataclass_to_dataframe([i.result for i in clean_sig_stats])
     total_stats_flat = convert_dataclass_to_dataframe(
-        ([i.total_stats for i in results if i.total_stats is not None])
+        ([i.result for i in clean_total_stats])
     )
 
     stats_combined = total_stats_flat.join(
         sig_stats_flat, on=["fight_uid", "fighter_uid", "round_num"]
     )
 
-    stats_combined.head()
     stats_combined_tuples: list[tuple] = stats_combined.rows(named=False)
+    if len(stats_combined_tuples) == 0:
+        print("no fights to write")
+        return
+
     headers = stats_combined.columns
-    write_data_to_db(con, "ufc_fight_stats", stats_combined_tuples, headers)
-    fights = [i.fight_result.fight for i in results if i.fight_result is not None]
-    write_data_to_db(con, "ufc_fights", fights, None)
+    uids = tuple((str(i[0]) for i in stats_combined_tuples))
+    delete_existing_records(tbl_name, "fight_uid", uids)
+
+    print(f"[n={len(stats_combined_tuples):5,d}] writing records")
+    write_data_to_db(con, tbl_name, stats_combined_tuples, headers)
 
 
 def main() -> None:
+    print(create_header(80, "PANOCTAGON", True, "="))
+    footer = create_header(80, "", True, "=")
     cpu_count = os.cpu_count()
     if cpu_count is None:
         cpu_count = 4
+    force_run = False
 
-    dir = Path(__file__).parents[2] / "data/raw/ufc/fights"
-    fights = get_html_files(dir, "fight_uid", "ufc_fights")
+    fight_dir = Path(__file__).parents[2] / "data/raw/ufc/fights"
+    fights = get_html_files(fight_dir, "fight_uid", "ufc_fights", force_run)
 
+    if len(fights) == 0:
+        print("no fights to parse. exiting early")
+        print(footer)
+    print(create_header(80, f"PARSING n={len(fights)} fights", True, "-"))
     with ProcessPoolExecutor(max_workers=cpu_count - 1) as executor:
         results = list(executor.map(parse_fight, fights))
 
-    clean_results = handle_parsing_issues(results, False)
-    assert len(clean_results) > 0
-
-    write_fight_results_to_db(clean_results)
+    write_fight_results_to_db(results, force_run)
+    write_stats_to_db(results, force_run)
+    print(footer)
 
 
 if __name__ == "__main__":
