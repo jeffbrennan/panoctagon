@@ -3,7 +3,7 @@ name = "panoctagon"
 version = "0.1.0"
 description = ""
 authors = ["Jeff Brennan <jeffbrennan10@gmail.com>"]
-readme = "README.md"
+readme = "readme.md"
 
 [tool.poetry.dependencies]
 python = "^3.11"
