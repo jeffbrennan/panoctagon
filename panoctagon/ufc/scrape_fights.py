@@ -18,6 +18,7 @@ from panoctagon.common import (
     Symbols,
     ScrapingWriteResult,
     report_stats,
+    RunStats,
 )
 
 
@@ -241,7 +242,16 @@ def main() -> None:
             else:
                 fights_deleted += 1
 
-    report_stats(start_time, end_time, n_events, "events")
+    report_stats(
+        RunStats(
+            start=start_time,
+            end=end_time,
+            n_ops=n_events,
+            op_name="events",
+            successes=fights_downloaded,
+            failures=fights_deleted,
+        )
+    )
 
     successful_results = [i for i in results if i.success and i.message is None]
     if len(successful_results) > 0:
