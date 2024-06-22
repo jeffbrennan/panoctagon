@@ -1,3 +1,4 @@
+import datetime
 import os
 import time
 from concurrent.futures import ProcessPoolExecutor
@@ -38,21 +39,22 @@ class ScrapingWriteResult:
 @dataclass
 class FightScrapingResult:
     event: EventToParse
-    write: Optional[list[ScrapingWriteResult]]
     success: bool
+    n_fight_links: Optional[int]
+    write: Optional[list[ScrapingWriteResult]]
     message: Optional[str]
 
 
-def read_event_uids():
-    con, cur = get_con()
-    cur.execute("select event_uid from ufc_events")
+def read_event_uids() -> list[str]:
+    _, cur = get_con()
+    cur.execute("select event_uid from ufc_events where downloaded_ts is null")
     uids = [i[0] for i in cur.fetchall()]
     return uids
 
 
 def get_list_of_fights(soup: bs4.BeautifulSoup) -> list[str]:
     rows = get_table_rows(soup)
-    fight_uids = []
+    fight_uids: list[str] = []
 
     for row in rows:
         if row.a is None:
@@ -111,7 +113,11 @@ def get_fights_from_event(event: EventToParse) -> FightScrapingResult:
 
     if fight_uids is None:
         return FightScrapingResult(
-            event=event, write=None, success=False, message="no fight uids parsed"
+            event=event,
+            write=None,
+            n_fight_links=None,
+            success=False,
+            message="no fight uids parsed",
         )
 
     downloaded_fights = [i.stem for i in event.base_dir.glob("*.html")]
@@ -136,6 +142,7 @@ def get_fights_from_event(event: EventToParse) -> FightScrapingResult:
         return FightScrapingResult(
             event=event,
             write=[write_result],
+            n_fight_links=0,
             success=True,
             message="no files to download",
         )
@@ -165,13 +172,14 @@ def get_fights_from_event(event: EventToParse) -> FightScrapingResult:
             )
         )
 
-    bad_writes = [i for i in write_results if i.success]
+    bad_writes = [i for i in write_results if not i.success]
 
     fights_deleted = len(bad_writes)
     fights_downloaded = len(write_results) - fights_deleted
 
-    results = f"{Symbols.DOWN_ARROW.value} {fights_downloaded} | {Symbols.DELETED} {fights_deleted}"
+    results = f"{Symbols.DOWN_ARROW.value} {fights_downloaded:02d} | {Symbols.DELETED.value} {fights_deleted:02d}"
     event_header = create_header(80, header_title + " | " + results, False, " ")
+    print(event_header)
     message = None
     if len(bad_writes) > 0:
         message = f"{len(bad_writes)} fights failed to download"
@@ -182,14 +190,34 @@ def get_fights_from_event(event: EventToParse) -> FightScrapingResult:
             print(f"deleting {bad_write.config.uid}")
             bad_write.path.unlink()
 
+    success = len(write_results) == len(configs) and len(bad_writes) == 0
     return FightScrapingResult(
-        event=event, write=write_results, success=len(bad_writes) == 0, message=message
+        event=event,
+        write=write_results,
+        n_fight_links=len(configs),
+        success=success,
+        message=message,
+    )
+
+
+def write_parsing_timestamp(results: list[FightScrapingResult]) -> None:
+    _, cur = get_con()
+    current_timestamp = datetime.datetime.now().isoformat(timespec="seconds")
+    update_info = (
+        {"downloaded_uid": i.event.uid, "downloaded_ts": current_timestamp}
+        for i in results
+    )
+
+    print(f"updating {len(results)} rows")
+    cur.executemany(
+        "UPDATE ufc_events SET downloaded_ts=:downloaded_ts WHERE event_uid=:downloaded_uid",
+        update_info,
     )
 
 
 def main() -> None:
     n_cores = os.cpu_count()
-    sequential = True
+    sequential = False
 
     if n_cores is None:
         n_cores = 4
@@ -222,8 +250,18 @@ def main() -> None:
             results = list(executor.map(get_fights_from_event, events_to_parse))
     end_time = time.time()
 
-    fights_downloaded = len([i for i in results if i.success])
-    fights_deleted = len(results) - fights_downloaded
+    fights_downloaded = 0
+    fights_deleted = 0
+    for result in results:
+        if result.write is None:
+            continue
+        if result.message == "no fight uids parsed":
+            continue
+        for write in result.write:
+            if write.success:
+                fights_downloaded += 1
+            else:
+                fights_deleted += 1
 
     elapsed_time_seconds = end_time - start_time
     elapsed_time_seconds_per_event = elapsed_time_seconds / n_events
@@ -236,6 +274,12 @@ def main() -> None:
     )
     print(f"elapsed time: {elapsed_time_seconds:.2f} seconds")
     print(f"elapsed time per event: {elapsed_time_seconds_per_event:.2f} seconds")
+
+    successful_results = [i for i in results if i.success]
+    if len(successful_results) > 0:
+        print(create_header(80, "UPDATING UFC_EVENTS", True, "-"))
+        write_parsing_timestamp(successful_results)
+
     print(create_header(80, "", center=True, spacer="="))
 
 
