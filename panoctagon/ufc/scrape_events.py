@@ -24,7 +24,8 @@ def write_events(urls: list[UFCEvent]) -> None:
                 event_uid TEXT PRIMARY KEY NOT NULL,
                 title TEXT NOT NULL,
                 event_date TEXT NOT NULL,
-                event_location TEXT NOT NULL
+                event_location TEXT NOT NULL,
+                downloaded_ts TEXT
                 );
  
         """
@@ -39,7 +40,7 @@ def get_events() -> list[UFCEvent]:
 
     data: list[UFCEvent] = []
     rows = get_table_rows(soup)
-    unparsed_events = []
+    unparsed_events: list[str] = []
     for row in rows:
         cols = row.find_all("td")
         if len(cols) != 2:
@@ -62,13 +63,13 @@ def get_events() -> list[UFCEvent]:
             continue
 
         fight_date_txt = fight_date_txt_raw.text.strip()
-        if fight_date_txt is None:
+        if fight_date_txt == "":
             unparsed_events.append(event_uid)
             continue
 
         fight_date = datetime.datetime.strptime(fight_date_txt, "%B %d, %Y")
         fight_date_formatted = datetime.datetime.strftime(fight_date, "%Y-%m-%d")
-        if fight_date_formatted is None:
+        if fight_date_formatted == "":
             unparsed_events.append(event_uid)
             continue
 

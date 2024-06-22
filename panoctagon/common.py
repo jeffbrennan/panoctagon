@@ -67,7 +67,7 @@ def get_html_files(
     existing_uids = get_parsed_uids(uid_col, tbl)
     files_to_parse = [i for i in all_files if i.stem not in existing_uids]
 
-    fight_contents_to_parse = []
+    fight_contents_to_parse: list[FileContents] = []
     for i, fpath in enumerate(files_to_parse):
         uid = fpath.stem
         with fpath.open("r") as f:
