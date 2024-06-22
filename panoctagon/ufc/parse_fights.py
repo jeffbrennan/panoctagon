@@ -652,9 +652,11 @@ def write_fight_results_to_db(results: list[FightParsingResult]) -> None:
     con, cur = get_con()
     create_fight_tables(cur)
 
-    sig_stats_flat = convert_dataclass_to_dataframe([i.sig_stats for i in results])
+    sig_stats_flat = convert_dataclass_to_dataframe(
+        [i.sig_stats for i in results if i.sig_stats is not None]
+    )
     total_stats_flat = convert_dataclass_to_dataframe(
-        ([i.total_stats for i in results])
+        ([i.total_stats for i in results if i.total_stats is not None])
     )
 
     stats_combined = total_stats_flat.join(
