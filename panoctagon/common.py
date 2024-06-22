@@ -1,7 +1,9 @@
 import sqlite3
+import time
 from dataclasses import dataclass, astuple, fields, is_dataclass
 from enum import Enum
 from pathlib import Path
+import random
 from typing import Optional, Any
 
 import bs4
@@ -32,9 +34,57 @@ class FileContents:
     n_files: int
 
 
+@dataclass
+class ScrapingWriteResult:
+    config: Optional[ScrapingConfig]
+    path: Optional[Path]
+    success: bool
+    attempts: int
+
+
 class Symbols(Enum):
     DOWN_ARROW = "\u2193"
     DELETED = "\u2717"
+    CHECK = "\u2714"
+
+
+@dataclass
+class RunStats:
+    start: float
+    end: float
+    n_ops: Optional[int]
+    op_name: str
+    successes: Optional[int]
+    failures: Optional[int]
+
+
+def report_stats(stats: RunStats):
+    print(create_header(80, "RUN STATS", True, "-"))
+
+    if stats.successes is not None and stats.failures is not None:
+        print(
+            f"{Symbols.CHECK.value} {stats.successes} | {Symbols.DELETED.value} {stats.failures}"
+        )
+
+    elapsed_time_seconds = stats.end - stats.start
+    print(f"elapsed time: {elapsed_time_seconds:.2f} seconds")
+
+    if stats.n_ops is not None:
+        elapsed_time_seconds_per_event = elapsed_time_seconds / stats.n_ops
+        print(
+            f"elapsed time per {stats.op_name}: {elapsed_time_seconds_per_event:.2f} seconds"
+        )
+
+
+def check_write_success(config: ScrapingConfig) -> bool:
+    issue_indicators = ["Internal Server Error", "Too Many Requests"]
+    with config.path.open("r") as f:
+        contents = "".join(f.readlines())
+
+    file_size_bytes = config.path.stat().st_size
+    file_too_small = file_size_bytes < 1024
+    issues_exist = any(i in contents for i in issue_indicators) or file_too_small
+    return not issues_exist
 
 
 def create_header(header_length: int, title: str, center: bool, spacer: str):
@@ -58,6 +108,31 @@ def get_parsed_uids(uid_col: str, tbl: str) -> Optional[list[str]]:
     except sqlite3.OperationalError:
         return None
     return uids
+
+
+def scrape_page(
+    config: ScrapingConfig, max_attempts: int = 3, sleep_multiplier_increment: int = 10
+) -> ScrapingWriteResult:
+    write_success = False
+    attempts = 0
+    sleep_multiplier = 0
+
+    while not write_success and attempts < max_attempts:
+        ms_to_sleep = random.randint(100 * sleep_multiplier, 200 * sleep_multiplier)
+        time.sleep(ms_to_sleep / 1000)
+
+        dump_html(config)
+
+        write_success = check_write_success(config)
+        sleep_multiplier += sleep_multiplier_increment
+        attempts += 1
+
+    return ScrapingWriteResult(
+        config=config,
+        path=config.path,
+        success=write_success,
+        attempts=attempts,
+    )
 
 
 def get_html_files(

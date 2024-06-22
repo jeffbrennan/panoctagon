@@ -4,7 +4,6 @@ import time
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-import random
 from typing import Optional
 
 import bs4
@@ -14,9 +13,11 @@ from panoctagon.common import (
     get_con,
     get_table_rows,
     ScrapingConfig,
-    dump_html,
     create_header,
+    scrape_page,
     Symbols,
+    ScrapingWriteResult,
+    report_stats,
 )
 
 
@@ -26,14 +27,6 @@ class EventToParse:
     i: int
     n_events: int
     base_dir: Path
-
-
-@dataclass
-class ScrapingWriteResult:
-    config: Optional[ScrapingConfig]
-    path: Optional[Path]
-    success: bool
-    attempts: int
 
 
 @dataclass
@@ -76,17 +69,6 @@ def get_list_of_fights(soup: bs4.BeautifulSoup) -> list[str]:
     return fight_uids
 
 
-def check_write_success(config: ScrapingConfig) -> bool:
-    issue_indicators = ["Internal Server Error", "Too Many Requests"]
-    with config.path.open("r") as f:
-        contents = "".join(f.readlines())
-
-    file_size_bytes = config.path.stat().st_size
-    file_too_small = file_size_bytes < 1024
-    issues_exist = any(i in contents for i in issue_indicators) or file_too_small
-    return not issues_exist
-
-
 @dataclass
 class FightUidResult:
     success: bool
@@ -122,8 +104,6 @@ def get_fight_uids(event: EventToParse) -> FightUidResult:
 def get_fights_from_event(event: EventToParse) -> FightScrapingResult:
     header_title = f"[{event.i:03d}/{event.n_events:03d}] {event.uid}"
     fight_uid_result = get_fight_uids(event)
-    write_results: list[ScrapingWriteResult] = []
-
     if not fight_uid_result.success or fight_uid_result.uids is None:
         return FightScrapingResult(
             event=event,
@@ -160,31 +140,7 @@ def get_fights_from_event(event: EventToParse) -> FightScrapingResult:
             message="no files to download",
         )
 
-    max_attempts = 3
-    for config in configs:
-        write_success = False
-        attempts = 0
-        sleep_multiplier = 0
-
-        while not write_success and attempts < max_attempts:
-            ms_to_sleep = random.randint(100 * sleep_multiplier, 200 * sleep_multiplier)
-            time.sleep(ms_to_sleep / 1000)
-
-            dump_html(config)
-
-            write_success = check_write_success(config)
-            sleep_multiplier += 10
-            attempts += 1
-
-        write_results.append(
-            ScrapingWriteResult(
-                config=config,
-                path=config.path,
-                success=write_success,
-                attempts=attempts,
-            )
-        )
-
+    write_results = [scrape_page(config) for config in configs]
     bad_writes = [i for i in write_results if not i.success]
 
     fights_deleted = len(bad_writes)
@@ -285,17 +241,7 @@ def main() -> None:
             else:
                 fights_deleted += 1
 
-    elapsed_time_seconds = end_time - start_time
-    elapsed_time_seconds_per_event = elapsed_time_seconds / n_events
-
-    stats_header = create_header(80, "RUN STATS", True, "-")
-
-    print(stats_header)
-    print(
-        f"{Symbols.DOWN_ARROW.value} {fights_downloaded} | {Symbols.DELETED.value} {fights_deleted}"
-    )
-    print(f"elapsed time: {elapsed_time_seconds:.2f} seconds")
-    print(f"elapsed time per event: {elapsed_time_seconds_per_event:.2f} seconds")
+    report_stats(start_time, end_time, n_events, "events")
 
     successful_results = [i for i in results if i.success and i.message is None]
     if len(successful_results) > 0:
