@@ -127,13 +127,15 @@ def get_one_divisions() -> list[Division]:
         )
     return one_divisions
 
-
-def main():
+def setup_divisions():
     ufc_divisions = get_ufc_divisions()
     one_divisions = get_one_divisions()
     divisions = ufc_divisions + one_divisions
     write_divisions(divisions)
 
+
+def main():
+    setup_divisions()
 
 if __name__ == "__main__":
     main()

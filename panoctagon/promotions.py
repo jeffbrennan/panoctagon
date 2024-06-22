@@ -1,5 +1,6 @@
-from dataclasses import dataclass
 import uuid
+from dataclasses import dataclass
+
 from panoctagon.common import get_con, write_data_to_db
 
 
@@ -28,7 +29,7 @@ def write_promotions(promotions: list[Promotion]) -> None:
     write_data_to_db(con, "promotions", promotions)
 
 
-def main():
+def setup_promotions():
     ufc = Promotion(
         promotion_uid=str(uuid.uuid4()), name="UFC", founded_date="1993-11-12"
     )
@@ -38,6 +39,10 @@ def main():
 
     promotions = [ufc, one]
     write_promotions(promotions)
+
+
+def main():
+    setup_promotions()
 
 
 if __name__ == "__main__":
