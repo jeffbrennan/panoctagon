@@ -489,7 +489,6 @@ def check_file_issues(
     fight_contents: FileContents, fight_html: bs4.BeautifulSoup
 ) -> Optional[FightParsingResult]:
     file_error_indicators = [
-        "Internal Server Error",
         "Round-by-round stats not currently available.",
     ]
     result = FightParsingResult(
