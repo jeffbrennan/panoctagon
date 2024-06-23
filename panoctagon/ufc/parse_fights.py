@@ -405,6 +405,9 @@ def parse_fight_details(
             .replace("Tournament Title", "Title")
             .replace("Tournament", "Open Weight")
             .replace("'", "")
+            .replace("Womens", "Women's")
+            .replace("Road To", "")
+            .replace("Road to", "")
             .strip()
         )
 
@@ -645,7 +648,7 @@ def write_fight_results_to_db(
         )
         delete_existing_records(tbl_name, "fight_uid", uids)
 
-    print(f"[n={len(fights):5,d}] records")
+    print(f"[n={len(fights):5,d}] writing records")
     write_data_to_db(con, tbl_name, fights)
 
 
@@ -697,6 +700,8 @@ def main() -> None:
     if len(fights) == 0:
         print("no fights to parse. exiting early")
         print(footer)
+        return
+
     print(create_header(80, f"PARSING n={len(fights)} fights", True, "-"))
     with ProcessPoolExecutor(max_workers=cpu_count - 1) as executor:
         results = list(executor.map(parse_fight, fights))
