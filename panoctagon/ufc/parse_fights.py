@@ -60,7 +60,7 @@ class FightResult(str, Enum):
     DRAW = "Draw"
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class Fight:
     event_uid: str
     fight_uid: str
@@ -77,7 +77,7 @@ class Fight:
     referee: Optional[str]
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class RoundSigStats:
     fight_uid: str
     fighter_uid: str
@@ -98,7 +98,7 @@ class RoundSigStats:
     sig_strikes_grounded_attempted: int
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class RoundTotalStats:
     fight_uid: str
     fighter_uid: str
@@ -113,10 +113,34 @@ class RoundTotalStats:
     control_time_seconds: Optional[int]
 
 
-@dataclass
-class ParsingIssue:
-    issue: str
-    uids: list[str]
+@dataclass(frozen=True, slots=True)
+class FightDetailsParsingResult(ParsingResult):
+    result: Fight
+
+
+@dataclass(frozen=True, slots=True)
+class TotalStatsParsingResult(ParsingResult):
+    result: list[RoundTotalStats]
+
+
+@dataclass(frozen=True, slots=True)
+class SigStatsParsingResult(ParsingResult):
+    result: list[RoundSigStats]
+
+
+@dataclass(frozen=True, slots=True)
+class FightParsingResult:
+    fight_uid: str
+    fight_result: Optional[FightDetailsParsingResult]
+    total_stats: Optional[TotalStatsParsingResult]
+    sig_stats: Optional[SigStatsParsingResult]
+    file_issues: list[str]
+
+
+def get_split_stat(stat: str, sep: str) -> tuple[int, int]:
+    """parses stat like `1 of 2` to a tuple containing `1` and `2`"""
+    val1, val2 = stat.split(f" {sep} ")
+    return int(val1), int(val2)
 
 
 def get_round_vals(
@@ -142,7 +166,9 @@ def get_round_vals(
     return all_sig_stats_raw
 
 
-def parse_sig_stats(fight_html: bs4.BeautifulSoup, fight_uid: str) -> ParsingResult:
+def parse_sig_stats(
+    fight_html: bs4.BeautifulSoup, fight_uid: str
+) -> SigStatsParsingResult:
     sig_stats_cols = [
         i.text.strip() for i in fight_html.findAll("table")[2].findAll("th")
     ]
@@ -213,16 +239,12 @@ def parse_sig_stats(fight_html: bs4.BeautifulSoup, fight_uid: str) -> ParsingRes
                 )
             )
 
-    return ParsingResult(uid=fight_uid, result=sig_stats, issues=issues)
+    return SigStatsParsingResult(uid=fight_uid, result=sig_stats, issues=issues)
 
 
-def get_split_stat(stat: str, sep: str) -> tuple[int, int]:
-    """parses stat like `1 of 2` to a tuple containing `1` and `2`"""
-    val1, val2 = stat.split(f" {sep} ")
-    return int(val1), int(val2)
-
-
-def parse_round_totals(fight_html: bs4.BeautifulSoup, fight_uid: str) -> ParsingResult:
+def parse_round_totals(
+    fight_html: bs4.BeautifulSoup, fight_uid: str
+) -> TotalStatsParsingResult:
     totals_cols = [i.text.strip() for i in fight_html.findAll("table")[0].findAll("th")]
     expected_cols = [
         "Fighter",
@@ -274,7 +296,7 @@ def parse_round_totals(fight_html: bs4.BeautifulSoup, fight_uid: str) -> Parsing
                 )
             )
 
-    return ParsingResult(uid=fight_uid, result=totals, issues=issues)
+    return TotalStatsParsingResult(uid=fight_uid, result=totals, issues=issues)
 
 
 def combine_dataclasses(class1, class2):
@@ -308,15 +330,9 @@ def get_event_uid(fight_html: bs4.BeautifulSoup) -> str:
     return event_uid
 
 
-@dataclass
-class FightDetailsParsingResult:
-    fight: Fight
-    parsing_issues: list[str]
-
-
 def parse_fight_details(
     fight_html: bs4.BeautifulSoup, event_uid: str, fight_uid: str
-) -> ParsingResult:
+) -> FightDetailsParsingResult:
     tbl = get_table_rows(fight_html)
     parsing_issues = []
     detail_headers = [
@@ -477,16 +493,7 @@ def parse_fight_details(
         referee=referee,
     )
 
-    return ParsingResult(uid=fight_uid, result=fight, issues=parsing_issues)
-
-
-@dataclass
-class FightParsingResult:
-    fight_uid: str
-    fight_result: Optional[ParsingResult]
-    total_stats: Optional[ParsingResult]
-    sig_stats: Optional[ParsingResult]
-    file_issues: list[str]
+    return FightDetailsParsingResult(uid=fight_uid, result=fight, issues=parsing_issues)
 
 
 def check_file_issues(
@@ -495,25 +502,29 @@ def check_file_issues(
     file_error_indicators = [
         "Round-by-round stats not currently available.",
     ]
-    result = FightParsingResult(
-        fight_uid=fight_contents.uid,
-        fight_result=None,
-        total_stats=None,
-        sig_stats=None,
-        file_issues=[],
-    )
     fight_text = fight_html.text
 
     for error_indicator in file_error_indicators:
         if error_indicator in fight_text:
-            result.file_issues = [error_indicator]
             print(f"[deleting {fight_contents.uid}] - {error_indicator}")
             fight_contents.path.unlink()
-            return result
+            return FightParsingResult(
+                fight_uid=fight_contents.uid,
+                fight_result=None,
+                total_stats=None,
+                sig_stats=None,
+                file_issues=[error_indicator],
+            )
 
     fight_tables = fight_html.findAll("table")
     if len(fight_tables) != 4:
-        result.file_issues = [f"unhandled number of tables: {len(fight_tables)}"]
+        return FightParsingResult(
+            fight_uid=fight_contents.uid,
+            fight_result=None,
+            total_stats=None,
+            sig_stats=None,
+            file_issues=[f"unhandled number of tables: {len(fight_tables)}"],
+        )
     return None
 
 
@@ -653,7 +664,7 @@ def write_fight_results_to_db(
     write_data_to_db(con, tbl_name, fights)
 
 
-def write_stats_to_db(results: list[FightParsingResult], force_run: bool) -> None:
+def write_stats_to_db(results: list[FightParsingResult]) -> None:
     tbl_name = "ufc_fight_stats"
     print(create_header(80, tbl_name, True, spacer="-"))
     con, cur = get_con()
@@ -717,8 +728,6 @@ def main() -> None:
     with ProcessPoolExecutor(max_workers=cpu_count - 1) as executor:
         results = list(executor.map(parse_fight, fights))
 
-    write_fight_results_to_db(results, force_run)
-    write_stats_to_db(results, force_run)
     write_fight_results_to_db(results, args.force)
     write_stats_to_db(results)
     print(footer)
