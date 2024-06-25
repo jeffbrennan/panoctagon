@@ -101,22 +101,27 @@ def handle_parsing_issues(
     n_parsing_issues = len(all_parsing_issues)
     clean_results = parsing_results
     if n_parsing_issues > 0:
-        print(create_header(80, "parsing issues", False, "."))
+        issue_base_len = 12
+        issue_prefix_len = issue_base_len - len("[n=]")
+        issue_padded_len = 20
+        n_uids_sample = 5
+        header_len = 80
+        print(create_header(header_len, "parsing issues", False, "."))
 
         for parsing_issue in all_parsing_issues:
             n_uids = len(parsing_issue.uids)
             uids = parsing_issue.uids
 
-            if len(uids) > 5:
-                uids = random.sample(uids, 5)
-            if len(parsing_issue.issue) > 80 - 16:
-                issue = parsing_issue.issue[0:80-20] + '...'
+            if len(uids) > n_uids_sample:
+                uids = random.sample(uids, n_uids_sample)
+            if len(parsing_issue.issue) > header_len - issue_prefix_len:
+                issue = parsing_issue.issue[0 : header_len - issue_padded_len] + "..."
 
             else:
                 issue = parsing_issue.issue
 
             summary_title = f"[n={n_uids:12,d}] {issue}"
-            print(create_header(80, summary_title, False, ""))
+            print(create_header(header_len, summary_title, False, ""))
             for uid in uids:
                 print(uid)
 
