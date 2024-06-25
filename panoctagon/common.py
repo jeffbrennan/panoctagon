@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 import time
-from dataclasses import dataclass, astuple, fields, is_dataclass
+from pydantic import BaseModel
 from enum import Enum
 from pathlib import Path
 import random
@@ -12,14 +12,12 @@ import bs4
 import requests
 
 
-@dataclass(frozen=True)
-class Promotion:
+class Promotion(BaseModel):
     promotion_uid: str
     name: str
 
 
-@dataclass
-class ScrapingConfig:
+class ScrapingConfig(BaseModel):
     uid: str
     description: str
     base_url: str
@@ -27,8 +25,7 @@ class ScrapingConfig:
     path: Path
 
 
-@dataclass
-class FileContents:
+class FileContents(BaseModel):
     uid: str
     path: Path
     contents: str
@@ -36,8 +33,7 @@ class FileContents:
     n_files: int
 
 
-@dataclass
-class ScrapingWriteResult:
+class ScrapingWriteResult(BaseModel):
     config: Optional[ScrapingConfig]
     path: Optional[Path]
     success: bool
@@ -50,8 +46,7 @@ class Symbols(Enum):
     CHECK = "\u2714"
 
 
-@dataclass
-class RunStats:
+class RunStats(BaseModel):
     start: float
     end: float
     n_ops: Optional[int]
@@ -60,14 +55,12 @@ class RunStats:
     failures: Optional[int]
 
 
-@dataclass
-class ParsingIssue:
+class ParsingIssue(BaseModel):
     issue: str
     uids: list[str]
 
 
-@dataclass(frozen=True, slots=True)
-class ParsingResult:
+class ParsingResult(BaseModel):
     uid: str
     result: Optional[Any]
     issues: list[str]
@@ -77,7 +70,7 @@ def handle_parsing_issues(
     parsing_results: list[ParsingResult], raise_error: bool
 ) -> list[ParsingResult]:
     all_parsing_issues: list[ParsingIssue] = []
-    for i, parsing_result in enumerate(parsing_results):
+    for _, parsing_result in enumerate(parsing_results):
         if parsing_result.result is None:
             continue
 
@@ -92,7 +85,9 @@ def handle_parsing_issues(
                 all_parsing_issues[issue_index].uids += [parsing_result.uid]
                 continue
 
-            all_parsing_issues.append(ParsingIssue(issue, [parsing_result.uid]))
+            all_parsing_issues.append(
+                ParsingIssue(issue=issue, uids=[parsing_result.uid])
+            )
 
     all_parsing_issues = sorted(
         all_parsing_issues, key=lambda x: len(x.uids), reverse=True
@@ -264,37 +259,19 @@ def dump_html(config: ScrapingConfig, log_uid: bool = False) -> None:
 
 
 def write_data_to_db(
-    con: sqlite3.Connection,
-    tbl_name: str,
-    data: list[tuple] | list[Any],
-    col_names: Optional[list[str]] = None,
+    con: sqlite3.Connection, tbl_name: str, data: list[BaseModel]
 ) -> None:
     cur = con.cursor()
 
-    if is_dataclass(data[0]):
-        col_names = [f.name for f in fields(data[0])]
-        tuples = [astuple(i) for i in data]  # pyright: ignore [reportArgumentType]
-    elif isinstance(data[0], tuple):
-        if col_names is None:
-            raise ValueError(
-                "expecting headers to be specified when data is a list of tuples"
-            )
-        tuples = data
-    else:
-        raise NotImplementedError(f"unsupported data type: {type(data[0])}")
-
-    if col_names is None:
-        raise ValueError("expecting headers")
-
-    if not isinstance(tuples[0], tuple):
-        raise TypeError("expecting tuples")
-
+    col_names = [i for i in data[0].model_fields.keys()]
+    model_dicts = [i.model_dump() for i in data]
+    model_values = [tuple(i.values()) for i in model_dicts]
     n_cols = len(col_names)
     headers = ",".join(col_names)
     placeholders = ", ".join(["?"] * n_cols)
 
     query = f"INSERT INTO {tbl_name} ({headers}) VALUES ({placeholders})"
-    cur.executemany(query, tuples)  # pyright: ignore [reportArgumentType]
+    cur.executemany(query, model_values)  # pyright: ignore [reportArgumentType]
     con.commit()
 
 

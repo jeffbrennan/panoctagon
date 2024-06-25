@@ -1,15 +1,17 @@
+import argparse
 import os
 import re
 import sqlite3
-
-import polars as pl
 from concurrent.futures import ProcessPoolExecutor
-from dataclasses import dataclass, fields, asdict
+from dataclasses import fields, asdict
 from enum import Enum
 from pathlib import Path
 from typing import Any, Optional
+
 import bs4
-import argparse
+import polars as pl
+from pydantic import BaseModel
+from pydantic import TypeAdapter
 
 from panoctagon.common import (
     write_data_to_db,
@@ -60,8 +62,7 @@ class FightResult(str, Enum):
     DRAW = "Draw"
 
 
-@dataclass(frozen=True, slots=True)
-class Fight:
+class Fight(BaseModel):
     event_uid: str
     fight_uid: str
     fight_style: FightStyle
@@ -77,8 +78,7 @@ class Fight:
     referee: Optional[str]
 
 
-@dataclass(frozen=True, slots=True)
-class RoundSigStats:
+class RoundSigStats(BaseModel):
     fight_uid: str
     fighter_uid: str
     round_num: int
@@ -98,8 +98,7 @@ class RoundSigStats:
     sig_strikes_grounded_attempted: int
 
 
-@dataclass(frozen=True, slots=True)
-class RoundTotalStats:
+class RoundTotalStats(BaseModel):
     fight_uid: str
     fighter_uid: str
     round_num: int
@@ -113,23 +112,50 @@ class RoundTotalStats:
     control_time_seconds: Optional[int]
 
 
-@dataclass(frozen=True, slots=True)
+class RoundStats(BaseModel):
+    fight_uid: str
+    fighter_uid: str
+    round_num: int
+    knockdowns: int
+    total_strikes_landed: int
+    total_strikes_attempted: int
+    takedowns_landed: int
+    takedowns_attempted: int
+    submissions_attempted: int
+    reversals: int
+    control_time_seconds: Optional[int]
+    fight_uid: str
+    fighter_uid: str
+    round_num: int
+    sig_strikes_landed: int
+    sig_strikes_attempted: int
+    sig_strikes_head_landed: int
+    sig_strikes_head_attempted: int
+    sig_strikes_body_landed: int
+    sig_strikes_body_attempted: int
+    sig_strikes_leg_landed: int
+    sig_strikes_leg_attempted: int
+    sig_strikes_distance_landed: int
+    sig_strikes_distance_attempted: int
+    sig_strikes_clinch_landed: int
+    sig_strikes_clinch_attempted: int
+    sig_strikes_grounded_landed: int
+    sig_strikes_grounded_attempted: int
+
+
 class FightDetailsParsingResult(ParsingResult):
     result: Fight
 
 
-@dataclass(frozen=True, slots=True)
 class TotalStatsParsingResult(ParsingResult):
     result: list[RoundTotalStats]
 
 
-@dataclass(frozen=True, slots=True)
 class SigStatsParsingResult(ParsingResult):
     result: list[RoundSigStats]
 
 
-@dataclass(frozen=True, slots=True)
-class FightParsingResult:
+class FightParsingResult(BaseModel):
     fight_uid: str
     fight_result: Optional[FightDetailsParsingResult]
     total_stats: Optional[TotalStatsParsingResult]
@@ -557,11 +583,6 @@ def parse_fight(
     )
 
 
-def convert_dataclass_to_dataframe(dc) -> pl.DataFrame:
-    dc_flat = [asdict(item) for sublist in dc for item in sublist]
-    return pl.DataFrame(dc_flat)
-
-
 def create_fight_tables(cur: sqlite3.Cursor) -> None:
 
     cur.execute(
@@ -661,7 +682,7 @@ def write_fight_results_to_db(
         delete_existing_records(tbl_name, "fight_uid", uids)
 
     print(f"[n={len(fights):5,d}] writing records")
-    write_data_to_db(con, tbl_name, fights)
+    write_data_to_db(con, tbl_name, fights)  # pyright: ignore [reportArgumentType]
 
 
 def write_stats_to_db(results: list[FightParsingResult]) -> None:
@@ -676,26 +697,41 @@ def write_stats_to_db(results: list[FightParsingResult]) -> None:
         [i.total_stats for i in results if i.total_stats is not None], False
     )
 
-    sig_stats_flat = convert_dataclass_to_dataframe([i.result for i in clean_sig_stats])
-    total_stats_flat = convert_dataclass_to_dataframe(
-        ([i.result for i in clean_total_stats])
+    sig_stats_flat = pl.DataFrame(
+        [
+            item
+            for sublist in [i.result for i in clean_sig_stats if i.result is not None]
+            for item in sublist
+        ]
+    )
+    total_stats_flat = pl.DataFrame(
+        item
+        for sublist in [i.result for i in clean_total_stats if i.result is not None]
+        for item in sublist
     )
 
-    stats_combined = total_stats_flat.join(
+    stats_combined_df = total_stats_flat.join(
         sig_stats_flat, on=["fight_uid", "fighter_uid", "round_num"]
     )
 
-    stats_combined_tuples: list[tuple] = stats_combined.rows(named=False)
-    if len(stats_combined_tuples) == 0:
+    uids = tuple(
+        str(i[0]) for i in stats_combined_df.select("fight_uid").rows(named=False)
+    )
+
+    stats_combined_dict = stats_combined_df.rows(named=True)
+    round_stats_adapter = TypeAdapter(list[RoundStats])
+    stats_combined = round_stats_adapter.validate_python(stats_combined_dict)
+
+    if len(stats_combined) == 0:
         print("no fights to write")
         return
 
-    headers = stats_combined.columns
-    uids = tuple((str(i[0]) for i in stats_combined_tuples))
     delete_existing_records(tbl_name, "fight_uid", uids)
 
-    print(f"[n={len(stats_combined_tuples):5,d}] writing records")
-    write_data_to_db(con, tbl_name, stats_combined_tuples, headers)
+    print(f"[n={len(stats_combined):5,d}] writing records")
+    write_data_to_db(
+        con, tbl_name, stats_combined  # pyright: ignore [reportArgumentType]
+    )
 
 
 def main() -> None:

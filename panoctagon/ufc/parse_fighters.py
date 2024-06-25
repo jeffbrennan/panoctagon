@@ -1,7 +1,7 @@
 import os
 import sqlite3
 from concurrent.futures import ProcessPoolExecutor
-from dataclasses import dataclass
+from pydantic import BaseModel
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -12,8 +12,7 @@ import bs4
 from panoctagon.common import get_con, get_html_files, FileContents, write_data_to_db
 
 
-@dataclass
-class Fighter:
+class Fighter(BaseModel):
     fighter_uid: str
     first_name: str
     last_name: str
@@ -27,8 +26,7 @@ class Fighter:
     leg_reach_inches: Optional[int]
 
 
-@dataclass
-class FighterParsingResult:
+class FighterParsingResult(BaseModel):
     fighter_uid: str
     fighter: Fighter
     parsing_issues: list[str]
@@ -154,7 +152,9 @@ def parse_fighter(fighter: FileContents) -> FighterParsingResult:
 
 def main():
     fighters_dir = Path(__file__).parents[2] / "data/raw/ufc/fighters"
-    fighters = get_html_files(fighters_dir, "fighter_uid", "ufc_fighters")
+    fighters = get_html_files(
+        fighters_dir, "fighter_uid", "ufc_fighters", force_run=True
+    )
     n_cores = os.cpu_count()
     if n_cores is None:
         n_cores = 4
