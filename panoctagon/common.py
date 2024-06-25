@@ -66,7 +66,7 @@ class ParsingIssue:
     uids: list[str]
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class ParsingResult:
     uid: str
     result: Optional[Any]
