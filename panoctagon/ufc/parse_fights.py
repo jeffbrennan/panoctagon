@@ -9,6 +9,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Optional
 import bs4
+import argparse
 
 from panoctagon.common import (
     write_data_to_db,
@@ -687,15 +688,25 @@ def write_stats_to_db(results: list[FightParsingResult], force_run: bool) -> Non
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Panoctagon UFC Fight Parser")
+    parser.add_argument(
+        "-f",
+        "--force",
+        help="force existing parsed fights to be reprocessed",
+        action="store_true",
+        required=False,
+        default=False,
+    )
+    args = parser.parse_args()
+
     print(create_header(80, "PANOCTAGON", True, "="))
     footer = create_header(80, "", True, "=")
     cpu_count = os.cpu_count()
     if cpu_count is None:
         cpu_count = 4
-    force_run = False
 
     fight_dir = Path(__file__).parents[2] / "data/raw/ufc/fights"
-    fights = get_html_files(fight_dir, "fight_uid", "ufc_fights", force_run)
+    fights = get_html_files(fight_dir, "fight_uid", "ufc_fights", args.force)
 
     if len(fights) == 0:
         print("no fights to parse. exiting early")
@@ -708,6 +719,8 @@ def main() -> None:
 
     write_fight_results_to_db(results, force_run)
     write_stats_to_db(results, force_run)
+    write_fight_results_to_db(results, args.force)
+    write_stats_to_db(results)
     print(footer)
 
 
