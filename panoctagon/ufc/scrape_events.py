@@ -1,18 +1,8 @@
 import datetime
-from dataclasses import dataclass
-
 import requests
 import bs4
 
-from panoctagon.common import write_data_to_db, get_con, get_table_rows
-
-
-@dataclass(frozen=True)
-class UFCEvent:
-    event_uid: str
-    title: str
-    event_date: str
-    event_location: str
+from panoctagon.common import write_data_to_db, get_con, get_table_rows, UFCEvent
 
 
 def write_events(urls: list[UFCEvent]) -> None:
@@ -31,7 +21,7 @@ def write_events(urls: list[UFCEvent]) -> None:
         """
     )
 
-    write_data_to_db(con, "ufc_events", urls, None)
+    write_data_to_db(con, "ufc_events", urls)
 
 
 def get_events() -> list[UFCEvent]:
@@ -55,7 +45,7 @@ def get_events() -> list[UFCEvent]:
 
         event_uid = url.split("/")[-1]
         title = row.a.text.strip()
-        fight_location = cols[-1].text.strip()
+        event_location = cols[-1].text.strip()
 
         fight_date_txt_raw = row.find("span", class_="b-statistics__date")
         if fight_date_txt_raw is None:
@@ -68,12 +58,12 @@ def get_events() -> list[UFCEvent]:
             continue
 
         fight_date = datetime.datetime.strptime(fight_date_txt, "%B %d, %Y")
-        fight_date_formatted = datetime.datetime.strftime(fight_date, "%Y-%m-%d")
-        if fight_date_formatted == "":
+        event_date_formatted = datetime.datetime.strftime(fight_date, "%Y-%m-%d")
+        if event_date_formatted == "":
             unparsed_events.append(event_uid)
             continue
 
-        results = (url, title, fight_date_formatted, fight_location)
+        results = (url, title, event_date_formatted, event_location)
         blank_strings = [i == "" for i in results]
         null_results = [i is None for i in results]
 
@@ -82,7 +72,12 @@ def get_events() -> list[UFCEvent]:
             unparsed_events.append(event_uid)
             continue
 
-        result = UFCEvent(event_uid, title, fight_date_formatted, fight_location)
+        result = UFCEvent(
+            event_uid=event_uid,
+            title=title,
+            event_date=event_date_formatted,
+            event_location=event_location,
+        )
 
         data.append(result)
     print(f"obtained {len(data)} fight urls")

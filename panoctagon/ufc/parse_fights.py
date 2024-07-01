@@ -3,164 +3,36 @@ import os
 import re
 import sqlite3
 from concurrent.futures import ProcessPoolExecutor
-from dataclasses import fields, asdict
-from enum import Enum
+from dataclasses import fields
 from pathlib import Path
 from typing import Any, Optional
 
 import bs4
 import polars as pl
-from pydantic import BaseModel
-from pydantic import TypeAdapter
-
 from panoctagon.common import (
-    write_data_to_db,
-    get_con,
-    get_table_rows,
+    Decision,
+    Fight,
+    FightDetailsParsingResult,
+    FightParsingResult,
+    FightResult,
+    FightStyle,
+    FightType,
     FileContents,
-    get_html_files,
-    ParsingResult,
-    handle_parsing_issues,
+    RoundSigStats,
+    RoundStats,
+    RoundTotalStats,
+    SigStatsParsingResult,
+    TotalStatsParsingResult,
     create_header,
+    delete_existing_records,
+    get_con,
+    get_html_files,
+    get_table_rows,
+    handle_parsing_issues,
+    write_data_to_db,
 )
 from panoctagon.divisions import UFCDivisionNames
-
-
-class FightStyle(str, Enum):
-    MMA = "MMA"
-    MUAY_THAI = "Muay Thai"
-    BJJ = "Brazilian Jiu-Jitsu"
-
-
-class FightType(str, Enum):
-    BOUT = "Bout"
-    TITLE = "Title Bout"
-
-
-class Decision(str, Enum):
-    KO = "Knockout"
-    TKO = "Technical Knockout"
-    DOC = "Doctor's Stoppage"
-    SUB = "Submission"
-    UNANIMOUS_DECISION = "Decision - Unanimous"
-    SPLIT_DECISION = "Decision - Split"
-    MAJORITY_DECISION = "Decision - Majority"
-    DRAW = "Draw"
-    NO_CONTEST = "No Contest"
-    DQ = "Disqualification"
-    OVERTURNED = "Overturned"
-    COULD_NOT_CONTINUE = "Could Not Continue"
-    OTHER = "Other"
-
-
-# fighter level outcome
-class FightResult(str, Enum):
-    WIN = "Win"
-    LOSS = "Loss"
-    NO_CONTEST = "No Contest"
-    DQ = "Disqualification"
-    DRAW = "Draw"
-
-
-class Fight(BaseModel):
-    event_uid: str
-    fight_uid: str
-    fight_style: FightStyle
-    fight_type: Optional[FightType]
-    fight_division: Optional[UFCDivisionNames]
-    fighter1_uid: str
-    fighter2_uid: str
-    fighter1_result: FightResult
-    fighter2_result: FightResult
-    decision: Optional[Decision]
-    decision_round: Optional[int]
-    decision_time_seconds: Optional[int]
-    referee: Optional[str]
-
-
-class RoundSigStats(BaseModel):
-    fight_uid: str
-    fighter_uid: str
-    round_num: int
-    sig_strikes_landed: int
-    sig_strikes_attempted: int
-    sig_strikes_head_landed: int
-    sig_strikes_head_attempted: int
-    sig_strikes_body_landed: int
-    sig_strikes_body_attempted: int
-    sig_strikes_leg_landed: int
-    sig_strikes_leg_attempted: int
-    sig_strikes_distance_landed: int
-    sig_strikes_distance_attempted: int
-    sig_strikes_clinch_landed: int
-    sig_strikes_clinch_attempted: int
-    sig_strikes_grounded_landed: int
-    sig_strikes_grounded_attempted: int
-
-
-class RoundTotalStats(BaseModel):
-    fight_uid: str
-    fighter_uid: str
-    round_num: int
-    knockdowns: int
-    total_strikes_landed: int
-    total_strikes_attempted: int
-    takedowns_landed: int
-    takedowns_attempted: int
-    submissions_attempted: int
-    reversals: int
-    control_time_seconds: Optional[int]
-
-
-class RoundStats(BaseModel):
-    fight_uid: str
-    fighter_uid: str
-    round_num: int
-    knockdowns: int
-    total_strikes_landed: int
-    total_strikes_attempted: int
-    takedowns_landed: int
-    takedowns_attempted: int
-    submissions_attempted: int
-    reversals: int
-    control_time_seconds: Optional[int]
-    fight_uid: str
-    fighter_uid: str
-    round_num: int
-    sig_strikes_landed: int
-    sig_strikes_attempted: int
-    sig_strikes_head_landed: int
-    sig_strikes_head_attempted: int
-    sig_strikes_body_landed: int
-    sig_strikes_body_attempted: int
-    sig_strikes_leg_landed: int
-    sig_strikes_leg_attempted: int
-    sig_strikes_distance_landed: int
-    sig_strikes_distance_attempted: int
-    sig_strikes_clinch_landed: int
-    sig_strikes_clinch_attempted: int
-    sig_strikes_grounded_landed: int
-    sig_strikes_grounded_attempted: int
-
-
-class FightDetailsParsingResult(ParsingResult):
-    result: Fight
-
-
-class TotalStatsParsingResult(ParsingResult):
-    result: list[RoundTotalStats]
-
-
-class SigStatsParsingResult(ParsingResult):
-    result: list[RoundSigStats]
-
-
-class FightParsingResult(BaseModel):
-    fight_uid: str
-    fight_result: Optional[FightDetailsParsingResult]
-    total_stats: Optional[TotalStatsParsingResult]
-    sig_stats: Optional[SigStatsParsingResult]
-    file_issues: list[str]
+from pydantic import TypeAdapter
 
 
 def get_split_stat(stat: str, sep: str) -> tuple[int, int]:
@@ -646,16 +518,6 @@ def create_fight_tables(cur: sqlite3.Cursor) -> None:
     )
 
 
-def delete_existing_records(tbl_name: str, uid_name: str, uids: tuple[str, ...]):
-    con, cur = get_con()
-    print(f"[n={len(uids):5,d}] deleting records")
-    placeholder = ", ".join("?" * len(uids))
-    cmd = f"DELETE FROM {tbl_name} WHERE {uid_name} IN ({placeholder})"
-
-    cur.execute(cmd, uids)
-    con.commit()
-
-
 def write_fight_results_to_db(
     results: list[FightParsingResult], force_run: bool
 ) -> None:
@@ -671,9 +533,7 @@ def write_fight_results_to_db(
         print("no fights to write")
         return
 
-    fights: list[Fight] = [
-        i.result for i in clean_fight_results
-    ]  # pyright: ignore [reportAssignmentType]
+    fights: list[Fight] = [i.result for i in clean_fight_results]
 
     if force_run:
         uids: tuple[str, ...] = tuple(
@@ -682,7 +542,7 @@ def write_fight_results_to_db(
         delete_existing_records(tbl_name, "fight_uid", uids)
 
     print(f"[n={len(fights):5,d}] writing records")
-    write_data_to_db(con, tbl_name, fights)  # pyright: ignore [reportArgumentType]
+    write_data_to_db(con, tbl_name, fights)
 
 
 def write_stats_to_db(results: list[FightParsingResult]) -> None:
@@ -729,9 +589,7 @@ def write_stats_to_db(results: list[FightParsingResult]) -> None:
     delete_existing_records(tbl_name, "fight_uid", uids)
 
     print(f"[n={len(stats_combined):5,d}] writing records")
-    write_data_to_db(
-        con, tbl_name, stats_combined  # pyright: ignore [reportArgumentType]
-    )
+    write_data_to_db(con, tbl_name, stats_combined)
 
 
 def main() -> None:

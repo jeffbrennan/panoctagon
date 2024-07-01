@@ -1,43 +1,23 @@
+import argparse
 import os
 import sqlite3
 from concurrent.futures import ProcessPoolExecutor
-from pydantic import BaseModel
 from datetime import datetime
-from enum import Enum
 from pathlib import Path
-from typing import Optional
 
 import bs4
-
-from panoctagon.common import get_con, get_html_files, FileContents, write_data_to_db
-
-
-class Fighter(BaseModel):
-    fighter_uid: str
-    first_name: str
-    last_name: str
-    nickname: Optional[str]
-    dob: Optional[str]
-    place_of_birth: Optional[str]
-    stance: Optional[str]
-    style: Optional[str]
-    height_inches: Optional[int]
-    reach_inches: Optional[int]
-    leg_reach_inches: Optional[int]
-
-
-class FighterParsingResult(BaseModel):
-    fighter_uid: str
-    fighter: Fighter
-    parsing_issues: list[str]
-
-
-class Stance(str, Enum):
-    ORTHODOX = "Orthodox"
-    SOUTHPAW = "Southpaw"
-    SWITCH = "Switch"
-    SIDEWAYS = "Sideways"
-    OPEN_STANCE = "Open Stance"
+from panoctagon.common import (
+    Fighter,
+    FighterParsingResult,
+    FileContents,
+    Stance,
+    create_header,
+    delete_existing_records,
+    get_con,
+    get_html_files,
+    handle_parsing_issues,
+    write_data_to_db,
+)
 
 
 def create_fighters_table(cur: sqlite3.Cursor) -> None:
@@ -61,13 +41,6 @@ def create_fighters_table(cur: sqlite3.Cursor) -> None:
 
     """
     )
-
-
-def write_fighters_table(fighters: list[Fighter]) -> None:
-    con, cur = get_con()
-    create_fighters_table(cur)
-
-    write_data_to_db(con, "ufc_fighters", fighters)
 
 
 def parse_fighter(fighter: FileContents) -> FighterParsingResult:
@@ -146,29 +119,63 @@ def parse_fighter(fighter: FileContents) -> FighterParsingResult:
     )
 
     return FighterParsingResult(
-        fighter_uid=fighter.uid, fighter=fighter_parsed, parsing_issues=parsing_issues
+        uid=fighter.uid, result=fighter_parsed, issues=parsing_issues
     )
 
 
-def main():
+def write_fighter_results_to_db(
+    results: list[FighterParsingResult], force_run: bool
+) -> None:
+    tbl_name = "ufc_fights"
+    print(create_header(80, tbl_name, True, spacer="-"))
+    con, cur = get_con()
+    create_fighters_table(cur)
+
+    clean_results = handle_parsing_issues(results, False)
+    fighters = [i.result for i in clean_results]
+    if force_run:
+        uids: tuple[str, ...] = tuple(
+            (str(i.fighter_uid) for i in fighters if i is not None)
+        )
+        delete_existing_records(tbl_name, "fighter_uid", uids)
+
+    print(f"[n={len(fighters):5,d}] writing records")
+    write_data_to_db(con, tbl_name, fighters)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Panoctagon UFC Fighter Parser")
+    parser.add_argument(
+        "-f",
+        "--force",
+        help="force existing parsed fighters to be reprocessed",
+        action="store_true",
+        required=False,
+        default=False,
+    )
+    args = parser.parse_args()
+    print(create_header(80, "PANOCTAGON", True, "="))
+    footer = create_header(80, "", True, "=")
+    cpu_count = os.cpu_count()
+    if cpu_count is None:
+        cpu_count = 4
+
     fighters_dir = Path(__file__).parents[2] / "data/raw/ufc/fighters"
     fighters = get_html_files(
         fighters_dir, "fighter_uid", "ufc_fighters", force_run=True
     )
-    n_cores = os.cpu_count()
-    if n_cores is None:
-        n_cores = 4
 
-    with ProcessPoolExecutor(max_workers=n_cores - 1) as executor:
+    if len(fighters) == 0:
+        print("no fights to parse. exiting early")
+        print(footer)
+        return
+
+    with ProcessPoolExecutor(max_workers=cpu_count - 1) as executor:
         results = list(executor.map(parse_fighter, fighters))
     print(len(results))
 
-    parsing_issues = [i for i in results if i.parsing_issues]
-    print(len(parsing_issues))
-
-    # TODO: implement generic handling of fighter parsing issues
-    # clean_results = handle_parsing_issues(results)
-    # write_fighters_table(clean_results)
+    write_fighter_results_to_db(results, args.force)
+    print(footer)
 
 
 if __name__ == "__main__":

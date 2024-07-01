@@ -1,16 +1,21 @@
 from __future__ import annotations
 
+import random
 import sqlite3
 import time
-from pydantic import BaseModel
 from enum import Enum
 from pathlib import Path
-import random
-from typing import Optional, Any
+from typing import Any, Optional, TypeVar
 
 import bs4
 import requests
+from pydantic import BaseModel
 
+class UFCEvent(BaseModel):
+    event_uid: str
+    title: str
+    event_date: str
+    event_location: str
 
 class Promotion(BaseModel):
     promotion_uid: str
@@ -60,15 +65,231 @@ class ParsingIssue(BaseModel):
     uids: list[str]
 
 
+class Fighter(BaseModel):
+    fighter_uid: str
+    first_name: str
+    last_name: str
+    nickname: Optional[str]
+    dob: Optional[str]
+    place_of_birth: Optional[str]
+    stance: Optional[str]
+    style: Optional[str]
+    height_inches: Optional[int]
+    reach_inches: Optional[int]
+    leg_reach_inches: Optional[int]
+
+
 class ParsingResult(BaseModel):
     uid: str
     result: Optional[Any]
     issues: list[str]
 
 
+class FighterParsingResult(ParsingResult):
+    result: Fighter
+
+
+class FightStyle(str, Enum):
+    MMA = "MMA"
+    MUAY_THAI = "Muay Thai"
+    BJJ = "Brazilian Jiu-Jitsu"
+
+
+class FightType(str, Enum):
+    BOUT = "Bout"
+    TITLE = "Title Bout"
+
+
+class Decision(str, Enum):
+    KO = "Knockout"
+    TKO = "Technical Knockout"
+    DOC = "Doctor's Stoppage"
+    SUB = "Submission"
+    UNANIMOUS_DECISION = "Decision - Unanimous"
+    SPLIT_DECISION = "Decision - Split"
+    MAJORITY_DECISION = "Decision - Majority"
+    DRAW = "Draw"
+    NO_CONTEST = "No Contest"
+    DQ = "Disqualification"
+    OVERTURNED = "Overturned"
+    COULD_NOT_CONTINUE = "Could Not Continue"
+    OTHER = "Other"
+
+
+# fighter level outcome
+class FightResult(str, Enum):
+    WIN = "Win"
+    LOSS = "Loss"
+    NO_CONTEST = "No Contest"
+    DQ = "Disqualification"
+    DRAW = "Draw"
+
+
+class Fight(BaseModel):
+    event_uid: str
+    fight_uid: str
+    fight_style: FightStyle
+    fight_type: Optional[FightType]
+    fight_division: Optional[UFCDivisionNames]
+    fighter1_uid: str
+    fighter2_uid: str
+    fighter1_result: FightResult
+    fighter2_result: FightResult
+    decision: Optional[Decision]
+    decision_round: Optional[int]
+    decision_time_seconds: Optional[int]
+    referee: Optional[str]
+
+
+class RoundSigStats(BaseModel):
+    fight_uid: str
+    fighter_uid: str
+    round_num: int
+    sig_strikes_landed: int
+    sig_strikes_attempted: int
+    sig_strikes_head_landed: int
+    sig_strikes_head_attempted: int
+    sig_strikes_body_landed: int
+    sig_strikes_body_attempted: int
+    sig_strikes_leg_landed: int
+    sig_strikes_leg_attempted: int
+    sig_strikes_distance_landed: int
+    sig_strikes_distance_attempted: int
+    sig_strikes_clinch_landed: int
+    sig_strikes_clinch_attempted: int
+    sig_strikes_grounded_landed: int
+    sig_strikes_grounded_attempted: int
+
+
+class RoundTotalStats(BaseModel):
+    fight_uid: str
+    fighter_uid: str
+    round_num: int
+    knockdowns: int
+    total_strikes_landed: int
+    total_strikes_attempted: int
+    takedowns_landed: int
+    takedowns_attempted: int
+    submissions_attempted: int
+    reversals: int
+    control_time_seconds: Optional[int]
+
+
+class RoundStats(BaseModel):
+    fight_uid: str
+    fighter_uid: str
+    round_num: int
+    knockdowns: int
+    total_strikes_landed: int
+    total_strikes_attempted: int
+    takedowns_landed: int
+    takedowns_attempted: int
+    submissions_attempted: int
+    reversals: int
+    control_time_seconds: Optional[int]
+    fight_uid: str
+    fighter_uid: str
+    round_num: int
+    sig_strikes_landed: int
+    sig_strikes_attempted: int
+    sig_strikes_head_landed: int
+    sig_strikes_head_attempted: int
+    sig_strikes_body_landed: int
+    sig_strikes_body_attempted: int
+    sig_strikes_leg_landed: int
+    sig_strikes_leg_attempted: int
+    sig_strikes_distance_landed: int
+    sig_strikes_distance_attempted: int
+    sig_strikes_clinch_landed: int
+    sig_strikes_clinch_attempted: int
+    sig_strikes_grounded_landed: int
+    sig_strikes_grounded_attempted: int
+
+
+class FightDetailsParsingResult(ParsingResult):
+    result: Fight
+
+
+class TotalStatsParsingResult(ParsingResult):
+    result: list[RoundTotalStats]
+
+
+class SigStatsParsingResult(ParsingResult):
+    result: list[RoundSigStats]
+
+
+class Stance(str, Enum):
+    ORTHODOX = "Orthodox"
+    SOUTHPAW = "Southpaw"
+    SWITCH = "Switch"
+    SIDEWAYS = "Sideways"
+    OPEN_STANCE = "Open Stance"
+
+
+class FightParsingResult(BaseModel):
+    fight_uid: str
+    fight_result: Optional[FightDetailsParsingResult]
+    total_stats: Optional[TotalStatsParsingResult]
+    sig_stats: Optional[SigStatsParsingResult]
+    file_issues: list[str]
+
+
+class UFCDivisionNames(str, Enum):
+    STRAWWEIGHT = "Strawweight"
+    WOMENS_STRAWWEIGHT = "Women's Strawweight"
+    FLYWEIGHT = "Flyweight"
+    WOMENS_FLYWEIGHT = "Women's Flyweight"
+    BANTAMWEIGHT = "Bantamweight"
+    WOMENS_BANTAMWEIGHT = "Women's Bantamweight"
+    FEATHERWEIGHT = "Featherweight"
+    WOMENS_FEATHERWEIGHT = "Women's Featherweight"
+    LIGHTWEIGHT = "Lightweight"
+    WELTERWEIGHT = "Welterweight"
+    MIDDLEWEIGHT = "Middleweight"
+    LIGHT_HEAVYWEIGHT = "Light Heavyweight"
+    HEAVYWEIGHT = "Heavyweight"
+    SUPER_HEAVYWEIGHT = "Super Heavyweight"
+    CATCH_WEIGHT = "Catch Weight"
+    OPEN_WEIGHT = "Open Weight"
+
+
+class ONEDivisionNames(str, Enum):
+    ATOMWEIGHT = "Atomweight"
+    STRAWWEIGHT = "Strawweight"
+    FLYWEIGHT = "Flyweight"
+    BANTAMWEIGHT = "Bantamweight"
+    FEATHERWEIGHT = "Featherweight"
+    LIGHTWEIGHT = "Lightweight"
+    WELTERWEIGHT = "Welterweight"
+    MIDDLEWEIGHT = "Middleweight"
+    LIGHT_HEAVYWEIGHT = "Light Heavyweight"
+    HEAVYWEIGHT = "Heavyweight"
+
+
+class Division(BaseModel):
+    promotion_uid: str
+    division_uid: str
+    name: str
+    weight_lbs: int
+
+
+ParsingResultType = TypeVar("ParsingResultType", bound=ParsingResult)
+BaseModelType = TypeVar("BaseModelType", bound=BaseModel)
+
+
+def delete_existing_records(tbl_name: str, uid_name: str, uids: tuple[str, ...]):
+    con, cur = get_con()
+    print(f"[n={len(uids):5,d}] deleting records")
+    placeholder = ", ".join("?" * len(uids))
+    cmd = f"DELETE FROM {tbl_name} WHERE {uid_name} IN ({placeholder})"
+
+    cur.execute(cmd, uids)
+    con.commit()
+
+
 def handle_parsing_issues(
-    parsing_results: list[ParsingResult], raise_error: bool
-) -> list[ParsingResult]:
+    parsing_results: list[ParsingResultType], raise_error: bool
+) -> list[ParsingResultType]:
     all_parsing_issues: list[ParsingIssue] = []
     for _, parsing_result in enumerate(parsing_results):
         if parsing_result.result is None:
@@ -259,7 +480,7 @@ def dump_html(config: ScrapingConfig, log_uid: bool = False) -> None:
 
 
 def write_data_to_db(
-    con: sqlite3.Connection, tbl_name: str, data: list[BaseModel]
+    con: sqlite3.Connection, tbl_name: str, data: list[BaseModelType]
 ) -> None:
     cur = con.cursor()
 

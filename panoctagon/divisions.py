@@ -1,51 +1,17 @@
 import uuid
-from enum import Enum
-from dataclasses import dataclass
-
-from panoctagon.common import get_con, write_data_to_db
 
 
-class UFCDivisionNames(str, Enum):
-    STRAWWEIGHT = "Strawweight"
-    WOMENS_STRAWWEIGHT = "Women's Strawweight"
-    FLYWEIGHT = "Flyweight"
-    WOMENS_FLYWEIGHT = "Women's Flyweight"
-    BANTAMWEIGHT = "Bantamweight"
-    WOMENS_BANTAMWEIGHT = "Women's Bantamweight"
-    FEATHERWEIGHT = "Featherweight"
-    WOMENS_FEATHERWEIGHT = "Women's Featherweight"
-    LIGHTWEIGHT = "Lightweight"
-    WELTERWEIGHT = "Welterweight"
-    MIDDLEWEIGHT = "Middleweight"
-    LIGHT_HEAVYWEIGHT = "Light Heavyweight"
-    HEAVYWEIGHT = "Heavyweight"
-    SUPER_HEAVYWEIGHT = "Super Heavyweight"
-    CATCH_WEIGHT = "Catch Weight"
-    OPEN_WEIGHT = "Open Weight"
-
-class ONEDivisionNames(str, Enum):
-    ATOMWEIGHT = "Atomweight"
-    STRAWWEIGHT = "Strawweight"
-    FLYWEIGHT = "Flyweight"
-    BANTAMWEIGHT = "Bantamweight"
-    FEATHERWEIGHT = "Featherweight"
-    LIGHTWEIGHT = "Lightweight"
-    WELTERWEIGHT = "Welterweight"
-    MIDDLEWEIGHT = "Middleweight"
-    LIGHT_HEAVYWEIGHT = "Light Heavyweight"
-    HEAVYWEIGHT = "Heavyweight"
-
-
-@dataclass(frozen=True)
-class Division:
-    promotion_uid: str
-    division_uid: str
-    name: str
-    weight_lbs: int
+from panoctagon.common import (
+    Division,
+    ONEDivisionNames,
+    UFCDivisionNames,
+    get_con,
+    write_data_to_db,
+)
 
 
 def get_promotion_uid(promotion_name: str) -> str:
-    con, cur = get_con()
+    _, cur = get_con()
     query = f"select promotion_uid from promotions where name = '{promotion_name}'"
     result = cur.execute(query)
     return result.fetchone()[0]
@@ -55,7 +21,7 @@ def write_divisions(divisions: list[Division]) -> None:
     con, _ = get_con()
     cur = con.cursor()
     cur.execute(
-        f"""
+        """
               CREATE TABLE IF NOT EXISTS
                divisions(
                promotion_uid TEXT NOT NULL,
@@ -127,6 +93,7 @@ def get_one_divisions() -> list[Division]:
         )
     return one_divisions
 
+
 def setup_divisions():
     ufc_divisions = get_ufc_divisions()
     one_divisions = get_one_divisions()
@@ -136,6 +103,7 @@ def setup_divisions():
 
 def main():
     setup_divisions()
+
 
 if __name__ == "__main__":
     main()
