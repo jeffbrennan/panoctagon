@@ -29,7 +29,7 @@ def create_fighters_table(cur: sqlite3.Cursor) -> None:
             first_name TEXT NOT NULL,
             last_name TEXT NOT NULL,
             nickname TEXT,
-            dob TEXT NOT NULL,
+            dob TEXT,
             place_of_birth TEXT,
             stance TEXT,
             style TEXT,
@@ -126,7 +126,7 @@ def parse_fighter(fighter: FileContents) -> FighterParsingResult:
 def write_fighter_results_to_db(
     results: list[FighterParsingResult], force_run: bool
 ) -> None:
-    tbl_name = "ufc_fights"
+    tbl_name = "ufc_fighters"
     print(create_header(80, tbl_name, True, spacer="-"))
     con, cur = get_con()
     create_fighters_table(cur)
