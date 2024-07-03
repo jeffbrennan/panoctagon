@@ -1,23 +1,7 @@
 import uuid
 
 from panoctagon.common import write_data_to_db
-from panoctagon.models import Promotions
-
-
-def write_promotions(promotions: list[Promotions]) -> None:
-    cur.execute(
-        """
-           CREATE TABLE IF NOT EXISTS
-            promotions(
-            promotion_uid TEXT PRIMARY KEY NOT NULL,
-            name TEXT NOT NULL,
-            founded_date TEXT NOT NULL
-           );
-
-        """
-    )
-
-    write_data_to_db(con, "promotions", promotions)
+from panoctagon.tables import Promotions
 
 
 def setup_promotions():
@@ -29,7 +13,7 @@ def setup_promotions():
     )
 
     promotions = [ufc, one]
-    write_promotions(promotions)
+    write_data_to_db(promotions)
 
 
 def main():

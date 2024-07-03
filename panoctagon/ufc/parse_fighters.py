@@ -16,7 +16,8 @@ from panoctagon.common import (
     write_data_to_db,
 )
 from panoctagon.enums import Stance
-from panoctagon.models import Fighter, FighterParsingResult, FileContents
+from panoctagon.models import FighterParsingResult, FileContents
+from panoctagon.tables import UFCFighter
 
 
 def create_fighters_table(cur: sqlite3.Cursor) -> None:
@@ -103,7 +104,7 @@ def parse_fighter(fighter: FileContents) -> FighterParsingResult:
         dob_raw = all_stats_raw["dob"]
         dob = datetime.strptime(dob_raw, "%b %d, %Y").strftime("%Y-%m-%d")
 
-    fighter_parsed = Fighter(
+    fighter_parsed = UFCFighter(
         fighter_uid=fighter.uid,
         first_name=first_name,
         last_name=last_name,
@@ -139,7 +140,7 @@ def write_fighter_results_to_db(
         delete_existing_records(tbl_name, "fighter_uid", uids)
 
     print(f"[n={len(fighters):5,d}] writing records")
-    write_data_to_db(con, tbl_name, fighters)
+    write_data_to_db(fighters)
 
 
 def main() -> None:

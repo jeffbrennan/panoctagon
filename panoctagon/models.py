@@ -1,38 +1,12 @@
 from __future__ import annotations
 
-import datetime
 from pathlib import Path
 from typing import Any, Optional, TypeVar
 
 from pydantic import BaseModel
-from sqlalchemy import UniqueConstraint
-from sqlmodel import Field, SQLModel
+from sqlmodel import SQLModel
 
-from panoctagon.enums import (
-    Decision,
-    FightResult,
-    FightStyle,
-    FightType,
-    UFCDivisionNames,
-)
-
-
-class Divisions(SQLModel, table=True):
-    __table_args__ = (
-        UniqueConstraint("promotion_uid", "division_uid", name="divisions_pk"),
-    )
-    promotion_uid: str = Field(primary_key=True, foreign_key="promotions.promotion_uid")
-    division_uid: str = Field(primary_key=True)
-    name: str
-    weight_lbs: int
-    updated_ts: datetime.datetime = datetime.datetime.now(datetime.UTC)
-
-
-class UFCEvent(BaseModel):
-    event_uid: str
-    title: str
-    event_date: str
-    event_location: str
+from panoctagon.tables import UFCFight, UFCFighter
 
 
 class ScrapingConfig(BaseModel):
@@ -72,20 +46,6 @@ class ParsingIssue(BaseModel):
     uids: list[str]
 
 
-class Fighter(SQLModel, table=True):
-    fighter_uid: str = Field(primary_key=True)
-    first_name: str
-    last_name: str
-    nickname: Optional[str]
-    dob: Optional[str]
-    place_of_birth: Optional[str]
-    stance: Optional[str]
-    style: Optional[str]
-    height_inches: Optional[int]
-    reach_inches: Optional[int]
-    leg_reach_inches: Optional[int]
-
-
 class ParsingResult(BaseModel):
     uid: str
     result: Optional[Any]
@@ -93,23 +53,7 @@ class ParsingResult(BaseModel):
 
 
 class FighterParsingResult(ParsingResult):
-    result: Fighter
-
-
-class Fight(BaseModel):
-    event_uid: str
-    fight_uid: str
-    fight_style: FightStyle
-    fight_type: Optional[FightType]
-    fight_division: Optional[UFCDivisionNames]
-    fighter1_uid: str
-    fighter2_uid: str
-    fighter1_result: FightResult
-    fighter2_result: FightResult
-    decision: Optional[Decision]
-    decision_round: Optional[int]
-    decision_time_seconds: Optional[int]
-    referee: Optional[str]
+    result: UFCFighter
 
 
 class RoundSigStats(BaseModel):
@@ -146,39 +90,8 @@ class RoundTotalStats(BaseModel):
     control_time_seconds: Optional[int]
 
 
-class RoundStats(BaseModel):
-    fight_uid: str
-    fighter_uid: str
-    round_num: int
-    knockdowns: int
-    total_strikes_landed: int
-    total_strikes_attempted: int
-    takedowns_landed: int
-    takedowns_attempted: int
-    submissions_attempted: int
-    reversals: int
-    control_time_seconds: Optional[int]
-    fight_uid: str
-    fighter_uid: str
-    round_num: int
-    sig_strikes_landed: int
-    sig_strikes_attempted: int
-    sig_strikes_head_landed: int
-    sig_strikes_head_attempted: int
-    sig_strikes_body_landed: int
-    sig_strikes_body_attempted: int
-    sig_strikes_leg_landed: int
-    sig_strikes_leg_attempted: int
-    sig_strikes_distance_landed: int
-    sig_strikes_distance_attempted: int
-    sig_strikes_clinch_landed: int
-    sig_strikes_clinch_attempted: int
-    sig_strikes_grounded_landed: int
-    sig_strikes_grounded_attempted: int
-
-
 class FightDetailsParsingResult(ParsingResult):
-    result: Fight
+    result: UFCFight
 
 
 class TotalStatsParsingResult(ParsingResult):
@@ -197,11 +110,5 @@ class FightParsingResult(BaseModel):
     file_issues: list[str]
 
 
-class Promotions(SQLModel, table=True):
-    promotion_uid: str = Field(primary_key=True, unique=True)
-    name: str
-    founded_date: str
-
-
 ParsingResultType = TypeVar("ParsingResultType", bound=ParsingResult)
-BaseModelType = TypeVar("BaseModelType", bound=BaseModel)
+SQLModelType = TypeVar("SQLModelType", bound=SQLModel)

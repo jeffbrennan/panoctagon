@@ -9,22 +9,22 @@ from typing import Optional
 import bs4
 import requests
 from sqlalchemy import Engine
-from sqlmodel import create_engine
+from sqlmodel import Session, create_engine
 
 from panoctagon.enums import Symbols
 from panoctagon.models import (
-    BaseModelType,
     FileContents,
     ParsingIssue,
     ParsingResultType,
     RunStats,
     ScrapingConfig,
     ScrapingWriteResult,
+    SQLModelType,
 )
 
 
 def get_engine() -> Engine:
-    db_path = Path(__file__).parent.parent / "data" / "panoctagon2.db"
+    db_path = Path(__file__).parent.parent / "data" / "panoctagon_orm.db"
     engine_path = "sqlite:///" + str(db_path.resolve())
     engine = create_engine(engine_path, echo=True)
     return engine
@@ -232,21 +232,12 @@ def dump_html(config: ScrapingConfig, log_uid: bool = False) -> None:
         f.write(str(soup))
 
 
-def write_data_to_db(
-    con: sqlite3.Connection, tbl_name: str, data: list[BaseModelType]
-) -> None:
-    cur = con.cursor()
+def write_data_to_db(data: list[SQLModelType]) -> None:
+    engine = get_engine()
 
-    col_names = [i for i in data[0].model_fields.keys()]
-    model_dicts = [i.model_dump() for i in data]
-    model_values = [tuple(i.values()) for i in model_dicts]
-    n_cols = len(col_names)
-    headers = ",".join(col_names)
-    placeholders = ", ".join(["?"] * n_cols)
-
-    query = f"INSERT INTO {tbl_name} ({headers}) VALUES ({placeholders})"
-    cur.executemany(query, model_values)  # pyright: ignore [reportArgumentType]
-    con.commit()
+    with Session(engine) as session:
+        session.bulk_save_objects(data)
+        session.commit()
 
 
 def get_con() -> tuple[sqlite3.Connection, sqlite3.Cursor]:

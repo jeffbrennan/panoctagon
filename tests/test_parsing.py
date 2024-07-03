@@ -14,13 +14,13 @@ from panoctagon.enums import (
     UFCDivisionNames,
 )
 from panoctagon.models import (
-    Fight,
     FightDetailsParsingResult,
     RoundSigStats,
     RoundTotalStats,
     SigStatsParsingResult,
     TotalStatsParsingResult,
 )
+from panoctagon.tables import UFCFight
 from panoctagon.ufc.parse_fights import (
     get_event_uid,
     parse_fight_details,
@@ -114,7 +114,7 @@ def test_superfight_details(fight_dir):
     expected_results = [
         FightDetailsParsingResult(
             uid="6a060498e60756af",
-            result=Fight(
+            result=UFCFight(
                 event_uid="a390eb8a9b2df298",
                 fight_uid="6a060498e60756af",
                 fight_style=FightStyle.MMA,
@@ -354,7 +354,7 @@ def test_superfight_sig_stats(fight_dir):
 def test_title_details(fight_dir):
     expected_results: list[FightDetailsParsingResult] = [
         FightDetailsParsingResult(
-            result=Fight(
+            result=UFCFight(
                 event_uid="b60391da771deefe",
                 fight_uid="f29eec19aa5c1303",
                 fight_style=FightStyle.MMA,
@@ -373,7 +373,7 @@ def test_title_details(fight_dir):
             uid="f29eec19aa5c1303",
         ),
         FightDetailsParsingResult(
-            result=Fight(
+            result=UFCFight(
                 event_uid="a6a9ab5a824e8f66",
                 fight_uid="00835554f95fa911",
                 fight_style=FightStyle.MMA,

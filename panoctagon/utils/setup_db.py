@@ -1,6 +1,6 @@
-from panoctagon.common import get_engine
-from panoctagon.models import Divisions, Promotions
 from sqlmodel import SQLModel
+
+from panoctagon.common import get_engine
 
 
 def main() -> None:

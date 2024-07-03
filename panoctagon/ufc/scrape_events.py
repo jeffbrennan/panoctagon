@@ -4,26 +4,7 @@ import bs4
 import requests
 
 from panoctagon.common import get_con, get_table_rows, write_data_to_db
-from panoctagon.models import UFCEvent
-
-
-def write_events(urls: list[UFCEvent]) -> None:
-    con, cur = get_con()
-    cur.execute(
-        """
-               CREATE TABLE IF NOT EXISTS
-                ufc_events(
-                event_uid TEXT PRIMARY KEY NOT NULL,
-                title TEXT NOT NULL,
-                event_date TEXT NOT NULL,
-                event_location TEXT NOT NULL,
-                downloaded_ts TEXT
-                );
- 
-        """
-    )
-
-    write_data_to_db(con, "ufc_events", urls)
+from panoctagon.tables import UFCEvent
 
 
 def get_events() -> list[UFCEvent]:
@@ -92,7 +73,7 @@ def get_events() -> list[UFCEvent]:
 def main():
     print("getting stats")
     events = get_events()
-    write_events(events)
+    write_data_to_db(events)
 
 
 if __name__ == "__main__":

@@ -1,13 +1,13 @@
 import uuid
 
-from sqlmodel import SQLModel, Session
+from sqlmodel import Session
 
 from panoctagon.common import (
     get_con,
     get_engine,
 )
 from panoctagon.enums import ONEDivisionNames, UFCDivisionNames
-from panoctagon.models import Divisions
+from panoctagon.tables import Divisions
 
 
 def get_promotion_uid(promotion_name: str) -> str:
@@ -19,7 +19,6 @@ def get_promotion_uid(promotion_name: str) -> str:
 
 def write_divisions(divisions: list[Divisions]) -> None:
     engine = get_engine()
-    SQLModel.metadata.create_all(engine)
 
     with Session(engine) as session:
         session.bulk_save_objects(divisions)

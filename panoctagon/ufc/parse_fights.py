@@ -28,16 +28,15 @@ from panoctagon.enums import (
     UFCDivisionNames,
 )
 from panoctagon.models import (
-    Fight,
     FightDetailsParsingResult,
     FightParsingResult,
     FileContents,
     RoundSigStats,
-    RoundStats,
     RoundTotalStats,
     SigStatsParsingResult,
     TotalStatsParsingResult,
 )
+from panoctagon.tables import UFCFight, UFCFightStats
 
 
 def get_split_stat(stat: str, sep: str) -> tuple[int, int]:
@@ -380,7 +379,7 @@ def parse_fight_details(
             parsing_issues.append(str(e))
             weight_division = None
 
-    fight = Fight(
+    fight = UFCFight(
         event_uid=event_uid,
         fight_uid=fight_uid,
         fight_style=FightStyle.MMA,
@@ -537,7 +536,7 @@ def write_fight_results_to_db(
         print("no fights to write")
         return
 
-    fights: list[Fight] = [i.result for i in clean_fight_results]
+    fights: list[UFCFight] = [i.result for i in clean_fight_results]
 
     if force_run:
         uids: tuple[str, ...] = tuple(
@@ -546,7 +545,7 @@ def write_fight_results_to_db(
         delete_existing_records(tbl_name, "fight_uid", uids)
 
     print(f"[n={len(fights):5,d}] writing records")
-    write_data_to_db(con, tbl_name, fights)
+    write_data_to_db(fights)
 
 
 def write_stats_to_db(results: list[FightParsingResult]) -> None:
@@ -583,7 +582,7 @@ def write_stats_to_db(results: list[FightParsingResult]) -> None:
     )
 
     stats_combined_dict = stats_combined_df.rows(named=True)
-    round_stats_adapter = TypeAdapter(list[RoundStats])
+    round_stats_adapter = TypeAdapter(list[UFCFightStats])
     stats_combined = round_stats_adapter.validate_python(stats_combined_dict)
 
     if len(stats_combined) == 0:
@@ -593,7 +592,7 @@ def write_stats_to_db(results: list[FightParsingResult]) -> None:
     delete_existing_records(tbl_name, "fight_uid", uids)
 
     print(f"[n={len(stats_combined):5,d}] writing records")
-    write_data_to_db(con, tbl_name, stats_combined)
+    write_data_to_db(stats_combined)
 
 
 def main() -> None:
