@@ -24,8 +24,9 @@ from panoctagon.models import (
 
 
 def get_engine() -> Engine:
-    db_path = Path(__file__).parent.parent / "data" / "panoctagon.db"
-    engine = create_engine(str(db_path), echo=True)
+    db_path = Path(__file__).parent.parent / "data" / "panoctagon2.db"
+    engine_path = "sqlite:///" + str(db_path.resolve())
+    engine = create_engine(engine_path, echo=True)
     return engine
 
 

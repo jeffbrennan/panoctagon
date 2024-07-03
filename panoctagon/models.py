@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import datetime
 from pathlib import Path
 from typing import Any, Optional, TypeVar
 
 from pydantic import BaseModel
+from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 from panoctagon.enums import (
@@ -15,11 +17,15 @@ from panoctagon.enums import (
 )
 
 
-class Division(SQLModel, table=True):
+class Divisions(SQLModel, table=True):
+    __table_args__ = (
+        UniqueConstraint("promotion_uid", "division_uid", name="divisions_pk"),
+    )
     promotion_uid: str = Field(primary_key=True, foreign_key="promotions.promotion_uid")
     division_uid: str = Field(primary_key=True)
     name: str
     weight_lbs: int
+    updated_ts: datetime.datetime = datetime.datetime.now(datetime.UTC)
 
 
 class UFCEvent(BaseModel):
@@ -191,8 +197,8 @@ class FightParsingResult(BaseModel):
     file_issues: list[str]
 
 
-class Promotion(SQLModel, table=True):
-    promotion_uid: str
+class Promotions(SQLModel, table=True):
+    promotion_uid: str = Field(primary_key=True, unique=True)
     name: str
     founded_date: str
 

@@ -1,10 +1,11 @@
-from panoctagon.divisions import setup_divisions
-from panoctagon.promotions import setup_promotions
+from panoctagon.common import get_engine
+from panoctagon.models import Divisions, Promotions
+from sqlmodel import SQLModel
 
 
 def main() -> None:
-    setup_promotions()
-    setup_divisions()
+    engine = get_engine()
+    SQLModel.metadata.create_all(engine)
 
 
 if __name__ == "__main__":

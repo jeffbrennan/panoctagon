@@ -1,13 +1,13 @@
 import uuid
 
-from sqlmodel import SQLModel
+from sqlmodel import SQLModel, Session
 
 from panoctagon.common import (
     get_con,
     get_engine,
 )
 from panoctagon.enums import ONEDivisionNames, UFCDivisionNames
-from panoctagon.models import Division
+from panoctagon.models import Divisions
 
 
 def get_promotion_uid(promotion_name: str) -> str:
@@ -17,14 +17,16 @@ def get_promotion_uid(promotion_name: str) -> str:
     return result.fetchone()[0]
 
 
-def write_divisions(divisions: list[Division]) -> None:
+def write_divisions(divisions: list[Divisions]) -> None:
     engine = get_engine()
     SQLModel.metadata.create_all(engine)
 
-    # write_data_to_db(con, "divisions", divisions)
+    with Session(engine) as session:
+        session.bulk_save_objects(divisions)
+        session.commit()
 
 
-def get_ufc_divisions() -> list[Division]:
+def get_ufc_divisions() -> list[Divisions]:
     ufc_uid = get_promotion_uid("UFC")
     ufc_division_weights: dict[UFCDivisionNames, int] = {
         UFCDivisionNames.STRAWWEIGHT: 115,
@@ -38,10 +40,10 @@ def get_ufc_divisions() -> list[Division]:
         UFCDivisionNames.HEAVYWEIGHT: 265,
     }
 
-    ufc_divisions: list[Division] = []
+    ufc_divisions: list[Divisions] = []
     for ufc_division_name, ufc_division_weight in ufc_division_weights.items():
         ufc_divisions.append(
-            Division(
+            Divisions(
                 promotion_uid=ufc_uid,
                 division_uid=str(uuid.uuid4()),
                 name=ufc_division_name,
@@ -52,7 +54,7 @@ def get_ufc_divisions() -> list[Division]:
     return ufc_divisions
 
 
-def get_one_divisions() -> list[Division]:
+def get_one_divisions() -> list[Divisions]:
     one_uid = get_promotion_uid("ONE")
     one_division_weights: dict[ONEDivisionNames, int] = {
         ONEDivisionNames.ATOMWEIGHT: 115,
@@ -67,10 +69,10 @@ def get_one_divisions() -> list[Division]:
         ONEDivisionNames.HEAVYWEIGHT: 265,
     }
 
-    one_divisions: list[Division] = []
+    one_divisions: list[Divisions] = []
     for one_division_name, one_division_weight in one_division_weights.items():
         one_divisions.append(
-            Division(
+            Divisions(
                 promotion_uid=one_uid,
                 division_uid=str(uuid.uuid4()),
                 name=one_division_name,
