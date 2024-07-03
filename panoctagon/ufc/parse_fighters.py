@@ -6,8 +6,8 @@ from datetime import datetime
 from pathlib import Path
 
 import bs4
+
 from panoctagon.common import (
-    Stance,
     create_header,
     delete_existing_records,
     get_con,
@@ -15,6 +15,7 @@ from panoctagon.common import (
     handle_parsing_issues,
     write_data_to_db,
 )
+from panoctagon.enums import Stance
 from panoctagon.models import Fighter, FighterParsingResult, FileContents
 
 

@@ -9,12 +9,9 @@ from typing import Any, Optional
 
 import bs4
 import polars as pl
+from pydantic import TypeAdapter
+
 from panoctagon.common import (
-    Decision,
-    FightResult,
-    FightStyle,
-    FightType,
-    UFCDivisionNames,
     create_header,
     delete_existing_records,
     get_con,
@@ -22,6 +19,13 @@ from panoctagon.common import (
     get_table_rows,
     handle_parsing_issues,
     write_data_to_db,
+)
+from panoctagon.enums import (
+    Decision,
+    FightResult,
+    FightStyle,
+    FightType,
+    UFCDivisionNames,
 )
 from panoctagon.models import (
     Fight,
@@ -34,7 +38,6 @@ from panoctagon.models import (
     SigStatsParsingResult,
     TotalStatsParsingResult,
 )
-from pydantic import TypeAdapter
 
 
 def get_split_stat(stat: str, sep: str) -> tuple[int, int]:
@@ -458,7 +461,6 @@ def parse_fight(
 
 
 def create_fight_tables(cur: sqlite3.Cursor) -> None:
-
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS

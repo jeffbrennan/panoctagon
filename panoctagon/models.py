@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional, Any, TypeVar
+from typing import Any, Optional, TypeVar
 
 from pydantic import BaseModel
-from sqlmodel import SQLModel, Field
+from sqlmodel import Field, SQLModel
 
-from panoctagon.common import FightStyle, FightType, Decision, FightResult, UFCDivisionNames
+from panoctagon.enums import (
+    Decision,
+    FightResult,
+    FightStyle,
+    FightType,
+    UFCDivisionNames,
+)
 
 
 class Division(SQLModel, table=True):

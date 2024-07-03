@@ -2,13 +2,16 @@ from pathlib import Path
 
 import bs4
 import pytest
+
 from panoctagon.common import (
+    get_html_files,
+)
+from panoctagon.enums import (
     Decision,
     FightResult,
     FightStyle,
     FightType,
     UFCDivisionNames,
-    get_html_files,
 )
 from panoctagon.models import (
     Fight,

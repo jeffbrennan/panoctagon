@@ -1,5 +1,5 @@
-from panoctagon.promotions import setup_promotions
 from panoctagon.divisions import setup_divisions
+from panoctagon.promotions import setup_promotions
 
 
 def main() -> None:
@@ -7,5 +7,5 @@ def main() -> None:
     setup_divisions()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

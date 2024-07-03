@@ -3,12 +3,10 @@ import uuid
 from sqlmodel import SQLModel
 
 from panoctagon.common import (
-    ONEDivisionNames,
-    UFCDivisionNames,
     get_con,
     get_engine,
-    write_data_to_db,
 )
+from panoctagon.enums import ONEDivisionNames, UFCDivisionNames
 from panoctagon.models import Division
 
 
@@ -23,7 +21,7 @@ def write_divisions(divisions: list[Division]) -> None:
     engine = get_engine()
     SQLModel.metadata.create_all(engine)
 
-    write_data_to_db(con, "divisions", divisions)
+    # write_data_to_db(con, "divisions", divisions)
 
 
 def get_ufc_divisions() -> list[Division]:
