@@ -2,25 +2,28 @@ from pathlib import Path
 
 import bs4
 import pytest
-
-from panoctagon.common import get_html_files
-from panoctagon.ufc.parse_fights import (
+from panoctagon.common import (
     Decision,
-    Fight,
     FightResult,
     FightStyle,
     FightType,
+    UFCDivisionNames,
+    get_html_files,
+)
+from panoctagon.models import (
+    Fight,
+    FightDetailsParsingResult,
     RoundSigStats,
     RoundTotalStats,
-    FightDetailsParsingResult,
-    parse_fight_details,
-    get_event_uid,
+    SigStatsParsingResult,
     TotalStatsParsingResult,
+)
+from panoctagon.ufc.parse_fights import (
+    get_event_uid,
+    parse_fight_details,
     parse_round_totals,
     parse_sig_stats,
-    SigStatsParsingResult,
 )
-from panoctagon.divisions import UFCDivisionNames
 
 
 def _get_fight_html(fight_dir, uid: str) -> bs4.BeautifulSoup:

@@ -7,9 +7,6 @@ from pathlib import Path
 
 import bs4
 from panoctagon.common import (
-    Fighter,
-    FighterParsingResult,
-    FileContents,
     Stance,
     create_header,
     delete_existing_records,
@@ -18,6 +15,7 @@ from panoctagon.common import (
     handle_parsing_issues,
     write_data_to_db,
 )
+from panoctagon.models import Fighter, FighterParsingResult, FileContents
 
 
 def create_fighters_table(cur: sqlite3.Cursor) -> None:

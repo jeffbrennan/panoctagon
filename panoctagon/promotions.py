@@ -1,19 +1,11 @@
 import uuid
-from dataclasses import dataclass
 
 from panoctagon.common import get_con, write_data_to_db
-
-
-@dataclass(frozen=True)
-class Promotion:
-    promotion_uid: str
-    name: str
-    founded_date: str
+from panoctagon.models import Promotion
 
 
 def write_promotions(promotions: list[Promotion]) -> None:
-    con, _ = get_con()
-    cur = con.cursor()
+
     cur.execute(
         f"""
            CREATE TABLE IF NOT EXISTS

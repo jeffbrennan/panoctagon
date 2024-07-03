@@ -8,18 +8,15 @@ from typing import Optional
 
 import bs4
 import requests
-
 from panoctagon.common import (
+    Symbols,
+    create_header,
     get_con,
     get_table_rows,
-    ScrapingConfig,
-    create_header,
-    scrape_page,
-    Symbols,
-    ScrapingWriteResult,
     report_stats,
-    RunStats,
+    scrape_page,
 )
+from panoctagon.models import RunStats, ScrapingConfig, ScrapingWriteResult
 
 
 @dataclass

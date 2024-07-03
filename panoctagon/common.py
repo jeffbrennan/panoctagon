@@ -5,276 +5,28 @@ import sqlite3
 import time
 from enum import Enum
 from pathlib import Path
-from typing import Any, Optional, TypeVar
+from typing import Optional
 
 import bs4
 import requests
-from pydantic import BaseModel
+from sqlalchemy import Engine
+from sqlmodel import create_engine
 
-class UFCEvent(BaseModel):
-    event_uid: str
-    title: str
-    event_date: str
-    event_location: str
-
-class Promotion(BaseModel):
-    promotion_uid: str
-    name: str
-
-
-class ScrapingConfig(BaseModel):
-    uid: str
-    description: str
-    base_url: str
-    base_dir: Path
-    path: Path
+from panoctagon.models import (
+    ScrapingConfig,
+    FileContents,
+    ScrapingWriteResult,
+    RunStats,
+    ParsingIssue,
+    ParsingResultType,
+    BaseModelType,
+)
 
 
-class FileContents(BaseModel):
-    uid: str
-    path: Path
-    contents: str
-    file_num: int
-    n_files: int
-
-
-class ScrapingWriteResult(BaseModel):
-    config: Optional[ScrapingConfig]
-    path: Optional[Path]
-    success: bool
-    attempts: int
-
-
-class Symbols(Enum):
-    DOWN_ARROW = "\u2193"
-    DELETED = "\u2717"
-    CHECK = "\u2714"
-
-
-class RunStats(BaseModel):
-    start: float
-    end: float
-    n_ops: Optional[int]
-    op_name: str
-    successes: Optional[int]
-    failures: Optional[int]
-
-
-class ParsingIssue(BaseModel):
-    issue: str
-    uids: list[str]
-
-
-class Fighter(BaseModel):
-    fighter_uid: str
-    first_name: str
-    last_name: str
-    nickname: Optional[str]
-    dob: Optional[str]
-    place_of_birth: Optional[str]
-    stance: Optional[str]
-    style: Optional[str]
-    height_inches: Optional[int]
-    reach_inches: Optional[int]
-    leg_reach_inches: Optional[int]
-
-
-class ParsingResult(BaseModel):
-    uid: str
-    result: Optional[Any]
-    issues: list[str]
-
-
-class FighterParsingResult(ParsingResult):
-    result: Fighter
-
-
-class FightStyle(str, Enum):
-    MMA = "MMA"
-    MUAY_THAI = "Muay Thai"
-    BJJ = "Brazilian Jiu-Jitsu"
-
-
-class FightType(str, Enum):
-    BOUT = "Bout"
-    TITLE = "Title Bout"
-
-
-class Decision(str, Enum):
-    KO = "Knockout"
-    TKO = "Technical Knockout"
-    DOC = "Doctor's Stoppage"
-    SUB = "Submission"
-    UNANIMOUS_DECISION = "Decision - Unanimous"
-    SPLIT_DECISION = "Decision - Split"
-    MAJORITY_DECISION = "Decision - Majority"
-    DRAW = "Draw"
-    NO_CONTEST = "No Contest"
-    DQ = "Disqualification"
-    OVERTURNED = "Overturned"
-    COULD_NOT_CONTINUE = "Could Not Continue"
-    OTHER = "Other"
-
-
-# fighter level outcome
-class FightResult(str, Enum):
-    WIN = "Win"
-    LOSS = "Loss"
-    NO_CONTEST = "No Contest"
-    DQ = "Disqualification"
-    DRAW = "Draw"
-
-
-class Fight(BaseModel):
-    event_uid: str
-    fight_uid: str
-    fight_style: FightStyle
-    fight_type: Optional[FightType]
-    fight_division: Optional[UFCDivisionNames]
-    fighter1_uid: str
-    fighter2_uid: str
-    fighter1_result: FightResult
-    fighter2_result: FightResult
-    decision: Optional[Decision]
-    decision_round: Optional[int]
-    decision_time_seconds: Optional[int]
-    referee: Optional[str]
-
-
-class RoundSigStats(BaseModel):
-    fight_uid: str
-    fighter_uid: str
-    round_num: int
-    sig_strikes_landed: int
-    sig_strikes_attempted: int
-    sig_strikes_head_landed: int
-    sig_strikes_head_attempted: int
-    sig_strikes_body_landed: int
-    sig_strikes_body_attempted: int
-    sig_strikes_leg_landed: int
-    sig_strikes_leg_attempted: int
-    sig_strikes_distance_landed: int
-    sig_strikes_distance_attempted: int
-    sig_strikes_clinch_landed: int
-    sig_strikes_clinch_attempted: int
-    sig_strikes_grounded_landed: int
-    sig_strikes_grounded_attempted: int
-
-
-class RoundTotalStats(BaseModel):
-    fight_uid: str
-    fighter_uid: str
-    round_num: int
-    knockdowns: int
-    total_strikes_landed: int
-    total_strikes_attempted: int
-    takedowns_landed: int
-    takedowns_attempted: int
-    submissions_attempted: int
-    reversals: int
-    control_time_seconds: Optional[int]
-
-
-class RoundStats(BaseModel):
-    fight_uid: str
-    fighter_uid: str
-    round_num: int
-    knockdowns: int
-    total_strikes_landed: int
-    total_strikes_attempted: int
-    takedowns_landed: int
-    takedowns_attempted: int
-    submissions_attempted: int
-    reversals: int
-    control_time_seconds: Optional[int]
-    fight_uid: str
-    fighter_uid: str
-    round_num: int
-    sig_strikes_landed: int
-    sig_strikes_attempted: int
-    sig_strikes_head_landed: int
-    sig_strikes_head_attempted: int
-    sig_strikes_body_landed: int
-    sig_strikes_body_attempted: int
-    sig_strikes_leg_landed: int
-    sig_strikes_leg_attempted: int
-    sig_strikes_distance_landed: int
-    sig_strikes_distance_attempted: int
-    sig_strikes_clinch_landed: int
-    sig_strikes_clinch_attempted: int
-    sig_strikes_grounded_landed: int
-    sig_strikes_grounded_attempted: int
-
-
-class FightDetailsParsingResult(ParsingResult):
-    result: Fight
-
-
-class TotalStatsParsingResult(ParsingResult):
-    result: list[RoundTotalStats]
-
-
-class SigStatsParsingResult(ParsingResult):
-    result: list[RoundSigStats]
-
-
-class Stance(str, Enum):
-    ORTHODOX = "Orthodox"
-    SOUTHPAW = "Southpaw"
-    SWITCH = "Switch"
-    SIDEWAYS = "Sideways"
-    OPEN_STANCE = "Open Stance"
-
-
-class FightParsingResult(BaseModel):
-    fight_uid: str
-    fight_result: Optional[FightDetailsParsingResult]
-    total_stats: Optional[TotalStatsParsingResult]
-    sig_stats: Optional[SigStatsParsingResult]
-    file_issues: list[str]
-
-
-class UFCDivisionNames(str, Enum):
-    STRAWWEIGHT = "Strawweight"
-    WOMENS_STRAWWEIGHT = "Women's Strawweight"
-    FLYWEIGHT = "Flyweight"
-    WOMENS_FLYWEIGHT = "Women's Flyweight"
-    BANTAMWEIGHT = "Bantamweight"
-    WOMENS_BANTAMWEIGHT = "Women's Bantamweight"
-    FEATHERWEIGHT = "Featherweight"
-    WOMENS_FEATHERWEIGHT = "Women's Featherweight"
-    LIGHTWEIGHT = "Lightweight"
-    WELTERWEIGHT = "Welterweight"
-    MIDDLEWEIGHT = "Middleweight"
-    LIGHT_HEAVYWEIGHT = "Light Heavyweight"
-    HEAVYWEIGHT = "Heavyweight"
-    SUPER_HEAVYWEIGHT = "Super Heavyweight"
-    CATCH_WEIGHT = "Catch Weight"
-    OPEN_WEIGHT = "Open Weight"
-
-
-class ONEDivisionNames(str, Enum):
-    ATOMWEIGHT = "Atomweight"
-    STRAWWEIGHT = "Strawweight"
-    FLYWEIGHT = "Flyweight"
-    BANTAMWEIGHT = "Bantamweight"
-    FEATHERWEIGHT = "Featherweight"
-    LIGHTWEIGHT = "Lightweight"
-    WELTERWEIGHT = "Welterweight"
-    MIDDLEWEIGHT = "Middleweight"
-    LIGHT_HEAVYWEIGHT = "Light Heavyweight"
-    HEAVYWEIGHT = "Heavyweight"
-
-
-class Division(BaseModel):
-    promotion_uid: str
-    division_uid: str
-    name: str
-    weight_lbs: int
-
-
-ParsingResultType = TypeVar("ParsingResultType", bound=ParsingResult)
-BaseModelType = TypeVar("BaseModelType", bound=BaseModel)
+def get_engine() -> Engine:
+    db_path = Path(__file__).parent.parent / "data" / "panoctagon.db"
+    engine = create_engine(str(db_path), echo=True)
+    return engine
 
 
 def delete_existing_records(tbl_name: str, uid_name: str, uids: tuple[str, ...]):
@@ -519,3 +271,84 @@ def get_table_rows(
     if rows is None:
         raise ValueError()
     return rows
+
+
+class Symbols(Enum):
+    DOWN_ARROW = "\u2193"
+    DELETED = "\u2717"
+    CHECK = "\u2714"
+
+
+class FightStyle(str, Enum):
+    MMA = "MMA"
+    MUAY_THAI = "Muay Thai"
+    BJJ = "Brazilian Jiu-Jitsu"
+
+
+class FightType(str, Enum):
+    BOUT = "Bout"
+    TITLE = "Title Bout"
+
+
+class Decision(str, Enum):
+    KO = "Knockout"
+    TKO = "Technical Knockout"
+    DOC = "Doctor's Stoppage"
+    SUB = "Submission"
+    UNANIMOUS_DECISION = "Decision - Unanimous"
+    SPLIT_DECISION = "Decision - Split"
+    MAJORITY_DECISION = "Decision - Majority"
+    DRAW = "Draw"
+    NO_CONTEST = "No Contest"
+    DQ = "Disqualification"
+    OVERTURNED = "Overturned"
+    COULD_NOT_CONTINUE = "Could Not Continue"
+    OTHER = "Other"
+
+
+class FightResult(str, Enum):
+    WIN = "Win"
+    LOSS = "Loss"
+    NO_CONTEST = "No Contest"
+    DQ = "Disqualification"
+    DRAW = "Draw"
+
+
+class Stance(str, Enum):
+    ORTHODOX = "Orthodox"
+    SOUTHPAW = "Southpaw"
+    SWITCH = "Switch"
+    SIDEWAYS = "Sideways"
+    OPEN_STANCE = "Open Stance"
+
+
+class UFCDivisionNames(str, Enum):
+    STRAWWEIGHT = "Strawweight"
+    WOMENS_STRAWWEIGHT = "Women's Strawweight"
+    FLYWEIGHT = "Flyweight"
+    WOMENS_FLYWEIGHT = "Women's Flyweight"
+    BANTAMWEIGHT = "Bantamweight"
+    WOMENS_BANTAMWEIGHT = "Women's Bantamweight"
+    FEATHERWEIGHT = "Featherweight"
+    WOMENS_FEATHERWEIGHT = "Women's Featherweight"
+    LIGHTWEIGHT = "Lightweight"
+    WELTERWEIGHT = "Welterweight"
+    MIDDLEWEIGHT = "Middleweight"
+    LIGHT_HEAVYWEIGHT = "Light Heavyweight"
+    HEAVYWEIGHT = "Heavyweight"
+    SUPER_HEAVYWEIGHT = "Super Heavyweight"
+    CATCH_WEIGHT = "Catch Weight"
+    OPEN_WEIGHT = "Open Weight"
+
+
+class ONEDivisionNames(str, Enum):
+    ATOMWEIGHT = "Atomweight"
+    STRAWWEIGHT = "Strawweight"
+    FLYWEIGHT = "Flyweight"
+    BANTAMWEIGHT = "Bantamweight"
+    FEATHERWEIGHT = "Featherweight"
+    LIGHTWEIGHT = "Lightweight"
+    WELTERWEIGHT = "Welterweight"
+    MIDDLEWEIGHT = "Middleweight"
+    LIGHT_HEAVYWEIGHT = "Light Heavyweight"
+    HEAVYWEIGHT = "Heavyweight"

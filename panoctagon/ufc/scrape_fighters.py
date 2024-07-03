@@ -1,18 +1,17 @@
 import os
-import time
 import random
+import time
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
 from panoctagon.common import (
-    get_con,
-    ScrapingConfig,
     create_header,
-    scrape_page,
+    get_con,
     report_stats,
-    RunStats,
+    scrape_page,
 )
+from panoctagon.models import RunStats, ScrapingConfig
 
 
 @dataclass

@@ -1,8 +1,9 @@
 import datetime
-import requests
-import bs4
 
-from panoctagon.common import write_data_to_db, get_con, get_table_rows, UFCEvent
+import bs4
+import requests
+from panoctagon.common import get_con, get_table_rows, write_data_to_db
+from panoctagon.models import UFCEvent
 
 
 def write_events(urls: list[UFCEvent]) -> None:

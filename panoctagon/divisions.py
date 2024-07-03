@@ -1,13 +1,15 @@
 import uuid
 
+from sqlmodel import SQLModel
 
 from panoctagon.common import (
-    Division,
     ONEDivisionNames,
     UFCDivisionNames,
     get_con,
+    get_engine,
     write_data_to_db,
 )
+from panoctagon.models import Division
 
 
 def get_promotion_uid(promotion_name: str) -> str:
@@ -18,22 +20,8 @@ def get_promotion_uid(promotion_name: str) -> str:
 
 
 def write_divisions(divisions: list[Division]) -> None:
-    con, _ = get_con()
-    cur = con.cursor()
-    cur.execute(
-        """
-              CREATE TABLE IF NOT EXISTS
-               divisions(
-               promotion_uid TEXT NOT NULL,
-               division_uid TEXT NOT NULL,
-               name TEXT NOT NULL,
-               weight_lbs INTEGER NOT NULL,
-               PRIMARY KEY (promotion_uid, division_uid),
-               FOREIGN KEY (promotion_uid) references promotions(promotion_uid)
-              );
-
-           """
-    )
+    engine = get_engine()
+    SQLModel.metadata.create_all(engine)
 
     write_data_to_db(con, "divisions", divisions)
 

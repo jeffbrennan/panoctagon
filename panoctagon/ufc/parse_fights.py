@@ -11,18 +11,10 @@ import bs4
 import polars as pl
 from panoctagon.common import (
     Decision,
-    Fight,
-    FightDetailsParsingResult,
-    FightParsingResult,
     FightResult,
     FightStyle,
     FightType,
-    FileContents,
-    RoundSigStats,
-    RoundStats,
-    RoundTotalStats,
-    SigStatsParsingResult,
-    TotalStatsParsingResult,
+    UFCDivisionNames,
     create_header,
     delete_existing_records,
     get_con,
@@ -31,7 +23,17 @@ from panoctagon.common import (
     handle_parsing_issues,
     write_data_to_db,
 )
-from panoctagon.divisions import UFCDivisionNames
+from panoctagon.models import (
+    Fight,
+    FightDetailsParsingResult,
+    FightParsingResult,
+    FileContents,
+    RoundSigStats,
+    RoundStats,
+    RoundTotalStats,
+    SigStatsParsingResult,
+    TotalStatsParsingResult,
+)
 from pydantic import TypeAdapter
 
 
