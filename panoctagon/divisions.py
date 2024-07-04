@@ -1,20 +1,22 @@
 import uuid
 
-from sqlmodel import Session
+from sqlmodel import Session, select, col
 
 from panoctagon.common import (
     get_con,
     get_engine,
 )
 from panoctagon.enums import ONEDivisionNames, UFCDivisionNames
-from panoctagon.tables import Divisions
+from panoctagon.tables import Divisions, Promotions
 
 
 def get_promotion_uid(promotion_name: str) -> str:
-    _, cur = get_con()
-    query = f"select promotion_uid from promotions where name = '{promotion_name}'"
-    result = cur.execute(query)
-    return result.fetchone()[0]
+    engine = get_engine()
+
+    with Session(engine) as session:
+        statement = select(Promotions).where(col(Promotions.name) == promotion_name)
+        results = session.exec(statement)
+        return next(results).promotion_uid
 
 
 def write_divisions(divisions: list[Divisions]) -> None:
