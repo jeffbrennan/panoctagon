@@ -71,7 +71,6 @@ def get_events() -> list[UFCEvent]:
 
 
 def main():
-    print("getting stats")
     events = get_events()
     write_data_to_db(events)
 
