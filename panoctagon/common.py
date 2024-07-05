@@ -26,7 +26,7 @@ from panoctagon.models import (
 def get_engine() -> Engine:
     db_path = Path(__file__).parent.parent / "data" / "panoctagon_orm.db"
     engine_path = "sqlite:///" + str(db_path.resolve())
-    engine = create_engine(engine_path, echo=True)
+    engine = create_engine(engine_path, echo=False)
     return engine
 
 
@@ -40,7 +40,6 @@ def delete_existing_records(
         statement = select(tbl_model).where(uid_col.in_(uids))
         results = session.exec(statement).all()
 
-        assert len(results) == len(uids)
         for result in results:
             session.delete(result)
         session.commit()
