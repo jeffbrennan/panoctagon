@@ -1,3 +1,4 @@
+import argparse
 import datetime
 import os
 import time
@@ -44,8 +45,9 @@ def read_event_uids(force_run: bool) -> list[str]:
     if force_run:
         cmd = select(UFCEvent.event_uid).where(col(UFCEvent.event_date) < now)
     else:
+
         cmd = select(UFCEvent.event_uid).where(
-            and_(UFCEvent.downloaded_ts is None, UFCEvent.event_date < now)
+            and_(col(UFCEvent.downloaded_ts).is_(None), UFCEvent.event_date < now)
         )
 
     engine = get_engine()
@@ -124,7 +126,7 @@ def get_fights_from_event(event: EventToParse) -> FightScrapingResult:
             description="fight",
             base_url="http://www.ufcstats.com/fight-details",
             base_dir=event.base_dir,
-            path=event.base_dir / f"{fight_uid}.html",
+            path=event.base_dir / f"{event.uid}_{fight_uid}.html",
         )
         for fight_uid in fight_uid_result.uids
         if fight_uid not in downloaded_fights
@@ -176,7 +178,7 @@ def get_fights_from_event(event: EventToParse) -> FightScrapingResult:
 def write_parsing_timestamp(results: list[FightScrapingResult]) -> None:
     current_timestamp = datetime.datetime.now().isoformat(timespec="seconds")
     print(f"updating {len(results)} rows")
-
+    start = time.time()
     engine = get_engine()
     with Session(engine) as session:
         for result in results:
@@ -184,27 +186,43 @@ def write_parsing_timestamp(results: list[FightScrapingResult]) -> None:
                 select(UFCEvent).where(UFCEvent.event_uid == result.event.uid)
             ).one()
             event.downloaded_ts = current_timestamp
-            print(f"updating {event.event_uid}")
             session.add(event)
             session.commit()
+    end = time.time()
+    print(f"elapsed time: {end-start:.2f} seconds")
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Panoctagon UFC Fight Scraper")
+    parser.add_argument(
+        "-f",
+        "--force",
+        help="force existing parsed fights to be reprocessed",
+        action="store_true",
+        required=False,
+        default=False,
+    )
+
+    parser.add_argument(
+        "-s",
+        "--sequential",
+        help="scrape fights sequentially",
+        action="store_true",
+        required=False,
+        default=False,
+    )
+    args = parser.parse_args()
+
     print(create_header(80, "PANOCTAGON", True, "="))
     footer = create_header(80, "", True, "=")
-    n_cores = os.cpu_count()
-
-    # todo make these cli args
-    sequential = False
-    force_run = True
-
-    if n_cores is None:
-        n_cores = 4
+    cpu_count = os.cpu_count()
+    if cpu_count is None:
+        cpu_count = 4
 
     base_dir = Path(__file__).parents[2] / "data" / "raw" / "ufc" / "fights"
     base_dir.mkdir(exist_ok=True, parents=True)
 
-    event_uids = read_event_uids(force_run)
+    event_uids = read_event_uids(args.force)
     n_events = len(event_uids)
     if n_events == 0:
         print("No events to parse. Exiting!")
@@ -216,8 +234,8 @@ def main() -> None:
         for i, uid in enumerate(event_uids)
     ]
 
-    n_workers = n_cores
-    if len(events_to_parse) < n_cores:
+    n_workers = cpu_count
+    if len(events_to_parse) < cpu_count:
         n_workers = len(events_to_parse)
 
     start_header = create_header(
@@ -225,7 +243,7 @@ def main() -> None:
     )
     print(start_header)
     start_time = time.time()
-    if sequential or len(events_to_parse) < n_cores:
+    if args.sequential or len(events_to_parse) < cpu_count:
         results = [get_fights_from_event(event) for event in events_to_parse]
     else:
         with ProcessPoolExecutor(max_workers=n_workers) as executor:
@@ -250,7 +268,7 @@ def main() -> None:
             start=start_time,
             end=end_time,
             n_ops=n_events,
-            op_name="events",
+            op_name="event",
             successes=fights_downloaded,
             failures=fights_deleted,
         )
