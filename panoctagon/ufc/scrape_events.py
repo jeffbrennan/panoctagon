@@ -1,14 +1,25 @@
+import argparse
 import datetime
 
 import bs4
 import requests
+from sqlmodel import col
 
-from panoctagon.common import get_table_rows, write_data_to_db
+from panoctagon.common import (
+    get_table_rows,
+    write_data_to_db,
+    get_table_uids,
+    create_header,
+    delete_existing_records,
+)
 from panoctagon.tables import UFCEvent
 
 
-def get_events() -> list[UFCEvent]:
-    url = "http://www.ufcstats.com/statistics/events/completed?page=all"
+def get_events(all_events: bool, page_num: int = 1) -> list[UFCEvent]:
+    url = f"http://www.ufcstats.com/statistics/events/completed?page={page_num}"
+    if all_events:
+        url = "http://www.ufcstats.com/statistics/events/completed?page=all"
+
     soup = bs4.BeautifulSoup(requests.get(url).content, "html.parser")
 
     data: list[UFCEvent] = []
@@ -63,7 +74,7 @@ def get_events() -> list[UFCEvent]:
         )
 
         data.append(result)
-    print(f"obtained {len(data)} fight urls")
+
     if len(unparsed_events) > 0:
         raise AssertionError(f"{len(unparsed_events)} unparsed events")
 
@@ -71,8 +82,41 @@ def get_events() -> list[UFCEvent]:
 
 
 def main():
-    events = get_events()
-    write_data_to_db(events)
+    parser = argparse.ArgumentParser(description="Panoctagon UFC Event Scraper")
+    parser.add_argument(
+        "-f",
+        "--force",
+        help="force existing events to be redownloaded",
+        action="store_true",
+        required=False,
+        default=False,
+    )
+    args = parser.parse_args()
+
+    print(create_header(80, "PANOCTAGON", True, "="))
+    footer = create_header(80, "", True, "=")
+
+    existing_events = get_table_uids(col(UFCEvent.event_uid))
+
+    if args.force and existing_events is not None:
+        delete_existing_records(UFCEvent, col(UFCEvent.event_uid), uids=existing_events)
+        existing_events = None
+
+    all_events = existing_events is None or args.force
+    events = get_events(all_events)
+
+    if existing_events is None:
+        new_events = events
+    else:
+        new_events = [i for i in events if i.event_uid not in existing_events]
+
+    if len(new_events) == 0:
+        print("no new events. exiting early")
+        print(footer)
+        return
+
+    write_data_to_db(new_events)
+    print(footer)
 
 
 if __name__ == "__main__":
