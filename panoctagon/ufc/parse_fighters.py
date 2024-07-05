@@ -111,7 +111,6 @@ def write_fighter_results_to_db(
         uids = [i.fighter_uid for i in fighters if i is not None]
         delete_existing_records(UFCFighter, col(UFCFighter.fighter_uid), uids)
 
-    print(f"[n={len(fighters):5,d}] writing records")
     write_data_to_db(fighters)
 
 
@@ -133,10 +132,12 @@ def main() -> None:
         cpu_count = 4
 
     fighters_dir = Path(__file__).parents[2] / "data/raw/ufc/fighters"
-    fighters = get_html_files(fighters_dir, col(UFCFighter.fighter_uid), force_run=True)
+    fighters = get_html_files(
+        fighters_dir, col(UFCFighter.fighter_uid), force_run=args.force
+    )
 
     if len(fighters) == 0:
-        print("no fights to parse. exiting early")
+        print("no fighters to parse. exiting early")
         print(footer)
         return
 
