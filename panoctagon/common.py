@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 import random
-import sqlite3
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional, Type
 
 import bs4
 import requests
 from sqlalchemy import Engine
-from sqlmodel import Session, create_engine
+from sqlalchemy.orm import Mapped
+from sqlmodel import Session, SQLModel, create_engine, select
 
 from panoctagon.enums import Symbols
 from panoctagon.models import (
@@ -30,14 +30,20 @@ def get_engine() -> Engine:
     return engine
 
 
-def delete_existing_records(tbl_name: str, uid_name: str, uids: tuple[str, ...]):
-    con, cur = get_con()
+def delete_existing_records(
+    tbl_model: Type[SQLModel], uid_col: Mapped[Any], uids: list[str]
+) -> None:
     print(f"[n={len(uids):5,d}] deleting records")
-    placeholder = ", ".join("?" * len(uids))
-    cmd = f"DELETE FROM {tbl_name} WHERE {uid_name} IN ({placeholder})"
+    engine = get_engine()
 
-    cur.execute(cmd, uids)
-    con.commit()
+    with Session(engine) as session:
+        statement = select(tbl_model).where(uid_col.in_(uids))
+        results = session.exec(statement).all()
+
+        assert len(results) == len(uids)
+        for result in results:
+            session.delete(result)
+        session.commit()
 
 
 def handle_parsing_issues(
@@ -153,17 +159,20 @@ def create_header(header_length: int, title: str, center: bool, spacer: str):
     return output
 
 
-def get_parsed_uids(uid_col: str, tbl: str, force_run: bool) -> Optional[list[str]]:
-    _, cur = get_con()
+def get_table_uids(
+    uid_col: Mapped[Any], force_run: bool = False
+) -> Optional[list[Any]]:
     if force_run:
         return None
 
-    try:
-        cur.execute(f"select {uid_col} from {tbl}")
-        uids = [i[0] for i in cur.fetchall()]
-    except sqlite3.OperationalError:
+    engine = get_engine()
+    with Session(engine) as session:
+        results = session.exec(select(uid_col)).all()
+
+    if len(results) == 0:
         return None
-    return uids
+
+    return list(results)
 
 
 def scrape_page(
@@ -192,13 +201,13 @@ def scrape_page(
 
 
 def get_html_files(
-    path: Path, uid_col: str, tbl: str, force_run: bool, uid: Optional[str] = None
+    path: Path, uid_col: Mapped[Any], force_run: bool, uid: Optional[str] = None
 ) -> list[FileContents]:
     all_files = list(path.glob("*.html"))
     if uid is not None:
         all_files = [f for f in all_files if uid in f.name]
 
-    existing_uids = get_parsed_uids(uid_col, tbl, force_run)
+    existing_uids = get_table_uids(uid_col, force_run)
     if existing_uids is None:
         files_to_parse = all_files
     else:
@@ -238,13 +247,6 @@ def write_data_to_db(data: list[SQLModelType]) -> None:
     with Session(engine) as session:
         session.bulk_save_objects(data)
         session.commit()
-
-
-def get_con() -> tuple[sqlite3.Connection, sqlite3.Cursor]:
-    db_path = Path(__file__).parent.parent / "data" / "panoctagon.db"
-    con = sqlite3.connect(db_path)
-    cur = con.cursor()
-    return con, cur
 
 
 def get_table_rows(

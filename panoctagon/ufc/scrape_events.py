@@ -3,7 +3,7 @@ import datetime
 import bs4
 import requests
 
-from panoctagon.common import get_con, get_table_rows, write_data_to_db
+from panoctagon.common import get_table_rows, write_data_to_db
 from panoctagon.tables import UFCEvent
 
 

@@ -1,7 +1,6 @@
 import argparse
 import os
 import re
-import sqlite3
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import fields
 from pathlib import Path
@@ -10,11 +9,11 @@ from typing import Any, Optional
 import bs4
 import polars as pl
 from pydantic import TypeAdapter
+from sqlmodel import col
 
 from panoctagon.common import (
     create_header,
     delete_existing_records,
-    get_con,
     get_html_files,
     get_table_rows,
     handle_parsing_issues,
@@ -459,75 +458,11 @@ def parse_fight(
     )
 
 
-def create_fight_tables(cur: sqlite3.Cursor) -> None:
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS
-        ufc_fights(
-            event_uid TEXT NOT NULL,
-            fight_uid TEXT NOT NULL,
-            fight_style TEXT NOT NULL,
-            fight_type TEXT,
-            fight_division TEXT,
-            fighter1_uid TEXT NOT NULL,
-            fighter2_uid TEXT NOT NULL,
-            fighter1_result TEXT NOT NULL,
-            fighter2_result TEXT NOT NULL,
-            decision TEXT, 
-            decision_round INTEGER,
-            decision_time_seconds INTEGER,
-            referee TEXT,
-            PRIMARY KEY (event_uid, fight_uid),
-            FOREIGN KEY (event_uid) references ufc_events(event_uid)
-            ) STRICT;
-
-    """
-    )
-
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS
-        ufc_fight_stats(
-            fight_uid TEXT NOT NULL,
-            fighter_uid TEXT NOT NULL,
-            round_num INTEGER NOT NULL,
-            knockdowns INTEGER,
-            total_strikes_landed INTEGER,
-            total_strikes_attempted INTEGER,
-            takedowns_landed INTEGER,
-            takedowns_attempted INTEGER,
-            submissions_attempted INTEGER,
-            reversals INTEGER,
-            control_time_seconds INTEGER, 
-            sig_strikes_landed INTEGER,
-            sig_strikes_attempted INTEGER,
-            sig_strikes_head_landed INTEGER,
-            sig_strikes_head_attempted INTEGER,
-            sig_strikes_body_landed INTEGER,
-            sig_strikes_body_attempted INTEGER,
-            sig_strikes_leg_landed INTEGER,
-            sig_strikes_leg_attempted INTEGER,
-            sig_strikes_distance_landed INTEGER,
-            sig_strikes_distance_attempted INTEGER,
-            sig_strikes_clinch_landed INTEGER,
-            sig_strikes_clinch_attempted INTEGER,
-            sig_strikes_grounded_landed INTEGER,
-            sig_strikes_grounded_attempted INTEGER,
-            PRIMARY KEY (fight_uid, fighter_uid, round_num),
-            FOREIGN KEY (fight_uid) references ufc_fights(fight_uid)
-            ) STRICT;
-
-    """
-    )
-
-
 def write_fight_results_to_db(
     results: list[FightParsingResult], force_run: bool
 ) -> None:
     tbl_name = "ufc_fights"
     print(create_header(80, tbl_name, True, spacer="-"))
-    con, cur = get_con()
-    create_fight_tables(cur)
 
     clean_fight_results = handle_parsing_issues(
         [i.fight_result for i in results if i.fight_result is not None], False
@@ -539,10 +474,8 @@ def write_fight_results_to_db(
     fights: list[UFCFight] = [i.result for i in clean_fight_results]
 
     if force_run:
-        uids: tuple[str, ...] = tuple(
-            (str(i.fight_uid) for i in fights if i is not None)
-        )
-        delete_existing_records(tbl_name, "fight_uid", uids)
+        uids = [i.fight_uid for i in fights if i is not None]
+        delete_existing_records(UFCFight, col(UFCFight.fight_uid), uids)
 
     print(f"[n={len(fights):5,d}] writing records")
     write_data_to_db(fights)
@@ -551,8 +484,7 @@ def write_fight_results_to_db(
 def write_stats_to_db(results: list[FightParsingResult]) -> None:
     tbl_name = "ufc_fight_stats"
     print(create_header(80, tbl_name, True, spacer="-"))
-    con, cur = get_con()
-    create_fight_tables(cur)
+
     clean_sig_stats = handle_parsing_issues(
         [i.sig_stats for i in results if i.sig_stats is not None], False
     )
@@ -577,9 +509,7 @@ def write_stats_to_db(results: list[FightParsingResult]) -> None:
         sig_stats_flat, on=["fight_uid", "fighter_uid", "round_num"]
     )
 
-    uids = tuple(
-        str(i[0]) for i in stats_combined_df.select("fight_uid").rows(named=False)
-    )
+    uids = [i[0] for i in stats_combined_df.select("fight_uid").rows(named=False)]
 
     stats_combined_dict = stats_combined_df.rows(named=True)
     round_stats_adapter = TypeAdapter(list[UFCFightStats])
@@ -589,7 +519,7 @@ def write_stats_to_db(results: list[FightParsingResult]) -> None:
         print("no fights to write")
         return
 
-    delete_existing_records(tbl_name, "fight_uid", uids)
+    delete_existing_records(UFCFightStats, col(UFCFightStats.fight_uid), uids)
 
     print(f"[n={len(stats_combined):5,d}] writing records")
     write_data_to_db(stats_combined)
@@ -614,7 +544,7 @@ def main() -> None:
         cpu_count = 4
 
     fight_dir = Path(__file__).parents[2] / "data/raw/ufc/fights"
-    fights = get_html_files(fight_dir, "fight_uid", "ufc_fights", args.force)
+    fights = get_html_files(fight_dir, col(UFCFight.fight_uid), args.force)
 
     if len(fights) == 0:
         print("no fights to parse. exiting early")

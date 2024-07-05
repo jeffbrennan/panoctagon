@@ -1,9 +1,8 @@
 import uuid
 
-from sqlmodel import Session, select, col
+from sqlmodel import Session, col, select
 
 from panoctagon.common import (
-    get_con,
     get_engine,
 )
 from panoctagon.enums import ONEDivisionNames, UFCDivisionNames

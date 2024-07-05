@@ -37,6 +37,7 @@ class UFCEvent(SQLModel, table=True):
     title: str
     event_date: str
     event_location: str
+    downloaded_ts: Optional[str] = None
 
 
 class UFCFighter(SQLModel, table=True):
@@ -63,8 +64,8 @@ class UFCFight(SQLModel, table=True):
     fight_style: FightStyle
     fight_type: Optional[FightType] = None
     fight_division: Optional[UFCDivisionNames] = None
-    fighter1_uid: str
-    fighter2_uid: str
+    fighter1_uid: str = Field(foreign_key="ufc_fighters.fighter_uid")
+    fighter2_uid: str = Field(foreign_key="ufc_fighters.fighter_uid")
     fighter1_result: FightResult
     fighter2_result: FightResult
     decision: Optional[Decision] = None
@@ -76,7 +77,7 @@ class UFCFight(SQLModel, table=True):
 class UFCFightStats(SQLModel, table=True):
     __tablename__ = "ufc_fight_stats"  # pyright: ignore [reportAssignmentType]
     fight_uid: str = Field(primary_key=True, foreign_key="ufc_fights.fight_uid")
-    fighter_uid: str = Field(primary_key=True)
+    fighter_uid: str = Field(primary_key=True, foreign_key="ufc_fighters.fighter_uid")
     round_num: int = Field(primary_key=True)
     knockdowns: Optional[int] = None
     total_strikes_landed: Optional[int] = None
@@ -100,3 +101,8 @@ class UFCFightStats(SQLModel, table=True):
     sig_strikes_clinch_attempted: Optional[int] = None
     sig_strikes_grounded_landed: Optional[int] = None
     sig_strikes_grounded_attempted: Optional[int] = None
+
+
+class TempBulkDeleteTest(SQLModel, table=True):
+    uid: str = Field(primary_key=True)
+    another_col: str

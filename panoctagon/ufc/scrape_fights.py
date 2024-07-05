@@ -8,16 +8,18 @@ from typing import Optional
 
 import bs4
 import requests
+from sqlmodel import Session, and_, col, select
 
 from panoctagon.common import (
     create_header,
-    get_con,
+    get_engine,
     get_table_rows,
     report_stats,
     scrape_page,
 )
 from panoctagon.enums import Symbols
 from panoctagon.models import RunStats, ScrapingConfig, ScrapingWriteResult
+from panoctagon.tables import UFCEvent
 
 
 @dataclass
@@ -38,15 +40,18 @@ class FightScrapingResult:
 
 
 def read_event_uids(force_run: bool) -> list[str]:
-    _, cur = get_con()
+    now = datetime.datetime.now().strftime("%Y-%m-%d")
     if force_run:
-        cmd = "select event_uid from ufc_events where event_date < date('now')"
+        cmd = select(UFCEvent.event_uid).where(col(UFCEvent.event_date) < now)
     else:
-        cmd = "select event_uid from ufc_events where downloaded_ts is null and event_date < date('now')"
+        cmd = select(UFCEvent.event_uid).where(
+            and_(UFCEvent.downloaded_ts is None, UFCEvent.event_date < now)
+        )
 
-    cur.execute(cmd)
-    uids = [i[0] for i in cur.fetchall()]
-    return uids
+    engine = get_engine()
+    with Session(engine) as session:
+        uids = session.exec(cmd).all()
+    return list(uids)
 
 
 def get_list_of_fights(soup: bs4.BeautifulSoup) -> list[str]:
@@ -169,19 +174,19 @@ def get_fights_from_event(event: EventToParse) -> FightScrapingResult:
 
 
 def write_parsing_timestamp(results: list[FightScrapingResult]) -> None:
-    con, cur = get_con()
     current_timestamp = datetime.datetime.now().isoformat(timespec="seconds")
-    update_info = (
-        {"downloaded_uid": i.event.uid, "downloaded_ts": current_timestamp}
-        for i in results
-    )
-
     print(f"updating {len(results)} rows")
-    cur.executemany(
-        "UPDATE ufc_events SET downloaded_ts=:downloaded_ts WHERE event_uid=:downloaded_uid",
-        update_info,
-    )
-    con.commit()
+
+    engine = get_engine()
+    with Session(engine) as session:
+        for result in results:
+            event = session.exec(
+                select(UFCEvent).where(UFCEvent.event_uid == result.event.uid)
+            ).one()
+            event.downloaded_ts = current_timestamp
+            print(f"updating {event.event_uid}")
+            session.add(event)
+            session.commit()
 
 
 def main() -> None:

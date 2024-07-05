@@ -1,16 +1,15 @@
 import argparse
 import os
-import sqlite3
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
 from pathlib import Path
 
 import bs4
+from sqlmodel import col
 
 from panoctagon.common import (
     create_header,
     delete_existing_records,
-    get_con,
     get_html_files,
     handle_parsing_issues,
     write_data_to_db,
@@ -18,29 +17,6 @@ from panoctagon.common import (
 from panoctagon.enums import Stance
 from panoctagon.models import FighterParsingResult, FileContents
 from panoctagon.tables import UFCFighter
-
-
-def create_fighters_table(cur: sqlite3.Cursor) -> None:
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS
-        ufc_fighters(
-            fighter_uid TEXT NOT NULL,
-            first_name TEXT NOT NULL,
-            last_name TEXT NOT NULL,
-            nickname TEXT,
-            dob TEXT,
-            place_of_birth TEXT,
-            stance TEXT,
-            style TEXT,
-            height_inches INTEGER,
-            reach_inches INTEGER,
-            leg_reach_inches INTEGER,
-            PRIMARY KEY (fighter_uid)
-            ) STRICT;
-
-    """
-    )
 
 
 def parse_fighter(fighter: FileContents) -> FighterParsingResult:
@@ -128,16 +104,12 @@ def write_fighter_results_to_db(
 ) -> None:
     tbl_name = "ufc_fighters"
     print(create_header(80, tbl_name, True, spacer="-"))
-    con, cur = get_con()
-    create_fighters_table(cur)
 
     clean_results = handle_parsing_issues(results, False)
     fighters = [i.result for i in clean_results]
     if force_run:
-        uids: tuple[str, ...] = tuple(
-            (str(i.fighter_uid) for i in fighters if i is not None)
-        )
-        delete_existing_records(tbl_name, "fighter_uid", uids)
+        uids = [i.fighter_uid for i in fighters if i is not None]
+        delete_existing_records(UFCFighter, col(UFCFighter.fighter_uid), uids)
 
     print(f"[n={len(fighters):5,d}] writing records")
     write_data_to_db(fighters)
@@ -161,9 +133,7 @@ def main() -> None:
         cpu_count = 4
 
     fighters_dir = Path(__file__).parents[2] / "data/raw/ufc/fighters"
-    fighters = get_html_files(
-        fighters_dir, "fighter_uid", "ufc_fighters", force_run=True
-    )
+    fighters = get_html_files(fighters_dir, col(UFCFighter.fighter_uid), force_run=True)
 
     if len(fighters) == 0:
         print("no fights to parse. exiting early")

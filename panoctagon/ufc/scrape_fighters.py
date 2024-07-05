@@ -5,13 +5,16 @@ from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
+from sqlmodel import col
+
 from panoctagon.common import (
     create_header,
-    get_con,
+    get_table_uids,
     report_stats,
     scrape_page,
 )
 from panoctagon.models import RunStats, ScrapingConfig
+from panoctagon.tables import UFCFight
 
 
 @dataclass
@@ -30,15 +33,12 @@ class FighterScrapingResult:
 
 
 def get_all_fighter_uids() -> list[str]:
-    _, cur = get_con()
-    cur.execute("select fighter1_uid from ufc_fights")
-    f1_uids = [i[0] for i in cur.fetchall()]
-    cur.execute("select fighter2_uid from ufc_fights")
-    f2_uids = [i[0] for i in cur.fetchall()]
+    f1_uids = get_table_uids(col(UFCFight.fighter1_uid))
+    f2_uids = get_table_uids(col(UFCFight.fighter2_uid))
 
-    all_uids = sorted(set(f1_uids + f2_uids))
-
-    return all_uids
+    assert f1_uids is not None
+    assert f2_uids is not None
+    return sorted(set(f1_uids + f2_uids))
 
 
 def scrape_fighter(fighter: FighterToScrape) -> FighterScrapingResult:
