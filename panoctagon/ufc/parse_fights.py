@@ -477,7 +477,6 @@ def write_fight_results_to_db(
         uids = [i.fight_uid for i in fights if i is not None]
         delete_existing_records(UFCFight, col(UFCFight.fight_uid), uids)
 
-    print(f"[n={len(fights):5,d}] writing records")
     write_data_to_db(fights)
 
 
@@ -521,7 +520,6 @@ def write_stats_to_db(results: list[FightParsingResult]) -> None:
 
     delete_existing_records(UFCFightStats, col(UFCFightStats.fight_uid), uids)
 
-    print(f"[n={len(stats_combined):5,d}] writing records")
     write_data_to_db(stats_combined)
 
 

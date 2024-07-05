@@ -242,7 +242,7 @@ def dump_html(config: ScrapingConfig, log_uid: bool = False) -> None:
 
 def write_data_to_db(data: list[SQLModelType]) -> None:
     engine = get_engine()
-
+    print(f"[n={len(data):5,d}] writing records")
     with Session(engine) as session:
         session.bulk_save_objects(data)
         session.commit()
