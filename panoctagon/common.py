@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import argparse
+import datetime
+import os
+
 import random
 import time
 from pathlib import Path
@@ -7,6 +11,7 @@ from typing import Any, Optional, Type
 
 import bs4
 import requests
+from pydantic import BaseModel
 from sqlalchemy import Engine
 from sqlalchemy.orm import Mapped
 from sqlmodel import Session, SQLModel, create_engine, select
@@ -21,6 +26,17 @@ from panoctagon.models import (
     ScrapingWriteResult,
     SQLModelType,
 )
+
+
+class ScrapingArgs(BaseModel):
+    force: bool
+    sequential: bool
+
+
+class ScrapingSetup(BaseModel):
+    args: ScrapingArgs
+    footer: str
+    cpu_count: int
 
 
 def get_engine() -> Engine:
@@ -215,11 +231,13 @@ def get_html_files(
     fight_contents_to_parse: list[FileContents] = []
     for i, fpath in enumerate(files_to_parse):
         uid = fpath.stem
+        modification_time = datetime.datetime.fromtimestamp(os.path.getmtime(fpath))
         with fpath.open() as f:
             fight_contents_to_parse.append(
                 FileContents(
                     uid=uid,
                     path=fpath,
+                    modified_ts=modification_time,
                     contents=f.read(),
                     file_num=i,
                     n_files=len(files_to_parse),
@@ -264,3 +282,58 @@ def get_table_rows(
     if rows is None:
         raise ValueError()
     return rows
+
+
+def setup_scraping(title: str, output_dir: Path) -> ScrapingSetup:
+    parser = argparse.ArgumentParser(description=title)
+    parser.add_argument(
+        "-f",
+        "--force",
+        help="force existing parsed fights to be reprocessed",
+        action="store_true",
+        required=False,
+        default=False,
+    )
+
+    parser.add_argument(
+        "-s",
+        "--sequential",
+        help="scrape fights sequentially",
+        action="store_true",
+        required=False,
+        default=False,
+    )
+
+    args_raw = parser.parse_args()
+    args = ScrapingArgs(force=args_raw.force, sequential=args_raw.sequential)
+
+    print(create_header(80, "PANOCTAGON", True, "="))
+    footer = create_header(80, "", True, "=")
+    cpu_count = os.cpu_count()
+    if cpu_count is None:
+        cpu_count = 4
+
+    output_dir.mkdir(exist_ok=True, parents=True)
+
+    return ScrapingSetup(args=args, footer=footer, cpu_count=cpu_count)
+
+
+def write_parsing_timestamp(
+    tbl: Type[SQLModel],
+    update_col_name: str,
+    uid_col: Mapped[Any],
+    result_uids: list[str],
+) -> None:
+
+    current_timestamp = datetime.datetime.now().isoformat(timespec="seconds")
+    print(f"updating {len(result_uids)} rows")
+    start = time.time()
+    engine = get_engine()
+    with Session(engine) as session:
+        for uid in result_uids:
+            record = session.exec(select(tbl).where(uid_col == uid)).one()
+            record.__setattr__(update_col_name, current_timestamp)
+            session.add(record)
+            session.commit()
+    end = time.time()
+    print(f"elapsed time: {end-start:.2f} seconds")

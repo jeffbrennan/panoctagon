@@ -1,6 +1,4 @@
-import argparse
 import datetime
-import os
 import time
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
@@ -11,12 +9,14 @@ import bs4
 import requests
 from sqlmodel import Session, and_, col, select
 
+from panoctagon.common import write_parsing_timestamp
 from panoctagon.common import (
     create_header,
     get_engine,
     get_table_rows,
     report_stats,
     scrape_page,
+    setup_scraping,
 )
 from panoctagon.enums import Symbols
 from panoctagon.models import RunStats, ScrapingConfig, ScrapingWriteResult
@@ -175,52 +175,12 @@ def get_fights_from_event(event: EventToParse) -> FightScrapingResult:
     )
 
 
-def write_parsing_timestamp(results: list[FightScrapingResult]) -> None:
-    current_timestamp = datetime.datetime.now().isoformat(timespec="seconds")
-    print(f"updating {len(results)} rows")
-    start = time.time()
-    engine = get_engine()
-    with Session(engine) as session:
-        for result in results:
-            event = session.exec(
-                select(UFCEvent).where(UFCEvent.event_uid == result.event.uid)
-            ).one()
-            event.downloaded_ts = current_timestamp
-            session.add(event)
-            session.commit()
-    end = time.time()
-    print(f"elapsed time: {end-start:.2f} seconds")
-
-
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Panoctagon UFC Fight Scraper")
-    parser.add_argument(
-        "-f",
-        "--force",
-        help="force existing parsed fights to be reprocessed",
-        action="store_true",
-        required=False,
-        default=False,
-    )
-
-    parser.add_argument(
-        "-s",
-        "--sequential",
-        help="scrape fights sequentially",
-        action="store_true",
-        required=False,
-        default=False,
-    )
-    args = parser.parse_args()
-
-    print(create_header(80, "PANOCTAGON", True, "="))
-    footer = create_header(80, "", True, "=")
-    cpu_count = os.cpu_count()
-    if cpu_count is None:
-        cpu_count = 4
-
-    base_dir = Path(__file__).parents[2] / "data" / "raw" / "ufc" / "fights"
-    base_dir.mkdir(exist_ok=True, parents=True)
+    output_dir = Path(__file__).parents[2] / "data" / "raw" / "ufc" / "fights"
+    setup = setup_scraping(title="Panoctagon UFC Fight Scraper", output_dir=output_dir)
+    args = setup.args
+    footer = setup.footer
+    cpu_count = setup.cpu_count
 
     event_uids = read_event_uids(args.force)
     n_events = len(event_uids)
@@ -230,7 +190,7 @@ def main() -> None:
         return
 
     events_to_parse = [
-        EventToParse(uid=uid, i=i, n_events=n_events, base_dir=base_dir)
+        EventToParse(uid=uid, i=i, n_events=n_events, base_dir=output_dir)
         for i, uid in enumerate(event_uids)
     ]
 
@@ -277,7 +237,10 @@ def main() -> None:
     successful_results = [i for i in results if i.success and i.message is None]
     if len(successful_results) > 0:
         print(create_header(80, "UPDATING UFC_EVENTS", True, "-"))
-        write_parsing_timestamp(successful_results)
+        success_uids = [i.event.uid for i in successful_results]
+        write_parsing_timestamp(
+            UFCEvent, "downloaded_ts", col(UFCEvent.event_uid), success_uids
+        )
 
     print(footer)
 
