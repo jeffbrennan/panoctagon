@@ -53,7 +53,8 @@ class UFCFighter(SQLModel, table=True):
     height_inches: Optional[int]
     reach_inches: Optional[int]
     leg_reach_inches: Optional[int]
-
+    downloaded_ts: Optional[str] = None
+    bio_downloaded_ts: Optional[str] = None
 
 class UFCFight(SQLModel, table=True):
     __tablename__ = "ufc_fights"  # pyright: ignore [reportAssignmentType]

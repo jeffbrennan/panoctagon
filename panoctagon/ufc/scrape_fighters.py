@@ -66,7 +66,7 @@ def scrape_fighter(fighter: FighterToScrape) -> FighterScrapingResult:
     return FighterScrapingResult(fighter, success=result.success)
 
 
-def main():
+def main() -> None:
     start_time = time.time()
 
     print(create_header(80, "PANOCTAGON", True, "="))
@@ -113,14 +113,15 @@ def main():
         with ProcessPoolExecutor(max_workers=n_cores) as executor:
             results = list(executor.map(scrape_fighter, fighters_to_scrape))
 
-    successes = len([i for i in results if i.success])
-    failures = len(results) - successes
+    successes = [i for i in results if i.success]
+    n_successes = len(successes)
+    failures = len(results) - n_successes
 
     report_stats(
         RunStats(
             start=start_time,
             end=time.time(),
-            successes=successes,
+            successes=n_successes,
             failures=failures,
             n_ops=n_fighters,
             op_name="fighter",

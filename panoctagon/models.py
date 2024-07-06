@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 from pathlib import Path
 from typing import Any, Optional, TypeVar
 
@@ -20,6 +21,7 @@ class ScrapingConfig(BaseModel):
 class FileContents(BaseModel):
     uid: str
     path: Path
+    modified_ts: datetime.datetime
     contents: str
     file_num: int
     n_files: int

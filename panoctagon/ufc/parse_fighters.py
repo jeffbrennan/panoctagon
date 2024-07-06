@@ -92,6 +92,7 @@ def parse_fighter(fighter: FileContents) -> FighterParsingResult:
         height_inches=height_inches,
         reach_inches=reach_inches,
         leg_reach_inches=None,
+        downloaded_ts=fighter.modified_ts.isoformat(),
     )
 
     return FighterParsingResult(
