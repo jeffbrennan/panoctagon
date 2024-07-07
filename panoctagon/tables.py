@@ -56,6 +56,7 @@ class UFCFighter(SQLModel, table=True):
     downloaded_ts: Optional[str] = None
     bio_downloaded_ts: Optional[str] = None
 
+
 class UFCFight(SQLModel, table=True):
     __tablename__ = "ufc_fights"  # pyright: ignore [reportAssignmentType]
     __table_args__ = (UniqueConstraint("event_uid", "fight_uid", name="fight_pk"),)
@@ -67,8 +68,8 @@ class UFCFight(SQLModel, table=True):
     fight_division: Optional[UFCDivisionNames] = None
     fighter1_uid: str = Field(foreign_key="ufc_fighters.fighter_uid")
     fighter2_uid: str = Field(foreign_key="ufc_fighters.fighter_uid")
-    fighter1_result: FightResult
-    fighter2_result: FightResult
+    fighter1_result: Optional[FightResult] = None
+    fighter2_result: Optional[FightResult] = None
     decision: Optional[Decision] = None
     decision_round: Optional[int] = None
     decision_time_seconds: Optional[int] = None

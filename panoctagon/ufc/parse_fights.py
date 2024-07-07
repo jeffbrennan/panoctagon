@@ -2,7 +2,6 @@ import argparse
 import os
 import re
 from concurrent.futures import ProcessPoolExecutor
-from dataclasses import fields
 from pathlib import Path
 from typing import Any, Optional
 
@@ -89,8 +88,8 @@ def parse_sig_stats(
         raise ValueError()
 
     sig_stats_per_round = get_table_rows(fight_html, 3)
-    sig_stats = []
-    issues = []
+    sig_stats: list[RoundSigStats] = []
+    issues: list[str] = []
     for round_num, round_data in enumerate(sig_stats_per_round, 1):
         all_sig_stats_raw = get_round_vals(round_data, sig_stats_cols, expected_cols)
 
@@ -163,8 +162,8 @@ def parse_round_totals(
         raise ValueError()
 
     totals_per_round = get_table_rows(fight_html, 1)
-    totals = []
-    issues = []
+    totals: list[RoundTotalStats] = []
+    issues: list[str] = []
     for round_num, round_data in enumerate(totals_per_round, 1):
         all_totals_raw = get_round_vals(round_data, totals_cols, expected_cols)
         for totals_raw in all_totals_raw:
@@ -200,26 +199,6 @@ def parse_round_totals(
     return TotalStatsParsingResult(uid=fight_uid, result=totals, issues=issues)
 
 
-def combine_dataclasses(class1, class2):
-    fields1 = {f.name: f.type for f in fields(class1)}
-    fields2 = {f.name: f.type for f in fields(class2)}
-    common_fields = set(fields1.keys()) & set(fields2.keys())
-
-    combined_class_fields = []
-    for field_name in common_fields:
-        combined_class_fields.append((field_name, fields1[field_name]))
-
-    combined_class_name = f"{class1.__name__}{class2.__name__}Combined"
-
-    combined_class = type(
-        combined_class_name,
-        (),
-        {name: field_type for name, field_type in combined_class_fields},
-    )
-
-    return combined_class
-
-
 def get_event_uid(fight_html: bs4.BeautifulSoup) -> str:
     event_uid_results = [
         i for i in fight_html.findAll("a") if "event-details" in str(i)
@@ -235,7 +214,8 @@ def parse_fight_details(
     fight_html: bs4.BeautifulSoup, event_uid: str, fight_uid: str
 ) -> FightDetailsParsingResult:
     tbl = get_table_rows(fight_html)
-    parsing_issues = []
+    parsing_issues: list[str] = []
+
     detail_headers = [
         i.text.strip() for i in fight_html.findAll("i", class_="b-fight-details__label")
     ][1:]
@@ -286,7 +266,7 @@ def parse_fight_details(
         for i in fight_html.findAll("div", "b-fight-details__person")
     ]
 
-    fighter_results = []
+    fight_results: list[Optional[FightResult]] = []
     for result in [f1_result_raw, f2_result_raw]:
         result_clean = (
             result.replace("W", "Win")
@@ -297,12 +277,12 @@ def parse_fight_details(
         )
 
         try:
-            fighter_results.append(FightResult(result_clean))
+            fight_results.append(FightResult(result_clean))
         except ValueError as e:
             parsing_issues.append(str(e))
-            fighter_results.append(None)
+            fight_results.append(None)
 
-    f1_result, f2_result = fighter_results
+    f1_result, f2_result = fight_results
 
     division_fight_type_raw = fight_html.find(
         "i", class_="b-fight-details__fight-title"
@@ -432,7 +412,7 @@ def check_file_issues(
 def parse_fight(
     fight_contents: FileContents,
 ) -> FightParsingResult:
-    file_issues = []
+    file_issues: list[str] = []
     if fight_contents.file_num % 100 == 0:
         title = f"[{fight_contents.file_num:05d} / {fight_contents.n_files-1:05d}]"
         print(create_header(80, title, False, "."))
@@ -474,7 +454,7 @@ def write_fight_results_to_db(
     fights: list[UFCFight] = [i.result for i in clean_fight_results]
 
     if force_run:
-        uids = [i.fight_uid for i in fights if i is not None]
+        uids = [i.fight_uid for i in fights]
         delete_existing_records(UFCFight, col(UFCFight.fight_uid), uids)
 
     write_data_to_db(fights)
@@ -492,16 +472,10 @@ def write_stats_to_db(results: list[FightParsingResult]) -> None:
     )
 
     sig_stats_flat = pl.DataFrame(
-        [
-            item
-            for sublist in [i.result for i in clean_sig_stats if i.result is not None]
-            for item in sublist
-        ]
+        [item for sublist in [i.result for i in clean_sig_stats] for item in sublist]
     )
     total_stats_flat = pl.DataFrame(
-        item
-        for sublist in [i.result for i in clean_total_stats if i.result is not None]
-        for item in sublist
+        item for sublist in [i.result for i in clean_total_stats] for item in sublist
     )
 
     stats_combined_df = total_stats_flat.join(
