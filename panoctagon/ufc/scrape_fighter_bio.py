@@ -3,7 +3,7 @@ import random
 
 from pydantic import BaseModel
 
-from panoctagon.common import setup_scraping
+from panoctagon.common import setup_panoctagon
 from panoctagon.tables import UFCFighter
 
 import time
@@ -121,25 +121,21 @@ def get_fighters_to_download(
 
 
 def main() -> None:
+    setup = setup_panoctagon(title="Panoctagon Fighter Bio Scraper")
     output_dir = Path(__file__).parents[2] / "data" / "raw" / "ufc" / "fighter_bios"
-    setup = setup_scraping(
-        title="Panoctagon Fighter Bio Scraper", output_dir=output_dir
-    )
+    output_dir.mkdir(exist_ok=True, parents=True)
 
-    args = setup.args
-    footer = setup.footer
-    cpu_count = setup.cpu_count
     fighters_to_download = get_unparsed_fighters()
 
     fighters_to_download = get_fighters_to_download(
-        fighters_to_download, output_dir, args.force
+        fighters_to_download, output_dir, setup.args.force
     )
-    if args.n:
-        fighters_to_download = random.sample(fighters_to_download, args.n)
+    if setup.args.n:
+        fighters_to_download = random.sample(fighters_to_download, setup.args.n)
 
     n_fighters_to_download = len(fighters_to_download)
-    n_workers = cpu_count
-    if n_fighters_to_download < cpu_count:
+    n_workers = setup.cpu_count
+    if n_fighters_to_download < setup.cpu_count:
         n_workers = n_fighters_to_download
 
     start_header = create_header(
@@ -147,7 +143,7 @@ def main() -> None:
     )
     print(start_header)
     start_time = time.time()
-    if args.sequential or n_fighters_to_download < cpu_count:
+    if setup.args.sequential or n_fighters_to_download < setup.cpu_count:
         results = [
             get_fighter_bio(fighter, output_dir) for fighter in fighters_to_download
         ]
@@ -180,7 +176,7 @@ def main() -> None:
         )
     )
 
-    print(footer)
+    print(setup.footer)
 
 
 if __name__ == "__main__":

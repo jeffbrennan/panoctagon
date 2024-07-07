@@ -1,4 +1,3 @@
-import os
 import random
 import time
 from concurrent.futures import ProcessPoolExecutor
@@ -12,6 +11,7 @@ from panoctagon.common import (
     get_table_uids,
     report_stats,
     scrape_page,
+    setup_panoctagon,
 )
 from panoctagon.models import RunStats, ScrapingConfig
 from panoctagon.tables import UFCFight
@@ -42,7 +42,7 @@ def get_all_fighter_uids() -> list[str]:
 
 
 def scrape_fighter(fighter: FighterToScrape) -> FighterScrapingResult:
-    title = f"[{fighter.i+ 1:04d}/{fighter.n_fighters:04d}] {fighter.uid}"
+    title = f"[{fighter.i + 1:04d}/{fighter.n_fighters:04d}] {fighter.uid}"
     print(create_header(80, title, False, "."))
     base_url = "http://ufcstats.com/fighter-details"
 
@@ -67,21 +67,16 @@ def scrape_fighter(fighter: FighterToScrape) -> FighterScrapingResult:
 
 
 def main() -> None:
-    start_time = time.time()
+    setup = setup_panoctagon(
+        "Panoctagon UFC Fighter Scraper",
+    )
 
-    print(create_header(80, "PANOCTAGON", True, "="))
-    footer = create_header(80, "", True, "=")
-    n_cores = os.cpu_count()
-    if n_cores is None:
-        n_cores = 4
-
-    sequential = False
+    output_dir = Path(__file__).parents[2] / "data" / "raw" / "ufc" / "fighters"
+    output_dir.mkdir(exist_ok=True, parents=True)
 
     all_fighter_uids = get_all_fighter_uids()
-    base_dir = Path(__file__).parents[2] / "data" / "raw" / "ufc" / "fighters"
 
-    base_dir.mkdir(exist_ok=True)
-    scraped_fighters = [i.stem for i in base_dir.glob("*.html")]
+    scraped_fighters = [i.stem for i in output_dir.glob("*.html")]
     unscraped_fighters = [i for i in all_fighter_uids if i not in scraped_fighters]
 
     n_fighters = len(unscraped_fighters)
@@ -90,7 +85,7 @@ def main() -> None:
         print("no new fighters!")
         report_stats(
             RunStats(
-                start=start_time,
+                start=setup.start_time,
                 end=time.time(),
                 successes=0,
                 failures=0,
@@ -98,19 +93,19 @@ def main() -> None:
                 op_name="fighter",
             )
         )
-        print(footer)
+        print(setup.footer)
         return
 
     fighters_to_scrape = [
-        FighterToScrape(uid=uid, i=i, n_fighters=n_fighters, base_dir=base_dir)
+        FighterToScrape(uid=uid, i=i, n_fighters=n_fighters, base_dir=output_dir)
         for i, uid in enumerate(unscraped_fighters)
     ]
 
     print(create_header(80, f"SCRAPING n={n_fighters} fighters", True, "-"))
-    if sequential or n_fighters < n_cores:
+    if setup.args.sequential or n_fighters < setup.cpu_count:
         results = [scrape_fighter(i) for i in fighters_to_scrape]
     else:
-        with ProcessPoolExecutor(max_workers=n_cores) as executor:
+        with ProcessPoolExecutor(max_workers=setup.cpu_count) as executor:
             results = list(executor.map(scrape_fighter, fighters_to_scrape))
 
     successes = [i for i in results if i.success]
@@ -119,7 +114,7 @@ def main() -> None:
 
     report_stats(
         RunStats(
-            start=start_time,
+            start=setup.start_time,
             end=time.time(),
             successes=n_successes,
             failures=failures,
@@ -127,7 +122,7 @@ def main() -> None:
             op_name="fighter",
         )
     )
-    print(footer)
+    print(setup.footer)
 
 
 if __name__ == "__main__":

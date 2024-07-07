@@ -1,5 +1,3 @@
-import argparse
-import os
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
 from pathlib import Path
@@ -13,6 +11,7 @@ from panoctagon.common import (
     get_html_files,
     handle_parsing_issues,
     write_data_to_db,
+    setup_panoctagon,
 )
 from panoctagon.enums import Stance
 from panoctagon.models import FighterParsingResult, FileContents
@@ -109,45 +108,33 @@ def write_fighter_results_to_db(
     clean_results = handle_parsing_issues(results, False)
     fighters = [i.result for i in clean_results]
     if force_run:
-        uids = [i.fighter_uid for i in fighters if i is not None]
+        uids = [i.fighter_uid for i in fighters]
         delete_existing_records(UFCFighter, col(UFCFighter.fighter_uid), uids)
 
     write_data_to_db(fighters)
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Panoctagon UFC Fighter Parser")
-    parser.add_argument(
-        "-f",
-        "--force",
-        help="force existing parsed fighters to be reprocessed",
-        action="store_true",
-        required=False,
-        default=False,
-    )
-    args = parser.parse_args()
-    print(create_header(80, "PANOCTAGON", True, "="))
-    footer = create_header(80, "", True, "=")
-    cpu_count = os.cpu_count()
-    if cpu_count is None:
-        cpu_count = 4
+    setup = setup_panoctagon(title="Panoctagon UFC Fighter Parser")
+    script_dir = Path(__file__).parents[2] / "data/raw/ufc/fighters"
+    if not script_dir.exists():
+        raise ValueError("expecting a directory containing at least one fighter")
 
-    fighters_dir = Path(__file__).parents[2] / "data/raw/ufc/fighters"
     fighters = get_html_files(
-        fighters_dir, col(UFCFighter.fighter_uid), force_run=args.force
+        script_dir, col(UFCFighter.fighter_uid), force_run=setup.args.force
     )
 
     if len(fighters) == 0:
         print("no fighters to parse. exiting early")
-        print(footer)
+        print(setup.footer)
         return
 
-    with ProcessPoolExecutor(max_workers=cpu_count - 1) as executor:
+    with ProcessPoolExecutor(max_workers=setup.cpu_count - 1) as executor:
         results = list(executor.map(parse_fighter, fighters))
     print(len(results))
 
-    write_fighter_results_to_db(results, args.force)
-    print(footer)
+    write_fighter_results_to_db(results, setup.args.force)
+    print(setup.footer)
 
 
 if __name__ == "__main__":

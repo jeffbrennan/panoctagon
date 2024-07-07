@@ -16,7 +16,7 @@ from panoctagon.common import (
     get_table_rows,
     report_stats,
     scrape_page,
-    setup_scraping,
+    setup_panoctagon,
 )
 from panoctagon.enums import Symbols
 from panoctagon.models import RunStats, ScrapingConfig, ScrapingWriteResult
@@ -176,17 +176,18 @@ def get_fights_from_event(event: EventToParse) -> FightScrapingResult:
 
 
 def main() -> None:
-    output_dir = Path(__file__).parents[2] / "data" / "raw" / "ufc" / "fights"
-    setup = setup_scraping(title="Panoctagon UFC Fight Scraper", output_dir=output_dir)
-    args = setup.args
-    footer = setup.footer
-    cpu_count = setup.cpu_count
 
-    event_uids = read_event_uids(args.force)
+    setup = setup_panoctagon(title="Panoctagon UFC Fight Scraper")
+
+    cpu_count = setup.cpu_count
+    output_dir = Path(__file__).parents[2] / "data" / "raw" / "ufc" / "fights"
+    output_dir.mkdir(exist_ok=True, parents=True)
+
+    event_uids = read_event_uids(setup.args.force)
     n_events = len(event_uids)
     if n_events == 0:
         print("No events to parse. Exiting!")
-        print(footer)
+        print(setup.footer)
         return
 
     events_to_parse = [
@@ -203,7 +204,7 @@ def main() -> None:
     )
     print(start_header)
     start_time = time.time()
-    if args.sequential or len(events_to_parse) < cpu_count:
+    if setup.args.sequential or len(events_to_parse) < cpu_count:
         results = [get_fights_from_event(event) for event in events_to_parse]
     else:
         with ProcessPoolExecutor(max_workers=n_workers) as executor:
@@ -242,7 +243,7 @@ def main() -> None:
             UFCEvent, "downloaded_ts", col(UFCEvent.event_uid), success_uids
         )
 
-    print(footer)
+    print(setup.footer)
 
 
 if __name__ == "__main__":

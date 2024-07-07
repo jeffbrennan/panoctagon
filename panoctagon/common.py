@@ -34,10 +34,11 @@ class ScrapingArgs(BaseModel):
     n: int
 
 
-class ScrapingSetup(BaseModel):
+class PanoctagonSetup(BaseModel):
     args: ScrapingArgs
     footer: str
     cpu_count: int
+    start_time: float
 
 
 def get_engine() -> Engine:
@@ -285,7 +286,8 @@ def get_table_rows(
     return rows
 
 
-def setup_scraping(title: str, output_dir: Path) -> ScrapingSetup:
+def setup_panoctagon(title: str) -> PanoctagonSetup:
+    start_time = time.time()
     parser = argparse.ArgumentParser(description=title)
     parser.add_argument(
         "-f",
@@ -325,9 +327,12 @@ def setup_scraping(title: str, output_dir: Path) -> ScrapingSetup:
     if cpu_count is None:
         cpu_count = 4
 
-    output_dir.mkdir(exist_ok=True, parents=True)
-
-    return ScrapingSetup(args=args, footer=footer, cpu_count=cpu_count)
+    return PanoctagonSetup(
+        args=args,
+        footer=footer,
+        cpu_count=cpu_count,
+        start_time=start_time,
+    )
 
 
 def write_parsing_timestamp(

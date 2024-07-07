@@ -1,4 +1,3 @@
-import argparse
 import datetime
 
 import bs4
@@ -9,8 +8,8 @@ from panoctagon.common import (
     get_table_rows,
     write_data_to_db,
     get_table_uids,
-    create_header,
     delete_existing_records,
+    setup_panoctagon,
 )
 from panoctagon.tables import UFCEvent
 
@@ -82,27 +81,14 @@ def get_events(all_events: bool, page_num: int = 1) -> list[UFCEvent]:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Panoctagon UFC Event Scraper")
-    parser.add_argument(
-        "-f",
-        "--force",
-        help="force existing events to be redownloaded",
-        action="store_true",
-        required=False,
-        default=False,
-    )
-    args = parser.parse_args()
-
-    print(create_header(80, "PANOCTAGON", True, "="))
-    footer = create_header(80, "", True, "=")
-
+    setup = setup_panoctagon(title="Panoctagon UFC Event Scraper")
     existing_events = get_table_uids(col(UFCEvent.event_uid))
 
-    if args.force and existing_events is not None:
+    if setup.args.force and existing_events is not None:
         delete_existing_records(UFCEvent, col(UFCEvent.event_uid), uids=existing_events)
         existing_events = None
 
-    all_events = existing_events is None or args.force
+    all_events = existing_events is None or setup.args.force
     events = get_events(all_events)
 
     if existing_events is None:
@@ -112,11 +98,11 @@ def main():
 
     if len(new_events) == 0:
         print("no new events. exiting early")
-        print(footer)
+        print(setup.footer)
         return
 
     write_data_to_db(new_events)
-    print(footer)
+    print(setup.footer)
 
 
 if __name__ == "__main__":
