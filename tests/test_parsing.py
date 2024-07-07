@@ -2,6 +2,7 @@ from pathlib import Path
 
 import bs4
 import pytest
+from sqlmodel import col
 
 from panoctagon.common import (
     get_html_files,
@@ -32,8 +33,7 @@ from panoctagon.ufc.parse_fights import (
 def _get_fight_html(fight_dir, uid: str) -> bs4.BeautifulSoup:
     fight_contents = get_html_files(
         fight_dir,
-        uid_col="fight_uid",
-        tbl="ufc_fights",
+        col(UFCFight.fight_uid),
         force_run=True,
         uid=uid,
     )
