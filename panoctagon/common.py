@@ -31,6 +31,7 @@ from panoctagon.models import (
 class ScrapingArgs(BaseModel):
     force: bool
     sequential: bool
+    n: int
 
 
 class ScrapingSetup(BaseModel):
@@ -149,7 +150,7 @@ def report_stats(stats: RunStats):
 
 
 def check_write_success(config: ScrapingConfig) -> bool:
-    issue_indicators = ["Internal Server Error", "Too Many Requests"]
+    issue_indicators = ["Internal Server Error", "Too Many Requests", "Search results"]
     with config.path.open() as f:
         contents = "".join(f.readlines())
 
@@ -289,7 +290,7 @@ def setup_scraping(title: str, output_dir: Path) -> ScrapingSetup:
     parser.add_argument(
         "-f",
         "--force",
-        help="force existing parsed fights to be reprocessed",
+        help="force existing files to be redownloaded",
         action="store_true",
         required=False,
         default=False,
@@ -298,14 +299,25 @@ def setup_scraping(title: str, output_dir: Path) -> ScrapingSetup:
     parser.add_argument(
         "-s",
         "--sequential",
-        help="scrape fights sequentially",
+        help="scrape sequentially",
         action="store_true",
         required=False,
         default=False,
     )
 
+    parser.add_argument(
+        "-n",
+        "--n",
+        help="max number of scraping events",
+        type=int,
+        required=False,
+        default=False,
+    )
+
     args_raw = parser.parse_args()
-    args = ScrapingArgs(force=args_raw.force, sequential=args_raw.sequential)
+    args = ScrapingArgs(
+        force=args_raw.force, sequential=args_raw.sequential, n=args_raw.n
+    )
 
     print(create_header(80, "PANOCTAGON", True, "="))
     footer = create_header(80, "", True, "=")
