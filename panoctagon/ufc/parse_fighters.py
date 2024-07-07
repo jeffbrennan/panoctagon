@@ -1,8 +1,10 @@
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 import bs4
+from pydantic import BaseModel
 from sqlmodel import col
 
 from panoctagon.common import (
@@ -18,10 +20,24 @@ from panoctagon.models import FighterParsingResult, FileContents
 from panoctagon.tables import UFCFighter
 
 
+class FighterStatsRaw(BaseModel):
+    height: Optional[str] = None
+    stance: Optional[str] = None
+    reach: Optional[str] = None
+    dob: Optional[str] = None
+
+
+class FighterStats(BaseModel):
+    height_inches: Optional[int] = None
+    stance: Optional[Stance] = None
+    reach_inches: Optional[int] = None
+    dob: Optional[str] = None
+
+
 def parse_fighter(fighter: FileContents) -> FighterParsingResult:
     if fighter.file_num % 100 == 0:
         print(f"{fighter.file_num:04d} / {fighter.n_files:04d}")
-    parsing_issues = []
+    parsing_issues: list[str] = []
     fighter_html = bs4.BeautifulSoup(
         fighter.contents, parser="html.parser", features="lxml"
     )
@@ -53,43 +69,43 @@ def parse_fighter(fighter: FileContents) -> FighterParsingResult:
         if val == "--":
             val = None
         all_stats_raw[col_name] = val
+
+    fighter_stats_raw = FighterStatsRaw.model_validate(all_stats_raw)
+    fighter_stats = FighterStats(
+        height_inches=None, stance=None, reach_inches=None, dob=None
+    )
+
     parsing_issues = []
-    height_inches = None
-    if all_stats_raw["height"] is not None:
-        height_split = all_stats_raw["height"].split("'")
-        height_inches = (int(height_split[0]) * 12) + int(height_split[1])
 
-    stance = None
-    if all_stats_raw["stance"] is not None:
-        stance_clean = all_stats_raw["stance"].replace("'", "")
-        if stance_clean != "":
-            try:
-                stance = Stance(all_stats_raw["stance"])
-            except ValueError as e:
-                parsing_issues.append(str(e))
-                stance = None
-        else:
-            stance = None
+    if fighter_stats_raw.height is not None:
+        height_split: list[str] = fighter_stats_raw.height.split("'")
+        fighter_stats.height_inches = (int(height_split[0]) * 12) + int(height_split[1])
 
-    reach_inches = None
-    if all_stats_raw["reach"] is not None:
-        reach_inches = int(all_stats_raw["reach"])
-    dob = None
-    if all_stats_raw["dob"] is not None:
-        dob_raw = all_stats_raw["dob"]
-        dob = datetime.strptime(dob_raw, "%b %d, %Y").strftime("%Y-%m-%d")
+    if fighter_stats_raw.stance is not None and fighter_stats_raw.stance != '':
+        try:
+            fighter_stats.stance = Stance(fighter_stats_raw.stance.replace("'", ""))
+        except ValueError as e:
+            parsing_issues.append(str(e))
+
+    if fighter_stats_raw.reach is not None:
+        fighter_stats.reach_inches = int(fighter_stats_raw.reach)
+
+    if fighter_stats_raw.dob is not None:
+        fighter_stats.dob = datetime.strptime(
+            fighter_stats_raw.dob, "%b %d, %Y"
+        ).strftime("%Y-%m-%d")
 
     fighter_parsed = UFCFighter(
         fighter_uid=fighter.uid,
         first_name=first_name,
         last_name=last_name,
         nickname=nickname,
-        dob=dob,
+        dob=fighter_stats.dob,
         place_of_birth=None,
-        stance=stance,
+        stance=fighter_stats.stance,
         style=None,
-        height_inches=height_inches,
-        reach_inches=reach_inches,
+        height_inches=fighter_stats.height_inches,
+        reach_inches=fighter_stats.reach_inches,
         leg_reach_inches=None,
         downloaded_ts=fighter.modified_ts.isoformat(),
     )
