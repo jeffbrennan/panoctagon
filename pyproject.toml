@@ -20,6 +20,8 @@ pytest = "^8.2.2"
 pydantic = "^2.7.4"
 sqlmodel = "^0.0.19"
 
+[tool.pyright]
+strict = ['**/*.py']
 
 [build-system]
 requires = ["poetry-core"]
