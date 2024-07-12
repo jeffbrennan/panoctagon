@@ -17,6 +17,7 @@ from panoctagon.common import (
     get_table_rows,
     handle_parsing_issues,
     write_data_to_db,
+    setup_panoctagon
 )
 from panoctagon.enums import (
     Decision,
@@ -498,38 +499,22 @@ def write_stats_to_db(results: list[FightParsingResult]) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Panoctagon UFC Fight Parser")
-    parser.add_argument(
-        "-f",
-        "--force",
-        help="force existing parsed fights to be reprocessed",
-        action="store_true",
-        required=False,
-        default=False,
-    )
-    args = parser.parse_args()
-
-    print(create_header(80, "PANOCTAGON", True, "="))
-    footer = create_header(80, "", True, "=")
-    cpu_count = os.cpu_count()
-    if cpu_count is None:
-        cpu_count = 4
-
+    setup = setup_panoctagon(title="Panoctagon UFC Fight Parser")
     fight_dir = Path(__file__).parents[2] / "data/raw/ufc/fights"
-    fights = get_html_files(fight_dir, col(UFCFight.fight_uid), args.force)
+    fights = get_html_files(fight_dir, col(UFCFight.fight_uid), setup.args.force)
 
     if len(fights) == 0:
         print("no fights to parse. exiting early")
-        print(footer)
+        print(setup.footer)
         return
 
     print(create_header(80, f"PARSING n={len(fights)} fights", True, "-"))
-    with ProcessPoolExecutor(max_workers=cpu_count - 1) as executor:
+    with ProcessPoolExecutor(max_workers=setup.cpu_count - 1) as executor:
         results = list(executor.map(parse_fight, fights))
 
-    write_fight_results_to_db(results, args.force)
+    write_fight_results_to_db(results, setup.args.force)
     write_stats_to_db(results)
-    print(footer)
+    print(setup.footer)
 
 
 if __name__ == "__main__":
