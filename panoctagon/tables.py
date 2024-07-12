@@ -53,6 +53,7 @@ class UFCFighter(SQLModel, table=True):
     height_inches: Optional[int]
     reach_inches: Optional[int]
     leg_reach_inches: Optional[int]
+    has_headshot: bool = False
     downloaded_ts: Optional[str] = None
     bio_downloaded_ts: Optional[str] = None
 
