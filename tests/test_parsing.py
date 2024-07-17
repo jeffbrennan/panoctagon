@@ -21,21 +21,22 @@ from panoctagon.models import (
     SigStatsParsingResult,
     TotalStatsParsingResult,
 )
-from panoctagon.tables import UFCFight
+from panoctagon.tables import UFCFight, UFCFighter
 from panoctagon.ufc.parse_fights import (
     get_event_uid,
     parse_fight_details,
     parse_round_totals,
     parse_sig_stats,
 )
+from sqlalchemy.sql.operators import is_
 
 
-def _get_fight_html(fight_dir, uid: str) -> bs4.BeautifulSoup:
+def _get_fight_html(fight_dir: Path, uid: str) -> bs4.BeautifulSoup:
     fight_contents = get_html_files(
-        fight_dir,
-        col(UFCFight.fight_uid),
+        path=fight_dir,
+        uid_col=col(UFCFight.fight_uid),
+        where_clause=is_(UFCFighter.fighter_uid, uid),
         force_run=True,
-        uid=uid,
     )
     assert len(fight_contents) == 1
     return bs4.BeautifulSoup(fight_contents[0].contents, features="lxml")

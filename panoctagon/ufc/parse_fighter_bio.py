@@ -13,7 +13,7 @@ from panoctagon.common import (
 )
 from panoctagon.models import FileContents, ParsingResult
 from panoctagon.tables import UFCFighter
-
+from sqlalchemy.sql.operators import is_not
 
 def get_fighter(uid: str) -> UFCFighter:
     engine = get_engine()
@@ -90,6 +90,7 @@ def parse_headshot(bio: FileContents) -> HeadshotParsingResult:
         ext = url_clean.split(".")[-1]
         fpath = headshot_dir / f"{bio.uid}_{image_type}.{ext}"
         save_image_from_url(url_clean, fpath)
+
     return HeadshotParsingResult(
         uid=bio.uid, result=True, bio_downloaded_ts=bio_downloaded_ts, issues=[]
     )
@@ -117,8 +118,12 @@ def main() -> None:
         Path(__file__).parents[2] / "data" / "raw" / "ufc" / "fighter_headshots"
     )
 
-    # TODO: add filter condition to func that excludes fighters who already have headshot
-    fighter_bios = get_html_files(bio_dir, col(UFCFighter.fighter_uid), True)
+    fighter_bios = get_html_files(
+        path=bio_dir,
+        uid_col=col(UFCFighter.fighter_uid),
+        where_clause=is_not(UFCFighter.bio_downloaded_ts, None),
+        force_run=setup.args.force,
+    )
 
     if len(fighter_bios) == 0:
         print("no fighter bios to parse. exiting early")

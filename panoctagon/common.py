@@ -26,6 +26,7 @@ from panoctagon.models import (
     ScrapingWriteResult,
     SQLModelType,
 )
+from panoctagon.tables import UFCFight
 
 
 class ScrapingArgs(BaseModel):
@@ -177,14 +178,20 @@ def create_header(header_length: int, title: str, center: bool, spacer: str):
 
 
 def get_table_uids(
-    uid_col: Mapped[Any], force_run: bool = False
+    uid_col: Mapped[Any],
+    force_run: bool = False,
+    where_clause: Optional[Any] = None,
 ) -> Optional[list[Any]]:
     if force_run:
         return None
 
     engine = get_engine()
     with Session(engine) as session:
-        results = session.exec(select(uid_col)).all()
+        cmd = select(uid_col)
+        if where_clause is not None:
+            cmd = cmd.where(where_clause)
+            print(cmd)
+        results = session.exec(cmd).all()
 
     if len(results) == 0:
         return None
@@ -218,13 +225,14 @@ def scrape_page(
 
 
 def get_html_files(
-    path: Path, uid_col: Mapped[Any], force_run: bool, uid: Optional[str] = None
+    path: Path,
+    uid_col: Mapped[Any],
+    where_clause: Optional[Any] = None,
+    force_run: bool = False
 ) -> list[FileContents]:
     all_files = list(path.glob("*.html"))
-    if uid is not None:
-        all_files = [f for f in all_files if uid in f.name]
 
-    existing_uids = get_table_uids(uid_col, force_run)
+    existing_uids = get_table_uids(uid_col, force_run, where_clause)
     if existing_uids is None:
         files_to_parse = all_files
     else:

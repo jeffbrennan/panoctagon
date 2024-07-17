@@ -1,5 +1,3 @@
-import argparse
-import os
 import re
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -17,7 +15,7 @@ from panoctagon.common import (
     get_table_rows,
     handle_parsing_issues,
     write_data_to_db,
-    setup_panoctagon
+    setup_panoctagon,
 )
 from panoctagon.enums import (
     Decision,
@@ -501,7 +499,12 @@ def write_stats_to_db(results: list[FightParsingResult]) -> None:
 def main() -> None:
     setup = setup_panoctagon(title="Panoctagon UFC Fight Parser")
     fight_dir = Path(__file__).parents[2] / "data/raw/ufc/fights"
-    fights = get_html_files(fight_dir, col(UFCFight.fight_uid), setup.args.force)
+    fights = get_html_files(
+        path=fight_dir,
+        uid_col=col(UFCFight.fight_uid),
+        where_clause=None,
+        force_run=setup.args.force,
+    )
 
     if len(fights) == 0:
         print("no fights to parse. exiting early")

@@ -81,7 +81,7 @@ def parse_fighter(fighter: FileContents) -> FighterParsingResult:
         height_split: list[str] = fighter_stats_raw.height.split("'")
         fighter_stats.height_inches = (int(height_split[0]) * 12) + int(height_split[1])
 
-    if fighter_stats_raw.stance is not None and fighter_stats_raw.stance != '':
+    if fighter_stats_raw.stance is not None and fighter_stats_raw.stance != "":
         try:
             fighter_stats.stance = Stance(fighter_stats_raw.stance.replace("'", ""))
         except ValueError as e:
@@ -137,7 +137,10 @@ def main() -> None:
         raise ValueError("expecting a directory containing at least one fighter")
 
     fighters = get_html_files(
-        script_dir, col(UFCFighter.fighter_uid), force_run=setup.args.force
+        path=script_dir,
+        uid_col=col(UFCFighter.fighter_uid),
+        where_clause=None,
+        force_run=setup.args.force,
     )
 
     if len(fighters) == 0:
