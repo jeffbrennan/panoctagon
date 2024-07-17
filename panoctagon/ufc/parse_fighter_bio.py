@@ -30,7 +30,11 @@ def save_image_from_url(url: str, fpath: Path):
         f.write(page.content)
 
 
-def parse_headshot(bio: FileContents) -> ParsingResult:
+class HeadshotParsingResult(ParsingResult):
+    bio_downloaded_ts: str
+
+
+def parse_headshot(bio: FileContents) -> HeadshotParsingResult:
     if bio.file_num % 100 == 0:
         title = f"[{bio.file_num:05d} / {bio.n_files-1:05d}]"
         print(create_header(80, title, False, "."))
@@ -38,6 +42,8 @@ def parse_headshot(bio: FileContents) -> ParsingResult:
     headshot_dir = (
         Path(__file__).parents[2] / "data" / "raw" / "ufc" / "fighter_headshots"
     )
+
+    bio_downloaded_ts = bio.modified_ts.isoformat()
 
     bio_html = bs4.BeautifulSoup(bio.contents, features="lxml")
     fighter = get_fighter(bio.uid)
@@ -67,7 +73,12 @@ def parse_headshot(bio: FileContents) -> ParsingResult:
     )
 
     if len(fighter_image_urls) == 0:
-        return ParsingResult(uid=bio.uid, result=False, issues=["no urls found"])
+        return HeadshotParsingResult(
+            uid=bio.uid,
+            result=bio,
+            bio_downloaded_ts=bio_downloaded_ts,
+            issues=["no urls found"],
+        )
 
     for url in fighter_image_urls:
         url_clean = url.split("?")[0]
@@ -79,17 +90,23 @@ def parse_headshot(bio: FileContents) -> ParsingResult:
         ext = url_clean.split(".")[-1]
         fpath = headshot_dir / f"{bio.uid}_{image_type}.{ext}"
         save_image_from_url(url_clean, fpath)
-    return ParsingResult(uid=bio.uid, result=True, issues=[])
+    return HeadshotParsingResult(
+        uid=bio.uid, result=True, bio_downloaded_ts=bio_downloaded_ts, issues=[]
+    )
 
-def write_headshot_results_to_db(uids: list[str]) -> None:
+
+def write_headshot_results_to_db(headshots: list[HeadshotParsingResult]) -> None:
     engine = get_engine()
 
-    print(f"[n={len(uids):5,d}] updating records in `UFCFighter`")
+    print(f"[n={len(headshots):5,d}] updating records in `UFCFighter`")
     with Session(engine) as session:
-        for uid in uids:
-                record = session.exec(select(UFCFighter).where(col(UFCFighter.fighter_uid) == uid)).one()
-                record.has_headshot = True
-                session.add(record)
+        for headshot in headshots:
+            record = session.exec(
+                select(UFCFighter).where(col(UFCFighter.fighter_uid) == headshot.uid)
+            ).one()
+            record.has_headshot = True
+            record.bio_downloaded_ts = headshot.bio_downloaded_ts
+            session.add(record)
         session.commit()
 
 
@@ -97,7 +114,7 @@ def main() -> None:
     setup = setup_panoctagon(title="Fighter Bio Parser")
     bio_dir = Path(__file__).parents[2] / "data" / "raw" / "ufc" / "fighter_bios"
     headshot_dir = (
-     Path(__file__).parents[2] / "data" / "raw" / "ufc" / "fighter_headshots"
+        Path(__file__).parents[2] / "data" / "raw" / "ufc" / "fighter_headshots"
     )
 
     # TODO: add filter condition to func that excludes fighters who already have headshot
@@ -115,8 +132,10 @@ def main() -> None:
     headshots_on_disk = list(headshot_dir.glob("*.png"))
     headshot_uids_on_disk = [i.stem.split("_")[0] for i in headshots_on_disk]
 
-    headshot_uids_validated = [i.uid for i in headshot_results if i.uid in headshot_uids_on_disk]
-    write_headshot_results_to_db(headshot_uids_validated)
+    headshots_validated = [
+        i for i in headshot_results if i.uid in headshot_uids_on_disk
+    ]
+    write_headshot_results_to_db(headshots_validated)
 
 
 if __name__ == "__main__":
