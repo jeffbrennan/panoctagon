@@ -78,7 +78,7 @@ class UFCFight(SQLModel, table=True):
 
 
 class UFCFightStats(SQLModel, table=True):
-    __tablename__ = "ufc_fight_stats"  # pyright: ignore [reportAssignmentType]
+    __tablename__ = "ufc_fight_stats"  # pyright: ignore
     fight_uid: str = Field(primary_key=True, foreign_key="ufc_fights.fight_uid")
     fighter_uid: str = Field(primary_key=True, foreign_key="ufc_fighters.fighter_uid")
     round_num: int = Field(primary_key=True)
