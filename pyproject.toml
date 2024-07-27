@@ -28,3 +28,7 @@ build-backend = "poetry.core.masonry.api"
 venvPath = "."
 venv = ".venv"
 typeCheckingMode = "strict"
+reportMissingModuleSource = false
+reportMissingTypeStubs = false
+reportUnknownMemberType = false
+reportUnknownVariableType = false
