@@ -506,6 +506,9 @@ def main() -> None:
         force_run=setup.args.force,
     )
 
+    for fight in fights:
+        fight.uid = fight.uid.split("_")[-1]
+
     if len(fights) == 0:
         print("no fights to parse. exiting early")
         print(setup.footer)
