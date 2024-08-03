@@ -73,31 +73,23 @@ app.layout = dmc.Container(
             value="total_strikes_landed",
             size="sm",
         ),
-        dmc.Grid(
+        dmc.Stack(
             [
-                dmc.Col(
-                    [
-                        dash_table.DataTable(
-                            id="table-placeholder",
-                            columns=[
-                                {"name": i, "id": i} for i in df[tbl_cols].columns
-                            ],
-                            sort_action="native",
-                            filter_action="native",
-                            style_table={
-                                "height": "500px",
-                                "overflowX": "scroll",
-                                "overflowY": "scroll",
-                            },
-                        )
-                    ],
-                    span=8,
+                dash_table.DataTable(
+                    id="table-placeholder",
+                    columns=[{"name": i, "id": i} for i in df[tbl_cols].columns],
+                    sort_action="native",
+                    filter_action="native",
+                    style_table={
+                        "height": "250px",
+                        "overflowX": "scroll",
+                        "overflowY": "scroll",
+                    },
                 ),
-                dmc.Col([dcc.Graph(figure={}, id="graph-placeholder")], span=4),
+                dcc.Graph(figure={}, id="graph-placeholder"),
             ]
         ),
-    ],
-    fluid=True,
+    ]
 )
 
 
@@ -120,7 +112,7 @@ def update_table(fighter_name: str) -> list[dict[Any, Any]]:
     df_filtered = (
         df.assign(fighter_name=lambda x: x.fighter_name.str.strip().str.title())  # type: ignore
         .query(f"fighter_name == '{fighter_name}'")
-        .sort_values("event_date")
+        .sort_values("event_date", ascending=False)
     )[tbl_cols]
 
     if df_filtered.empty:
@@ -151,6 +143,8 @@ def update_graph(metric: str, fighter_name: str):
             color="fighter_result",
             title=f"{fighter_name} - {metric}",
         )
+
+    fig.update_layout(height=500)
     return fig
 
 
