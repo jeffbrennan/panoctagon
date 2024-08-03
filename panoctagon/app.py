@@ -48,6 +48,10 @@ tbl_cols = [
     "takedowns_landed",
     "takedowns_attempted",
 ]
+initial_fighter = df.sample(1)["fighter_name"].item()
+if not isinstance(initial_fighter, str):
+    raise TypeError()
+
 app = Dash()
 
 app.layout = dmc.Container(
@@ -58,7 +62,7 @@ app.layout = dmc.Container(
             placeholder="Enter Fighter Name",
             label="Fighter Name",
             id="fighter_name",
-            value=df.sample(1)["fighter_name"].item(),
+            value=initial_fighter,
         ),
         dmc.RadioGroup(
             [
@@ -75,7 +79,9 @@ app.layout = dmc.Container(
                     [
                         dash_table.DataTable(
                             id="table-placeholder",
-                            columns=[{"name": i, "id": i} for i in df[tbl_cols].columns],
+                            columns=[
+                                {"name": i, "id": i} for i in df[tbl_cols].columns
+                            ],
                             sort_action="native",
                             filter_action="native",
                             style_table={
@@ -85,9 +91,9 @@ app.layout = dmc.Container(
                             },
                         )
                     ],
-                    span=4,
+                    span=8,
                 ),
-                dmc.Col([dcc.Graph(figure={}, id="graph-placeholder")], span=8),
+                dmc.Col([dcc.Graph(figure={}, id="graph-placeholder")], span=4),
             ]
         ),
     ],
@@ -111,9 +117,11 @@ def update_table(fighter_name: str) -> list[dict[Any, Any]]:
         "takedowns_attempted",
     ]
 
-    df_filtered = df[df["fighter_name"].str.strip().str.title() == fighter_name][
-        tbl_cols
-    ]
+    df_filtered = (
+        df.assign(fighter_name=lambda x: x.fighter_name.str.strip().str.title())  # type: ignore
+        .query(f"fighter_name == '{fighter_name}'")
+        .sort_values("event_date")
+    )[tbl_cols]
 
     if df_filtered.empty:
         return [{}]
