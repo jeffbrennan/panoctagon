@@ -1,67 +1,35 @@
 with
-    head     as (
+    initial_melt       as (
+        {{ dbt_utils.unpivot(
+            relation=ref('stg_ufc__fight_stats'),
+            cast_to='int',
+            exclude=["fight_uid", "fighter_uid", "round_num"],
+            field_name="metric_target",
+            value_name="strikes"
+          ) }}
+    )
+  , initial_melt_clean as (
         select
             fight_uid,
             fighter_uid,
             round_num,
-            'head'                     as target,
-            sig_strikes_head_attempted as attempted,
-            sig_strikes_head_landed    as landed
-        from {{ ref("stg_ufc__fight_stats") }}
-    ),
-    body     as (
-        select
-            fight_uid,
-            fighter_uid,
-            round_num,
-            'body'                     as target,
-            sig_strikes_body_attempted as attempted,
-            sig_strikes_body_landed    as landed
-        from {{ ref("stg_ufc__fight_stats") }}
-    ),
-    leg      as (
-        select
-            fight_uid,
-            fighter_uid,
-            round_num,
-            'leg'                     as target,
-            sig_strikes_leg_attempted as attempted,
-            sig_strikes_leg_landed    as landed
-        from {{ ref("stg_ufc__fight_stats") }}
-    ),
-    combined as (
-        select *
-        from head
-        union
-        select *
-        from body
-        union
-        select *
-        from leg
-    ),
-    summed   as (
-        select
-            fight_uid,
-            target,
-            sum(landed)    as landed,
-            sum(attempted) as attempted
-        from combined
-        group by fight_uid, target
-    ),
-    final    as (
-        select fight_uid, target, 'landed' as metric, landed as strikes
-from summed
-union
-select
-    fight_uid,
-    target,
-    'attempted' as metric,
-    attempted as strikes
-from summed
+            case
+                when metric_target like '%attempted' then 'attempted'
+                when metric_target like '%landed' then 'landed'
+                end as metric,
+            case
+                when metric_target like '%head%' then 'head'
+                when metric_target like '%body%' then 'body'
+                when metric_target like '%leg%' then 'leg'
+                end as target,
+            strikes
+        from initial_melt
     )
 select
     fight_uid,
-    target,
+    fighter_uid,
+    round_num,
     metric,
+    target,
     strikes
-from final
+from initial_melt_clean

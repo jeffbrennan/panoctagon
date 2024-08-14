@@ -12,3 +12,4 @@ scratch/
 *.jpg
 target/
 logs/
+dbt_packages
