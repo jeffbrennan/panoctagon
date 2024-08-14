@@ -10,3 +10,5 @@
 scratch/
 *.png
 *.jpg
+target/
+logs/

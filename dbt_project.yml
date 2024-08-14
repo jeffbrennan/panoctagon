@@ -1,0 +1,12 @@
+name: panoctagon
+
+profile: panoctagon
+
+models:
+  panoctagon:
+    staging:
+      +materialized: view
+    transformations:
+      +materialized: view
+    marts:
+      +materialized: table

@@ -23,6 +23,9 @@ dash = "^2.17.1"
 dash-mantine-components = "0.12.1"
 plotly = "^5.23.0"
 pandas = "^2.2.2"
+dbt-sqlite = "^1.5.0"
+shandy-sqlfmt = {extras = ["jinjafmt"], version = "^0.23.2"}
+statsmodels = "^0.14.2"
 
 [build-system]
 requires = ["poetry-core"]
