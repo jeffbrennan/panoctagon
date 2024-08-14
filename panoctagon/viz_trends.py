@@ -11,36 +11,37 @@ def main():
     df = pd.read_sql_query(
         """
         select 
-            event_date, 
+            event_year,
             fight_division,
             weight_lbs,
+            metric,
             target,
-            target_order
+            target_order,
             strikes,
             target_strike_pct,
-            metric
+            last_refresh_timestamp 
         from mart_striking_stats 
-        where metric = 'attempted'
-        order by weight_lbs, event_date, target_order desc
+        order by weight_lbs, event_year, target_order desc
         """,
         get_engine(),
-        parse_dates=["event_date"],
+        parse_dates=["event_year", "last_refresh_timestamp"],
     )
 
-    max_event_date = df["event_date"].max().strftime("%Y-%m-%d")
+    last_refresh = df["last_refresh_timestamp"].to_list()[0].isoformat()
 
     title_text = "Striking Trends by Target, Fight Division"
-    subtitle_text = f"last updated: {max_event_date}"
+    subtitle_text = f"last updated: {last_refresh}"
     title = f"<b>{title_text}</b><br>{subtitle_text}"
     print(df.shape)
     print(df.head(10))
     fig = (
         px.area(
             data_frame=df,
-            x="event_date",
+            x="event_year",
             color="target",
             y="target_strike_pct",
             facet_col="fight_division",
+            facet_row="metric",
             title=title,
         )
         .for_each_annotation(lambda a: a.update(text=a.text.split("=")[1]))  # type: ignore
