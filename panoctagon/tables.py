@@ -26,7 +26,7 @@ class Divisions(SQLModel, table=True):
     promotion_uid: str = Field(primary_key=True, foreign_key="promotions.promotion_uid")
     division_uid: str = Field(primary_key=True)
     name: str
-    weight_lbs: int
+    weight_lbs: Optional[int]
     updated_ts: datetime.datetime = datetime.datetime.now(datetime.UTC)
 
 

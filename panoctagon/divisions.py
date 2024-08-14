@@ -1,4 +1,5 @@
 import uuid
+from typing import Optional
 
 from sqlmodel import Session, col, select
 
@@ -28,16 +29,23 @@ def write_divisions(divisions: list[Divisions]) -> None:
 
 def get_ufc_divisions() -> list[Divisions]:
     ufc_uid = get_promotion_uid("UFC")
-    ufc_division_weights: dict[UFCDivisionNames, int] = {
+    ufc_division_weights: dict[UFCDivisionNames, Optional[int]] = {
+        UFCDivisionNames.OPEN_WEIGHT: None,
+        UFCDivisionNames.CATCH_WEIGHT: None,
         UFCDivisionNames.STRAWWEIGHT: 115,
+        UFCDivisionNames.WOMENS_STRAWWEIGHT: 115,
         UFCDivisionNames.FLYWEIGHT: 125,
+        UFCDivisionNames.WOMENS_FLYWEIGHT: 125,
         UFCDivisionNames.BANTAMWEIGHT: 135,
+        UFCDivisionNames.WOMENS_BANTAMWEIGHT: 135,
         UFCDivisionNames.FEATHERWEIGHT: 145,
+        UFCDivisionNames.WOMENS_FEATHERWEIGHT: 145,
         UFCDivisionNames.LIGHTWEIGHT: 155,
         UFCDivisionNames.WELTERWEIGHT: 170,
         UFCDivisionNames.MIDDLEWEIGHT: 185,
         UFCDivisionNames.LIGHT_HEAVYWEIGHT: 205,
         UFCDivisionNames.HEAVYWEIGHT: 265,
+        UFCDivisionNames.SUPER_HEAVYWEIGHT: 999,
     }
 
     ufc_divisions: list[Divisions] = []
