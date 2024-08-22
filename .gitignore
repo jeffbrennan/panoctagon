@@ -13,3 +13,4 @@ scratch/
 target/
 logs/
 dbt_packages
+tmp*
