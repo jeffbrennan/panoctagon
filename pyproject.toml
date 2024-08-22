@@ -6,7 +6,7 @@ authors = ["Jeff Brennan <jeffbrennan10@gmail.com>"]
 readme = "readme.md"
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = ">=3.11, <3.13"
 polars = "^0.20.31"
 requests = "^2.32.3"
 lxml = "^5.2.2"
@@ -26,6 +26,13 @@ pandas = "^2.2.2"
 dbt-sqlite = "^1.5.0"
 shandy-sqlfmt = {extras = ["jinjafmt"], version = "^0.23.2"}
 statsmodels = "^0.14.2"
+dagster = "^1.8.1"
+dagster-webserver = "^1.8.1"
+
+[[tool.poetry.source]]
+name = "grpcio"
+url = "https://github.com/dagster-io/build-grpcio/wiki/Wheels"
+priority = "primary"
 
 [build-system]
 requires = ["poetry-core"]
