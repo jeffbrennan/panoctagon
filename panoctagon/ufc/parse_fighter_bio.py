@@ -111,7 +111,7 @@ def write_headshot_results_to_db(headshots: list[HeadshotParsingResult]) -> None
         session.commit()
 
 
-def main() -> None:
+def parse_fighter_bio() -> int:
     setup = setup_panoctagon(title="Fighter Bio Parser")
     bio_dir = Path(__file__).parents[2] / "data" / "raw" / "ufc" / "fighter_bios"
     headshot_dir = (
@@ -128,7 +128,7 @@ def main() -> None:
     if len(fighter_bios) == 0:
         print("no fighter bios to parse. exiting early")
         print(setup.footer)
-        return
+        return 0
 
     print(create_header(80, f"PARSING n={len(fighter_bios)} fighter bios", True, "-"))
     with ProcessPoolExecutor(max_workers=setup.cpu_count - 1) as executor:
@@ -141,7 +141,7 @@ def main() -> None:
         i for i in headshot_results if i.uid in headshot_uids_on_disk
     ]
     write_headshot_results_to_db(headshots_validated)
-
+    return len(headshots_validated)
 
 if __name__ == "__main__":
-    main()
+    parse_fighter_bio()

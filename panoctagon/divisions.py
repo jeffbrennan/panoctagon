@@ -97,9 +97,5 @@ def setup_divisions():
     write_divisions(divisions)
 
 
-def main():
-    setup_divisions()
-
-
 if __name__ == "__main__":
-    main()
+    setup_divisions()

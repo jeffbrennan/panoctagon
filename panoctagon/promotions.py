@@ -16,9 +16,5 @@ def setup_promotions():
     write_data_to_db(promotions)
 
 
-def main():
-    setup_promotions()
-
-
 if __name__ == "__main__":
-    main()
+    setup_promotions()

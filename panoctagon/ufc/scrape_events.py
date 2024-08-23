@@ -80,7 +80,7 @@ def get_events(all_events: bool, page_num: int = 1) -> list[UFCEvent]:
     return data
 
 
-def main():
+def scrape_events() -> int:
     setup = setup_panoctagon(title="Panoctagon UFC Event Scraper")
     existing_events = get_table_uids(col(UFCEvent.event_uid))
 
@@ -99,11 +99,12 @@ def main():
     if len(new_events) == 0:
         print("no new events. exiting early")
         print(setup.footer)
-        return
+        return 0
 
     write_data_to_db(new_events)
     print(setup.footer)
+    return len(new_events)
 
 
 if __name__ == "__main__":
-    main()
+    scrape_events()

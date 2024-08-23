@@ -6,6 +6,7 @@ from dagster_dbt import build_schedule_from_dbt_selection
 
 from .assets import panoctagon_dbt_assets
 
+# TODO: define daily job on all assets except for things like divisions, promotions
 schedules = [
     build_schedule_from_dbt_selection(
         [panoctagon_dbt_assets],
