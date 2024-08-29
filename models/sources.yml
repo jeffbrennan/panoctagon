@@ -1,0 +1,29 @@
+version: 2
+
+sources:
+    -   name: main
+        tables:
+            -   name: divisions
+                meta:
+                    dagster:
+                        asset_key: [ "divisions" ]
+            -   name: promotions
+                meta:
+                    dagster:
+                        asset_key: [ "promotions" ]
+            -   name: ufc_events
+                meta:
+                    dagster:
+                        asset_key: [ "ufc_events" ]
+            -   name: ufc_fights
+                meta:
+                    dagster:
+                        asset_key: [ "ufc_fights" ]
+            -   name: ufc_fight_stats
+                meta:
+                    dagster:
+                        asset_key: [ "ufc_fight_stats" ]
+            -   name: ufc_fighters
+                meta:
+                    dagster:
+                        asset_key: [ "ufc_fighters" ]

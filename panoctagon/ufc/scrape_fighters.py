@@ -66,7 +66,7 @@ def scrape_fighter(fighter: FighterToScrape) -> FighterScrapingResult:
     return FighterScrapingResult(fighter, success=result.success)
 
 
-def main() -> None:
+def scrape_fighters() -> int:
     setup = setup_panoctagon(
         "Panoctagon UFC Fighter Scraper",
     )
@@ -94,7 +94,7 @@ def main() -> None:
             )
         )
         print(setup.footer)
-        return
+        return 0
 
     fighters_to_scrape = [
         FighterToScrape(uid=uid, i=i, n_fighters=n_fighters, base_dir=output_dir)
@@ -123,7 +123,8 @@ def main() -> None:
         )
     )
     print(setup.footer)
+    return n_successes
 
 
 if __name__ == "__main__":
-    main()
+    scrape_fighters()

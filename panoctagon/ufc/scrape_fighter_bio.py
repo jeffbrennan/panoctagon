@@ -120,7 +120,7 @@ def get_fighters_to_download(
     ]
 
 
-def main() -> None:
+def scrape_fighter_bio() -> int:
     setup = setup_panoctagon(title="Panoctagon Fighter Bio Scraper")
     output_dir = Path(__file__).parents[2] / "data" / "raw" / "ufc" / "fighter_bios"
     output_dir.mkdir(exist_ok=True, parents=True)
@@ -175,9 +175,9 @@ def main() -> None:
             failures=bios_deleted,
         )
     )
-
     print(setup.footer)
+    return bios_downloaded
 
 
 if __name__ == "__main__":
-    main()
+    scrape_fighter_bio()

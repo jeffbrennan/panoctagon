@@ -130,7 +130,7 @@ def write_fighter_results_to_db(
     write_data_to_db(fighters)
 
 
-def main() -> None:
+def parse_fighters() -> int:
     setup = setup_panoctagon(title="Panoctagon UFC Fighter Parser")
     script_dir = Path(__file__).parents[2] / "data/raw/ufc/fighters"
     if not script_dir.exists():
@@ -146,7 +146,7 @@ def main() -> None:
     if len(fighters) == 0:
         print("no fighters to parse. exiting early")
         print(setup.footer)
-        return
+        return 0
 
     with ProcessPoolExecutor(max_workers=setup.cpu_count - 1) as executor:
         results = list(executor.map(parse_fighter, fighters))
@@ -154,7 +154,7 @@ def main() -> None:
 
     write_fighter_results_to_db(results, setup.args.force)
     print(setup.footer)
-
+    return len(results)
 
 if __name__ == "__main__":
-    main()
+    parse_fighters()

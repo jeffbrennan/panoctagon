@@ -23,7 +23,9 @@ def write_divisions(divisions: list[Divisions]) -> None:
     engine = get_engine()
 
     with Session(engine) as session:
-        session.bulk_save_objects(divisions)
+        for division in divisions:
+            session.add(division)
+
         session.commit()
 
 
@@ -94,12 +96,17 @@ def setup_divisions():
     ufc_divisions = get_ufc_divisions()
     one_divisions = get_one_divisions()
     divisions = ufc_divisions + one_divisions
+
+    engine = get_engine()
+    with Session(engine) as session:
+        existing_divisions = list(session.exec(select(Divisions.name)).all())
+
+    missing_divisions = [i for i in divisions if i.name not in existing_divisions]
+    if len(missing_divisions) == 0:
+        print("no new divisions to write")
+        return
     write_divisions(divisions)
 
 
-def main():
-    setup_divisions()
-
-
 if __name__ == "__main__":
-    main()
+    setup_divisions()

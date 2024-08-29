@@ -175,8 +175,7 @@ def get_fights_from_event(event: EventToParse) -> FightScrapingResult:
     )
 
 
-def main() -> None:
-
+def scrape_fights() -> int:
     setup = setup_panoctagon(title="Panoctagon UFC Fight Scraper")
 
     cpu_count = setup.cpu_count
@@ -188,7 +187,7 @@ def main() -> None:
     if n_events == 0:
         print("No events to parse. Exiting!")
         print(setup.footer)
-        return
+        return 0
 
     events_to_parse = [
         EventToParse(uid=uid, i=i, n_events=n_events, base_dir=output_dir)
@@ -244,7 +243,8 @@ def main() -> None:
         )
 
     print(setup.footer)
+    return len(successful_results)
 
 
 if __name__ == "__main__":
-    main()
+    scrape_fights()

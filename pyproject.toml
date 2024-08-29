@@ -6,7 +6,7 @@ authors = ["Jeff Brennan <jeffbrennan10@gmail.com>"]
 readme = "readme.md"
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = ">=3.11, <3.13"
 polars = "^0.20.31"
 requests = "^2.32.3"
 lxml = "^5.2.2"
@@ -23,9 +23,13 @@ dash = "^2.17.1"
 dash-mantine-components = "0.12.1"
 plotly = "^5.23.0"
 pandas = "^2.2.2"
-dbt-sqlite = "^1.5.0"
-shandy-sqlfmt = {extras = ["jinjafmt"], version = "^0.23.2"}
+shandy-sqlfmt = { extras = ["jinjafmt"], version = "^0.23.2" }
 statsmodels = "^0.14.2"
+dbt-core = ">=1.5.0, <1.6.0"
+dagster = "^1.7.0"
+dagster-webserver = "^1.7.0"
+dbt-sqlite = "^1.5.0"
+dagster-dbt="^0.23.0"
 
 [build-system]
 requires = ["poetry-core"]
@@ -39,3 +43,7 @@ reportMissingModuleSource = false
 reportMissingTypeStubs = false
 reportUnknownMemberType = false
 reportUnknownVariableType = false
+
+[tool.dagster]
+module_name = "panoctagon.dagster.definitions"
+code_location_name = "panoctagon/dagster"

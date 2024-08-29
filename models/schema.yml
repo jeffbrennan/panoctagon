@@ -1,9 +1,0 @@
-sources:
-  - name: main
-    tables:
-      - name: ufc_fight_stats
-      - name: ufc_fights
-      - name: ufc_fighters
-      - name: ufc_events
-      - name: divisions
-      - name: promotions
