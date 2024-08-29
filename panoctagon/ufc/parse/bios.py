@@ -1,4 +1,3 @@
-from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import bs4
@@ -7,13 +6,11 @@ from sqlmodel import col, Session, select
 
 from panoctagon.common import (
     create_header,
-    get_html_files,
     get_engine,
-    setup_panoctagon,
 )
 from panoctagon.models import FileContents, ParsingResult
 from panoctagon.tables import UFCFighter
-from sqlalchemy.sql.operators import is_not
+
 
 def get_fighter(uid: str) -> UFCFighter:
     engine = get_engine()
@@ -109,39 +106,3 @@ def write_headshot_results_to_db(headshots: list[HeadshotParsingResult]) -> None
             record.bio_downloaded_ts = headshot.bio_downloaded_ts
             session.add(record)
         session.commit()
-
-
-def parse_fighter_bio() -> int:
-    setup = setup_panoctagon(title="Fighter Bio Parser")
-    bio_dir = Path(__file__).parents[2] / "data" / "raw" / "ufc" / "fighter_bios"
-    headshot_dir = (
-        Path(__file__).parents[2] / "data" / "raw" / "ufc" / "fighter_headshots"
-    )
-
-    fighter_bios = get_html_files(
-        path=bio_dir,
-        uid_col=col(UFCFighter.fighter_uid),
-        where_clause=is_not(UFCFighter.bio_downloaded_ts, None),
-        force_run=setup.args.force,
-    )
-
-    if len(fighter_bios) == 0:
-        print("no fighter bios to parse. exiting early")
-        print(setup.footer)
-        return 0
-
-    print(create_header(80, f"PARSING n={len(fighter_bios)} fighter bios", True, "-"))
-    with ProcessPoolExecutor(max_workers=setup.cpu_count - 1) as executor:
-        headshot_results = list(executor.map(parse_headshot, fighter_bios))
-
-    headshots_on_disk = list(headshot_dir.glob("*.png"))
-    headshot_uids_on_disk = [i.stem.split("_")[0] for i in headshots_on_disk]
-
-    headshots_validated = [
-        i for i in headshot_results if i.uid in headshot_uids_on_disk
-    ]
-    write_headshot_results_to_db(headshots_validated)
-    return len(headshots_validated)
-
-if __name__ == "__main__":
-    parse_fighter_bio()

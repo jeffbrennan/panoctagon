@@ -1,6 +1,4 @@
-from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
-from pathlib import Path
 from typing import Optional
 
 import bs4
@@ -10,10 +8,8 @@ from sqlmodel import col
 from panoctagon.common import (
     create_header,
     delete_existing_records,
-    get_html_files,
     handle_parsing_issues,
     write_data_to_db,
-    setup_panoctagon,
 )
 from panoctagon.enums import Stance
 from panoctagon.models import FighterParsingResult, FileContents
@@ -128,33 +124,3 @@ def write_fighter_results_to_db(
         delete_existing_records(UFCFighter, col(UFCFighter.fighter_uid), uids)
 
     write_data_to_db(fighters)
-
-
-def parse_fighters() -> int:
-    setup = setup_panoctagon(title="Panoctagon UFC Fighter Parser")
-    script_dir = Path(__file__).parents[2] / "data/raw/ufc/fighters"
-    if not script_dir.exists():
-        raise ValueError("expecting a directory containing at least one fighter")
-
-    fighters = get_html_files(
-        path=script_dir,
-        uid_col=col(UFCFighter.fighter_uid),
-        where_clause=None,
-        force_run=setup.args.force,
-    )
-
-    if len(fighters) == 0:
-        print("no fighters to parse. exiting early")
-        print(setup.footer)
-        return 0
-
-    with ProcessPoolExecutor(max_workers=setup.cpu_count - 1) as executor:
-        results = list(executor.map(parse_fighter, fighters))
-    print(len(results))
-
-    write_fighter_results_to_db(results, setup.args.force)
-    print(setup.footer)
-    return len(results)
-
-if __name__ == "__main__":
-    parse_fighters()

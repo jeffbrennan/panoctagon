@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import datetime
 import os
-
 import random
 import time
 from pathlib import Path
@@ -26,7 +25,6 @@ from panoctagon.models import (
     ScrapingWriteResult,
     SQLModelType,
 )
-from panoctagon.tables import UFCFight
 
 
 class ScrapingArgs(BaseModel):
@@ -228,7 +226,7 @@ def get_html_files(
     path: Path,
     uid_col: Mapped[Any],
     where_clause: Optional[Any] = None,
-    force_run: bool = False
+    force_run: bool = False,
 ) -> list[FileContents]:
     all_files = list(path.glob("*.html"))
 
