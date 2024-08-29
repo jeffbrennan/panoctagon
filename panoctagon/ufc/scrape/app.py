@@ -3,8 +3,11 @@ import time
 from concurrent.futures import ProcessPoolExecutor
 from itertools import repeat
 from pathlib import Path
+from typing import Optional
 
 import typer
+from sqlmodel import col
+
 from panoctagon.common import (
     create_header,
     delete_existing_records,
@@ -32,21 +35,20 @@ from panoctagon.ufc.scrape.fights import (
     get_fights_from_event,
     read_event_uids,
 )
-from sqlmodel import col
 
 app = typer.Typer()
 
 
 @app.command()
-def events() -> int:
+def events(force: bool = False) -> int:
     setup = setup_panoctagon(title="Panoctagon UFC Event Scraper")
     existing_events = get_table_uids(col(UFCEvent.event_uid))
 
-    if setup.args.force and existing_events is not None:
+    if force and existing_events is not None:
         delete_existing_records(UFCEvent, col(UFCEvent.event_uid), uids=existing_events)
         existing_events = None
 
-    all_events = existing_events is None or setup.args.force
+    all_events = existing_events is None or force
     scraped_events = get_events(all_events)
 
     if existing_events is None:
@@ -65,7 +67,7 @@ def events() -> int:
 
 
 @app.command()
-def bios() -> int:
+def bios(force: bool = False, sequential: bool = False, n: Optional[int] = None) -> int:
     setup = setup_panoctagon(title="Panoctagon Fighter Bio Scraper")
     output_dir = Path(__file__).parents[2] / "data" / "raw" / "ufc" / "fighter_bios"
     output_dir.mkdir(exist_ok=True, parents=True)
@@ -73,10 +75,10 @@ def bios() -> int:
     fighters_to_download = get_unparsed_fighters()
 
     fighters_to_download = get_fighters_to_download(
-        fighters_to_download, output_dir, setup.args.force
+        fighters_to_download, output_dir, force
     )
-    if setup.args.n:
-        fighters_to_download = random.sample(fighters_to_download, setup.args.n)
+    if n:
+        fighters_to_download = random.sample(fighters_to_download, n)
 
     n_fighters_to_download = len(fighters_to_download)
     n_workers = setup.cpu_count
@@ -88,7 +90,7 @@ def bios() -> int:
     )
     print(start_header)
     start_time = time.time()
-    if setup.args.sequential or n_fighters_to_download < setup.cpu_count:
+    if sequential or n_fighters_to_download < setup.cpu_count:
         results = [
             get_fighter_bio(fighter, output_dir) for fighter in fighters_to_download
         ]
@@ -125,7 +127,7 @@ def bios() -> int:
 
 
 @app.command()
-def fighters() -> int:
+def fighters(sequential: bool = False) -> int:
     setup = setup_panoctagon(
         "Panoctagon UFC Fighter Scraper",
     )
@@ -161,7 +163,7 @@ def fighters() -> int:
     ]
 
     print(create_header(80, f"SCRAPING n={n_fighters} fighters", True, "-"))
-    if setup.args.sequential or n_fighters < setup.cpu_count:
+    if sequential or n_fighters < setup.cpu_count:
         results = [scrape_fighter(i) for i in fighters_to_scrape]
     else:
         with ProcessPoolExecutor(max_workers=setup.cpu_count) as executor:
@@ -186,14 +188,14 @@ def fighters() -> int:
 
 
 @app.command()
-def fights() -> int:
+def fights(force: bool = False, sequential: bool = False) -> int:
     setup = setup_panoctagon(title="Panoctagon UFC Fight Scraper")
 
     cpu_count = setup.cpu_count
     output_dir = Path(__file__).parents[2] / "data" / "raw" / "ufc" / "fights"
     output_dir.mkdir(exist_ok=True, parents=True)
 
-    event_uids = read_event_uids(setup.args.force)
+    event_uids = read_event_uids(force)
     n_events = len(event_uids)
     if n_events == 0:
         print("No events to parse. Exiting!")
@@ -214,7 +216,7 @@ def fights() -> int:
     )
     print(start_header)
     start_time = time.time()
-    if setup.args.sequential or len(events_to_parse) < cpu_count:
+    if sequential or len(events_to_parse) < cpu_count:
         results = [get_fights_from_event(event) for event in events_to_parse]
     else:
         with ProcessPoolExecutor(max_workers=n_workers) as executor:

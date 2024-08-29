@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 import datetime
 import os
 import random
@@ -34,7 +33,6 @@ class ScrapingArgs(BaseModel):
 
 
 class PanoctagonSetup(BaseModel):
-    args: ScrapingArgs
     footer: str
     cpu_count: int
     start_time: float
@@ -294,39 +292,6 @@ def get_table_rows(
 
 def setup_panoctagon(title: str) -> PanoctagonSetup:
     start_time = time.time()
-    parser = argparse.ArgumentParser(description=title)
-    parser.add_argument(
-        "-f",
-        "--force",
-        help="force existing files to be redownloaded",
-        action="store_true",
-        required=False,
-        default=False,
-    )
-
-    parser.add_argument(
-        "-s",
-        "--sequential",
-        help="scrape sequentially",
-        action="store_true",
-        required=False,
-        default=False,
-    )
-
-    parser.add_argument(
-        "-n",
-        "--n",
-        help="max number of scraping events",
-        type=int,
-        required=False,
-        default=False,
-    )
-
-    args_raw = parser.parse_args()
-    args = ScrapingArgs(
-        force=args_raw.force, sequential=args_raw.sequential, n=args_raw.n
-    )
-
     print(create_header(80, "PANOCTAGON", True, "="))
     footer = create_header(80, "", True, "=")
     cpu_count = os.cpu_count()
@@ -334,7 +299,6 @@ def setup_panoctagon(title: str) -> PanoctagonSetup:
         cpu_count = 4
 
     return PanoctagonSetup(
-        args=args,
         footer=footer,
         cpu_count=cpu_count,
         start_time=start_time,

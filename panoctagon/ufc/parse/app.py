@@ -1,8 +1,8 @@
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
-from sqlalchemy.sql.operators import is_not
 import typer
+from sqlalchemy.sql.operators import is_not
 from sqlmodel import col
 
 from panoctagon.common import create_header, get_html_files, setup_panoctagon
@@ -22,7 +22,7 @@ app = typer.Typer()
 
 
 @app.command(name="bios")
-def bios() -> int:
+def bios(force: bool = False) -> int:
     setup = setup_panoctagon(title="Fighter Bio Parser")
     bio_dir = Path(__file__).parents[2] / "data" / "raw" / "ufc" / "fighter_bios"
     headshot_dir = (
@@ -33,7 +33,7 @@ def bios() -> int:
         path=bio_dir,
         uid_col=col(UFCFighter.fighter_uid),
         where_clause=is_not(UFCFighter.bio_downloaded_ts, None),  # type: ignore
-        force_run=setup.args.force,
+        force_run=force,
     )
 
     if len(fighter_bios) == 0:
@@ -56,7 +56,7 @@ def bios() -> int:
 
 
 @app.command(name="fighters")
-def fighters() -> int:
+def fighters(force: bool = False) -> int:
     setup = setup_panoctagon(title="Panoctagon UFC Fighter Parser")
     script_dir = Path(__file__).parents[2] / "data/raw/ufc/fighters"
     if not script_dir.exists():
@@ -66,7 +66,7 @@ def fighters() -> int:
         path=script_dir,
         uid_col=col(UFCFighter.fighter_uid),
         where_clause=None,
-        force_run=setup.args.force,
+        force_run=force,
     )
 
     if len(fighters_to_parse) == 0:
@@ -78,20 +78,20 @@ def fighters() -> int:
         results = list(executor.map(parse_fighter, fighters_to_parse))
     print(len(results))
 
-    write_fighter_results_to_db(results, setup.args.force)
+    write_fighter_results_to_db(results, force)
     print(setup.footer)
     return len(results)
 
 
 @app.command(name="fights")
-def fights() -> int:
+def fights(force: bool = False) -> int:
     setup = setup_panoctagon(title="Panoctagon UFC Fight Parser")
     fight_dir = Path(__file__).parents[2] / "data/raw/ufc/fights"
     fights_to_parse = get_html_files(
         path=fight_dir,
         uid_col=col(UFCFight.fight_uid),
         where_clause=None,
-        force_run=setup.args.force,
+        force_run=force,
     )
 
     for fight in fights_to_parse:
@@ -106,7 +106,7 @@ def fights() -> int:
     with ProcessPoolExecutor(max_workers=setup.cpu_count - 1) as executor:
         results = list(executor.map(parse_fight, fights_to_parse))
 
-    write_fight_results_to_db(results, setup.args.force)
+    write_fight_results_to_db(results, force)
     write_stats_to_db(results)
     print(setup.footer)
     return len(results)
