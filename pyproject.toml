@@ -30,6 +30,7 @@ dagster = "^1.7.0"
 dagster-webserver = "^1.7.0"
 dbt-sqlite = "^1.5.0"
 dagster-dbt="^0.23.0"
+typer = "^0.12.5"
 
 [build-system]
 requires = ["poetry-core"]
