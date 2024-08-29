@@ -24,7 +24,7 @@ def write_divisions(divisions: list[Divisions]) -> None:
 
     with Session(engine) as session:
         for division in divisions:
-            session.add(Divisions(name=division.name))
+            session.add(division)
 
         session.commit()
 
