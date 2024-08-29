@@ -14,3 +14,5 @@ target/
 logs/
 dbt_packages
 tmp*
+data/dagster/*
+!data/dagster/dagster.yaml
