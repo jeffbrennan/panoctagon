@@ -1,6 +1,4 @@
 import re
-from concurrent.futures import ProcessPoolExecutor
-from pathlib import Path
 from typing import Any, Optional
 
 import bs4
@@ -11,11 +9,9 @@ from sqlmodel import col
 from panoctagon.common import (
     create_header,
     delete_existing_records,
-    get_html_files,
     get_table_rows,
     handle_parsing_issues,
     write_data_to_db,
-    setup_panoctagon,
 )
 from panoctagon.enums import (
     Decision,
@@ -494,35 +490,3 @@ def write_stats_to_db(results: list[FightParsingResult]) -> None:
     delete_existing_records(UFCFightStats, col(UFCFightStats.fight_uid), uids)
 
     write_data_to_db(stats_combined)
-
-
-def parse_fights() -> int:
-    setup = setup_panoctagon(title="Panoctagon UFC Fight Parser")
-    fight_dir = Path(__file__).parents[2] / "data/raw/ufc/fights"
-    fights = get_html_files(
-        path=fight_dir,
-        uid_col=col(UFCFight.fight_uid),
-        where_clause=None,
-        force_run=setup.args.force,
-    )
-
-    for fight in fights:
-        fight.uid = fight.uid.split("_")[-1]
-
-    if len(fights) == 0:
-        print("no fights to parse. exiting early")
-        print(setup.footer)
-        return 0
-
-    print(create_header(80, f"PARSING n={len(fights)} fights", True, "-"))
-    with ProcessPoolExecutor(max_workers=setup.cpu_count - 1) as executor:
-        results = list(executor.map(parse_fight, fights))
-
-    write_fight_results_to_db(results, setup.args.force)
-    write_stats_to_db(results)
-    print(setup.footer)
-    return len(results)
-
-
-if __name__ == "__main__":
-    parse_fights()
