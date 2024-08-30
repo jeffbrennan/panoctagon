@@ -37,7 +37,7 @@ def parse_headshot(bio: FileContents) -> HeadshotParsingResult:
         print(create_header(80, title, False, "."))
 
     headshot_dir = (
-        Path(__file__).parents[2] / "data" / "raw" / "ufc" / "fighter_headshots"
+        Path(__file__).parents[3] / "data" / "raw" / "ufc" / "fighter_headshots"
     )
 
     bio_downloaded_ts = bio.modified_ts.isoformat()

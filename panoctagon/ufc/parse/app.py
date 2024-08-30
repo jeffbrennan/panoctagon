@@ -58,7 +58,7 @@ def bios(force: bool = False) -> int:
 @app.command(name="fighters")
 def fighters(force: bool = False) -> int:
     setup = setup_panoctagon(title="Panoctagon UFC Fighter Parser")
-    script_dir = Path(__file__).parents[2] / "data/raw/ufc/fighters"
+    script_dir = Path(__file__).parents[3] / "data/raw/ufc/fighters"
     if not script_dir.exists():
         raise ValueError("expecting a directory containing at least one fighter")
 
