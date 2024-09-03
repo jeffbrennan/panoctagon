@@ -1,8 +1,10 @@
 services:
   panoctagon_backend:
-    build: .docker/backend
+    build: .
     volumes:
       - panoctagon_data:/panoctagon/data
+    ports:
+      - 3000:3000
 volumes:
   panoctagon_data:
       driver: local
