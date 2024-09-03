@@ -2,7 +2,11 @@ services:
   panoctagon_backend:
     build: .
     volumes:
-      - panoctagon_source_data:/panoctagon/data
+      - panoctagon_data:/panoctagon/data
 volumes:
-  panoctagon_source_data:
-    external: true
+  panoctagon_data:
+      driver: local
+      driver_opts:
+        type: 'none'
+        o: 'bind'
+        device: 'data'
