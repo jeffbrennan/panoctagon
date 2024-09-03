@@ -1,6 +1,6 @@
 services:
   panoctagon_backend:
-    build: .
+    build: .docker/backend
     volumes:
       - panoctagon_data:/panoctagon/data
 volumes:
