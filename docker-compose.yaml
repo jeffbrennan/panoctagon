@@ -1,6 +1,8 @@
 services:
   panoctagon_backend:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile-backend
     volumes:
       - panoctagon_data:/panoctagon/data
     ports:
