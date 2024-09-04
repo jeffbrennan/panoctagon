@@ -7,6 +7,14 @@ services:
       - panoctagon_data:/panoctagon/data
     ports:
       - 3000:3000
+  panoctagon_frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile-frontend
+    volumes:
+      - panoctagon_data:/panoctagon/data
+    ports:
+      - 8050:8050
 volumes:
   panoctagon_data:
       driver: local
