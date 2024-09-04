@@ -70,7 +70,13 @@ COPY panoctagon/ ./panoctagon
 # DBT ---------
 # TODO: move this to /data/dbt
 COPY dbt_project.yml .
+COPY profiles.yml .
+COPY packages.yml .
+COPY dbt_packages/ ./dbt_packages
 COPY target/ ./target
+COPY models/ ./models
+
+RUN dbt deps --profiles-dir .
 
 # DAGSTER ------
 ENV DAGSTER_HOME=/panoctagon/data/dagster
