@@ -1,9 +1,8 @@
 FROM python:3.11-slim AS python-base
 
-# Poetry -------
+# POETRY -------
 #https://github.com/orgs/python-poetry/discussions/1879#discussioncomment-216865
 ENV PYTHONUNBUFFERED=1 \
-    # prevents python creating .pyc files
     PYTHONDONTWRITEBYTECODE=1 \
     \
     # pip
@@ -12,23 +11,15 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_DEFAULT_TIMEOUT=100 \
     \
     # poetry
-    # make poetry install to this location
     POETRY_HOME="/opt/poetry" \
-    # make poetry create the virtual environment in the project's root
-    # it gets named `.venv`
     POETRY_VIRTUALENVS_IN_PROJECT=true \
-    # do not ask any interactive question
     POETRY_NO_INTERACTION=1 \
-    \
-    # paths
-    # this is where our requirements + virtual environment will live
     PYSETUP_PATH="/panoctagon" \
     VENV_PATH="/panoctagon/.venv"
 
 
 # prepend poetry and venv to path
 ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
-
 
 # `builder-base` stage is used to build deps + create our virtual environment
 FROM python-base AS builder-base
@@ -63,9 +54,8 @@ RUN poetry config virtualenvs.path --unset
 # quicker install as runtime deps are already installed
 RUN poetry install
 
+# APP CODE -------
 COPY panoctagon/ ./panoctagon
-
-# ENTRYPOINT ["poetry", "run", "python", "panoctagon/scratch/hello_docker.py"]
 
 # DBT ---------
 # TODO: move this to /data/dbt

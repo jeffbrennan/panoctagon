@@ -67,4 +67,3 @@ RUN poetry install
 COPY panoctagon/ ./panoctagon
 
 ENTRYPOINT ["poetry", "run", "python", "panoctagon/dashboard.py"]
-# ENTRYPOINT ["poetry", "run", "python", "panoctagon/test.py"]
