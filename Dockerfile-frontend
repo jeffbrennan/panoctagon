@@ -65,5 +65,8 @@ RUN poetry config virtualenvs.path --unset
 RUN poetry install
 
 COPY panoctagon/ ./panoctagon
+COPY gunicorn_config.py .
 
-ENTRYPOINT ["poetry", "run", "python", "panoctagon/dashboard.py"]
+EXPOSE 8050
+
+ENTRYPOINT [ "gunicorn", "--config", "gunicorn_config.py", "panoctagon.dashboard:server" ]
