@@ -20,6 +20,7 @@ dbt_packages/
 tmp*
 
 *.env
+*.sh
 
 data/dagster/*
 !data/dagster/dagster.yaml
