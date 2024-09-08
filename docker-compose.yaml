@@ -36,6 +36,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile-frontend
+    deploy:
+      mode: replicated
+      replicas: 3
     labels:
       - "traefik.http.routers.panoctagon_frontend.rule=Host(`panoctagon.com`)"
       - "traefik.enable=true"
