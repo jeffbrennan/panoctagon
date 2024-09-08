@@ -14,12 +14,16 @@ services:
     build:
       context: .
       dockerfile: Dockerfile-backend
+    labels:
+      - "traefik.http.routers.panoctagon_backend.rule=Host(`backend.panoctagon.com`)"
     volumes:
       - panoctagon_data:/panoctagon/data
   panoctagon_frontend:
     build:
       context: .
       dockerfile: Dockerfile-frontend
+    labels:
+      - "traefik.http.routers.panoctagon_frontend.rule=Host(`panoctagon.com`)"
     volumes:
       - panoctagon_data:/panoctagon/data
 volumes:
