@@ -5,10 +5,16 @@ services:
     command: 
       - "--api.insecure=true"
       - "--providers.docker"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entryPoints.websecure.address=:443"
+      - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
+      - "--certificatesresolvers.myresolver.acme.email=${ADMIN_EMAIL}"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
     ports:
-      - "80:80"
+      - "443:443"
       - "8080:8080"
     volumes:
+      - letsencrypt:/letsencrypt
       - /var/run/docker.sock:/var/run/docker.sock
   panoctagon_backend:
     build:
@@ -16,6 +22,10 @@ services:
       dockerfile: Dockerfile-backend
     labels:
       - "traefik.http.routers.panoctagon_backend.rule=Host(`backend.panoctagon.com`)"
+      - "traefik.enable=true"
+      - "traefik.http.routers.panoctagon_backend.entrypoints=websecure"
+      - "traefik.http.routers.panoctagon_backend.tls.certresolver=myresolver"
+
     volumes:
       - panoctagon_data:/panoctagon/data
   panoctagon_frontend:
@@ -24,9 +34,13 @@ services:
       dockerfile: Dockerfile-frontend
     labels:
       - "traefik.http.routers.panoctagon_frontend.rule=Host(`panoctagon.com`)"
+      - "traefik.enable=true"
+      - "traefik.http.routers.panoctagon_frontend.entrypoints=websecure"
+      - "traefik.http.routers.panoctagon_frontend.tls.certresolver=myresolver"
     volumes:
       - panoctagon_data:/panoctagon/data
 volumes:
+  letsencrypt:
   panoctagon_data:
       driver: local
       driver_opts:
