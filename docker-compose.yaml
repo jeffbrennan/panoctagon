@@ -30,6 +30,8 @@ services:
       - "traefik.http.routers.panoctagon_backend.entrypoints=websecure"
       - "traefik.http.routers.panoctagon_backend.tls.certresolver=myresolver"
 
+      - "traefik.http.routers.panoctagon_backend.middlewares=auth"
+      - "traefik.http.middlewares.auth.basicauth.users=${BACKEND_ADMIN}:${BACKEND_HASH}"
     volumes:
       - panoctagon_data:/panoctagon/data
   panoctagon_frontend:
