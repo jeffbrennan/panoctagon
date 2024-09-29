@@ -132,7 +132,8 @@ initial_fighter = df.sample(1)["fighter_name"].item()
 if not isinstance(initial_fighter, str):
     raise TypeError()
 
-app = Dash()
+app = Dash(__name__)
+server=app.server
 
 app.layout = dmc.Container(
     [

@@ -1,21 +1,55 @@
 services:
+  reverse_proxy:
+    image:
+      traefik:3.1
+    command: 
+      - "--api.insecure=true"
+      - "--providers.docker"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entryPoints.websecure.address=:443"
+      - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
+      - "--certificatesresolvers.myresolver.acme.email=${ADMIN_EMAIL}"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https" 
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      - letsencrypt:/letsencrypt
+      - /var/run/docker.sock:/var/run/docker.sock
   panoctagon_backend:
     build:
       context: .
       dockerfile: Dockerfile-backend
+    labels:
+      - "traefik.http.routers.panoctagon_backend.rule=Host(`backend.panoctagon.com`)"
+      - "traefik.enable=true"
+      - "traefik.http.routers.panoctagon_backend.entrypoints=websecure"
+      - "traefik.http.routers.panoctagon_backend.tls.certresolver=myresolver"
+
+      - "traefik.http.routers.panoctagon_backend.middlewares=auth"
+      - "traefik.http.middlewares.auth.basicauth.users=${BACKEND_ADMIN}:${BACKEND_HASH}"
     volumes:
       - panoctagon_data:/panoctagon/data
-    ports:
-      - 3000:3000
   panoctagon_frontend:
     build:
       context: .
       dockerfile: Dockerfile-frontend
+    deploy:
+      mode: replicated
+      replicas: 3
+    labels:
+      - "traefik.http.routers.panoctagon_frontend.rule=Host(`panoctagon.com`)"
+      - "traefik.enable=true"
+      - "traefik.http.routers.panoctagon_frontend.entrypoints=websecure"
+      - "traefik.http.routers.panoctagon_frontend.tls.certresolver=myresolver"
     volumes:
       - panoctagon_data:/panoctagon/data
-    ports:
-      - 8050:8050
 volumes:
+  letsencrypt:
   panoctagon_data:
       driver: local
       driver_opts:
