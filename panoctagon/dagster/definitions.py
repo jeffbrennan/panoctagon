@@ -27,7 +27,7 @@ defs = Definitions(
         dagster_scrape_fighter_bio,
         dagster_parse_fighter_bio,
         dagster_promotions,
-        dagster_divisions
+        dagster_divisions,
     ],
     schedules=schedules,
     resources={

@@ -133,7 +133,7 @@ if not isinstance(initial_fighter, str):
     raise TypeError()
 
 app = Dash(__name__)
-server=app.server
+server = app.server
 
 app.layout = dmc.Container(
     [

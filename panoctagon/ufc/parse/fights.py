@@ -409,7 +409,7 @@ def parse_fight(
 ) -> FightParsingResult:
     file_issues: list[str] = []
     if fight_contents.file_num % 100 == 0:
-        title = f"[{fight_contents.file_num:05d} / {fight_contents.n_files-1:05d}]"
+        title = f"[{fight_contents.file_num:05d} / {fight_contents.n_files - 1:05d}]"
         print(create_header(80, title, False, "."))
 
     fight_html = bs4.BeautifulSoup(fight_contents.contents, features="lxml")

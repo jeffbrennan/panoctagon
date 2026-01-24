@@ -311,7 +311,6 @@ def write_parsing_timestamp(
     uid_col: Mapped[Any],
     result_uids: list[str],
 ) -> None:
-
     current_timestamp = datetime.datetime.now().isoformat(timespec="seconds")
     print(f"updating {len(result_uids)} rows")
     start = time.time()
@@ -323,4 +322,4 @@ def write_parsing_timestamp(
             session.add(record)
             session.commit()
     end = time.time()
-    print(f"elapsed time: {end-start:.2f} seconds")
+    print(f"elapsed time: {end - start:.2f} seconds")
