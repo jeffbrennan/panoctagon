@@ -26,3 +26,5 @@ tmp*
 data/dagster/*
 !data/dagster/dagster.yaml
 helpers/
+
+.user.yml
