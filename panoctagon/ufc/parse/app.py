@@ -24,9 +24,9 @@ app = typer.Typer()
 @app.command(name="bios")
 def bios(force: bool = False) -> int:
     setup = setup_panoctagon(title="Fighter Bio Parser")
-    bio_dir = Path(__file__).parents[2] / "data" / "raw" / "ufc" / "fighter_bios"
+    bio_dir = Path(__file__).parents[3] / "data" / "raw" / "ufc" / "fighter_bios"
     headshot_dir = (
-        Path(__file__).parents[2] / "data" / "raw" / "ufc" / "fighter_headshots"
+        Path(__file__).parents[3] / "data" / "raw" / "ufc" / "fighter_headshots"
     )
 
     fighter_bios = get_html_files(
@@ -86,7 +86,7 @@ def fighters(force: bool = False) -> int:
 @app.command(name="fights")
 def fights(force: bool = False) -> int:
     setup = setup_panoctagon(title="Panoctagon UFC Fight Parser")
-    fight_dir = Path(__file__).parents[2] / "data/raw/ufc/fights"
+    fight_dir = Path(__file__).parents[3] / "data/raw/ufc/fights"
     fights_to_parse = get_html_files(
         path=fight_dir,
         uid_col=col(UFCFight.fight_uid),
