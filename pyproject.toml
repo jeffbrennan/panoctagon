@@ -2,7 +2,7 @@
 name = "panoctagon"
 version = "0.1.0"
 description = ""
-requires-python = "==3.13.11"
+requires-python = ">=3.12,<3.13"
 readme = "README.md"
 dependencies = [
     "polars==1.37.1",
@@ -10,7 +10,6 @@ dependencies = [
     "lxml==6.0.2",
     "bs4==0.0.2",
     "adbc-driver-manager==1.10.0",
-    "adbc-driver-sqlite==1.10.0",
     "pyarrow==23.0.0",
     "pyright==1.1.408",
     "ruff-lsp==0.0.62",
@@ -26,10 +25,12 @@ dependencies = [
     "dbt-core==1.11.2",
     "dagster==1.12.12",
     "dagster-webserver==1.12.12",
-    "dbt-sqlite==1.10.0",
     "dagster-dbt==0.28.12",
     "typer==0.21.1",
     "gunicorn==24.1.1",
+    "duckdb==1.1.0",
+    "duckdb-engine==0.13.2",
+    "dbt-duckdb==1.9.0",
 ]
 
 [tool.pyright]
