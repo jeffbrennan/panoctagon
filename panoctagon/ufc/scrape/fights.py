@@ -42,7 +42,9 @@ def read_event_uids(force_run: bool) -> list[str]:
         cmd = select(UFCEvent.event_uid).where(col(UFCEvent.event_date) < now)
     else:
         cmd = select(UFCEvent.event_uid).where(
-            and_(col(UFCEvent.downloaded_ts).is_(None), UFCEvent.event_date < now)
+            and_(
+                col(UFCEvent.downloaded_ts).is_(None), UFCEvent.event_date < now
+            )
         )
 
     engine = get_engine()
@@ -90,14 +92,18 @@ def get_fight_uids(event: EventToParse) -> FightUidResult:
         time.sleep(1)
 
     if not success or response is None:
-        return FightUidResult(success=False, uids=None, message="could not load page")
+        return FightUidResult(
+            success=False, uids=None, message="could not load page"
+        )
 
     soup = bs4.BeautifulSoup(response.content, "html.parser")
     try:
         fight_uids = get_list_of_fights(soup)
     except IndexError as e:
         print(e)
-        return FightUidResult(success=False, uids=None, message="html parsing error")
+        return FightUidResult(
+            success=False, uids=None, message="html parsing error"
+        )
 
     return FightUidResult(success=True, uids=fight_uids, message=None)
 
@@ -114,7 +120,9 @@ def get_fights_from_event(event: EventToParse) -> FightScrapingResult:
             message=fight_uid_result.message,
         )
 
-    downloaded_fights = [i.stem for i in event.base_dir.glob("*.html")]
+    downloaded_fight_uids = [
+        i.stem.split("_")[1] for i in event.base_dir.glob("*.html")
+    ]
     configs = [
         ScrapingConfig(
             uid=fight_uid,
@@ -124,7 +132,7 @@ def get_fights_from_event(event: EventToParse) -> FightScrapingResult:
             path=event.base_dir / f"{event.uid}_{fight_uid}.html",
         )
         for fight_uid in fight_uid_result.uids
-        if fight_uid not in downloaded_fights
+        if fight_uid not in downloaded_fight_uids
     ]
 
     if len(configs) == 0:
