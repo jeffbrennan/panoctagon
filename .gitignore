@@ -17,6 +17,7 @@ scratch/
 target/
 logs/
 dbt_packages/
+.venv/
 tmp*
 
 *.env

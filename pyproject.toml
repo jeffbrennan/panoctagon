@@ -1,51 +1,46 @@
-[tool.poetry]
+[project]
 name = "panoctagon"
 version = "0.1.0"
 description = ""
-authors = ["Jeff Brennan <jeffbrennan10@gmail.com>"]
-readme = "readme.md"
-
-[tool.poetry.dependencies]
-python = ">=3.11, <3.13"
-polars = "^0.20.31"
-requests = "^2.32.3"
-lxml = "^5.2.2"
-bs4 = "^0.0.2"
-adbc-driver-manager = "^1.0.0"
-adbc-driver-sqlite = "^1.0.0"
-pyarrow = "^16.1.0"
-pyright = "^1.1.366"
-ruff-lsp = "^0.0.53"
-pytest = "^8.2.2"
-pydantic = "^2.7.4"
-sqlmodel = "^0.0.19"
-dash = "^2.17.1"
-dash-mantine-components = "0.12.1"
-plotly = "^5.23.0"
-pandas = "^2.2.2"
-shandy-sqlfmt = { extras = ["jinjafmt"], version = "^0.23.2" }
-statsmodels = "^0.14.2"
-dbt-core = ">=1.5.0, <1.6.0"
-dagster = "^1.7.0"
-dagster-webserver = "^1.7.0"
-dbt-sqlite = "^1.5.0"
-dagster-dbt="^0.23.0"
-typer = "^0.12.5"
-gunicorn = "^23.0.0"
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires-python = "==3.13.11"
+readme = "README.md"
+dependencies = [
+    "polars==1.37.1",
+    "requests==2.32.5",
+    "lxml==6.0.2",
+    "bs4==0.0.2",
+    "adbc-driver-manager==1.10.0",
+    "adbc-driver-sqlite==1.10.0",
+    "pyarrow==23.0.0",
+    "pyright==1.1.408",
+    "ruff-lsp==0.0.62",
+    "pytest==9.0.2",
+    "pydantic==2.12.5",
+    "sqlmodel==0.0.31",
+    "dash==3.4.0",
+    "dash-mantine-components==2.4.1",
+    "plotly==6.5.2",
+    "pandas==3.0.0",
+    "shandy-sqlfmt[jinjafmt]==0.29.0",
+    "statsmodels==0.14.6",
+    "dbt-core==1.11.2",
+    "dagster==1.12.12",
+    "dagster-webserver==1.12.12",
+    "dbt-sqlite==1.10.0",
+    "dagster-dbt==0.28.12",
+    "typer==0.21.1",
+    "gunicorn==24.1.1",
+]
 
 [tool.pyright]
 venvPath = "."
 venv = ".venv"
-typeCheckingMode = "strict"
-reportMissingModuleSource = false
-reportMissingTypeStubs = false
-reportUnknownMemberType = false
-reportUnknownVariableType = false
+typeCheckingMode = "standard"
 
 [tool.dagster]
 module_name = "panoctagon.dagster.definitions"
 code_location_name = "panoctagon/dagster"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
