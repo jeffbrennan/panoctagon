@@ -1,23 +1,26 @@
 from typing import Any
 
-from dagster import AssetExecutionContext, asset, multi_asset, AssetSpec
 from dagster_dbt import DbtCliResource, dbt_assets
 
-import panoctagon.ufc.scrape.app as scrape
 import panoctagon.ufc.parse.app as parse
+import panoctagon.ufc.scrape.app as scrape
+from dagster import AssetExecutionContext, AssetSpec, asset, multi_asset
 from panoctagon.divisions import setup_divisions
 from panoctagon.promotions import setup_promotions
+
 from .project import panoctagon_project
 
-db_path = panoctagon_project.project_dir.joinpath("data/panoctagon_orm.db")
+db_path = panoctagon_project.project_dir.joinpath("data/panoctagon_orm.duckdb")
 
 
 @dbt_assets(manifest=panoctagon_project.manifest_path)
-def panoctagon_dbt_assets(context: AssetExecutionContext, dbt: DbtCliResource) -> Any:
+def panoctagon_dbt_assets(
+    context: AssetExecutionContext, dbt: DbtCliResource
+) -> Any:
     yield from dbt.cli(["build"], context=context).stream()
 
 
-@asset(compute_kind="python", key=["ufc_events"])
+@asset(compute_kind="python", key=["ufc_events"], deps=["divisions"])
 def dagster_scrape_events(context: AssetExecutionContext) -> None:
     n_new_events = scrape.events()
     context.add_output_metadata({"n_records": n_new_events})
@@ -38,8 +41,12 @@ def dagster_scrape_fights(context: AssetExecutionContext) -> None:
 )
 def dagster_parse_fights(context: AssetExecutionContext) -> tuple[None, None]:
     n_records = parse.fights()
-    context.add_output_metadata({"n_records": n_records}, output_name="ufc_fights")
-    context.add_output_metadata({"n_records": n_records}, output_name="ufc_fight_stats")
+    context.add_output_metadata(
+        {"n_records": n_records}, output_name="ufc_fights"
+    )
+    context.add_output_metadata(
+        {"n_records": n_records}, output_name="ufc_fight_stats"
+    )
     return None, None
 
 
@@ -49,13 +56,17 @@ def dagster_scrape_fighters(context: AssetExecutionContext) -> None:
     context.add_output_metadata({"n_records": n_new_fighters})
 
 
-@asset(compute_kind="python", key=["ufc_fighters_stg"], deps=["scrape_fighters"])
+@asset(
+    compute_kind="python", key=["ufc_fighters_stg"], deps=["scrape_fighters"]
+)
 def dagster_parse_fighters(context: AssetExecutionContext) -> None:
     n_records = parse.fighters()
     context.add_output_metadata({"n_records": n_records})
 
 
-@asset(compute_kind="python", key=["scrape_fighter_bio"], deps=["ufc_fighters_stg"])
+@asset(
+    compute_kind="python", key=["scrape_fighter_bio"], deps=["ufc_fighters_stg"]
+)
 def dagster_scrape_fighter_bio(context: AssetExecutionContext) -> None:
     n_bios = scrape.bios()
     context.add_output_metadata({"n_records": n_bios})
@@ -67,7 +78,7 @@ def dagster_parse_fighter_bio(context: AssetExecutionContext) -> None:
     context.add_output_metadata({"n_records": n_bios})
 
 
-@asset(compute_kind="python", key=["divisions"])
+@asset(compute_kind="python", key=["divisions"], deps=["promotions"])
 def dagster_divisions():
     setup_divisions()
 

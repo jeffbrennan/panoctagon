@@ -60,7 +60,10 @@ class UFCFighter(SQLModel, table=True):
 
 class UFCFight(SQLModel, table=True):
     __tablename__ = "ufc_fights"  # pyright: ignore [reportAssignmentType]
-    __table_args__ = (UniqueConstraint("event_uid", "fight_uid", name="fight_pk"),)
+    __table_args__ = (
+        UniqueConstraint("event_uid", "fight_uid", name="fight_pk"),
+        UniqueConstraint("fight_uid", name="fight_uid_unique"),
+    )
 
     event_uid: str = Field(primary_key=True, foreign_key="ufc_events.event_uid")
     fight_uid: str = Field(primary_key=True)

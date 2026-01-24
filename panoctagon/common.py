@@ -12,6 +12,7 @@ import requests
 from pydantic import BaseModel
 from sqlalchemy import Engine
 from sqlalchemy.orm import Mapped
+from sqlalchemy.pool import NullPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from panoctagon.enums import Symbols
@@ -39,9 +40,14 @@ class PanoctagonSetup(BaseModel):
 
 
 def get_engine() -> Engine:
-    db_path = Path(__file__).parent.parent / "data" / "panoctagon_orm.db"
-    engine_path = "sqlite:///" + str(db_path.resolve())
-    engine = create_engine(engine_path, echo=False)
+    db_path = Path(__file__).parent.parent / "data" / "panoctagon_orm.duckdb"
+    engine_path = "duckdb:///" + str(db_path.resolve())
+    engine = create_engine(
+        engine_path,
+        echo=False,
+        poolclass=NullPool,
+        connect_args={"read_only": False}
+    )
     return engine
 
 

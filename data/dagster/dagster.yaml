@@ -1,2 +1,10 @@
 telemetry:
   enabled: false
+
+storage:
+  sqlite:
+    base_dir: data/dagster/storage
+
+run_coordinator:
+  module: dagster.core.run_coordinator
+  class: QueuedRunCoordinator
