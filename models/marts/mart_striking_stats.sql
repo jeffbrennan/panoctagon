@@ -14,7 +14,7 @@ with
     ),
     max_event_year          as (
         select
-            strftime('%Y', max(event_date)) as max_yr
+            strftime('%Y', max(event_date::DATE)) as max_yr
         from events
     ),
     fights                  as (
@@ -47,7 +47,7 @@ with
         inner join events b
             on a.event_uid = b.event_uid
         group by fight_division
-        having strftime('%Y', max(event_date)) >= (
+        having strftime('%Y', max(event_date::DATE)) >= (
             select
                 max_yr
             from max_event_year
@@ -72,7 +72,7 @@ with
     sum_by_division_quarter as (
         select
             c.event_uid,
-            strftime('%Y', c.event_date) || '-01-01' as event_year,
+            strftime('%Y', c.event_date::DATE) || '-01-01' as event_year,
             b.fight_division,
             a.target,
             a.metric,
