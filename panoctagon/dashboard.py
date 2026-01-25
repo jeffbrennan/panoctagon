@@ -1,3 +1,4 @@
+import base64
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,8 @@ from dash import Dash, Input, Output, callback, dash_table, dcc, html
 
 from panoctagon.common import get_engine
 
+HEADSHOTS_DIR = Path(__file__).parent.parent / "data" / "raw" / "ufc" / "fighter_headshots"
+
 
 def apply_figure_styling(fig: go.Figure) -> go.Figure:
     fig.update_layout(
@@ -16,14 +19,30 @@ def apply_figure_styling(fig: go.Figure) -> go.Figure:
         paper_bgcolor="rgb(242, 240, 227)",
         font=dict(family="JetBrains Mono, monospace", color="#1a1a1a"),
         title=None,
-        margin=dict(l=10, r=10, t=10, b=10),
+        margin=dict(l=10, r=10, t=0, b=10),
     )
-    fig.update_xaxes(showgrid=False, zeroline=False, showline=True, linewidth=2, linecolor="black", mirror=True)
-    fig.update_yaxes(showgrid=False, zeroline=False, showline=True, linewidth=2, linecolor="black", mirror=True)
+    fig.update_xaxes(
+        showgrid=False,
+        zeroline=False,
+        showline=True,
+        linewidth=2,
+        linecolor="black",
+        mirror=True,
+    )
+    fig.update_yaxes(
+        showgrid=False,
+        zeroline=False,
+        showline=True,
+        linewidth=2,
+        linecolor="black",
+        mirror=True,
+    )
     return fig
 
 
-def create_plot_with_title(title: str, graph_id: str, margin_bottom: bool = False) -> html.Div:
+def create_plot_with_title(
+    title: str, graph_id: str, margin_bottom: bool = False
+) -> html.Div:
     return html.Div(
         [
             html.Div(
@@ -35,7 +54,7 @@ def create_plot_with_title(title: str, graph_id: str, margin_bottom: bool = Fals
                 className="plot-container-wrapper",
             ),
         ],
-        style={"marginBottom": "2rem"} if margin_bottom else {},
+        style={"marginBottom": "0rem"} if margin_bottom else {},
     )
 
 
@@ -139,6 +158,7 @@ def get_main_data() -> pd.DataFrame:
             fm.decision_round,
             fs.fight_uid,
             fs.round_num,
+            fs.fighter_uid,
             fighter_name,
             fighter_result,
             height_inches,
@@ -189,18 +209,28 @@ def get_fighter_list(df: pd.DataFrame) -> list[str]:
     return [str(row["fighter_name"]) for _, row in fighter_counts.iterrows()]
 
 
-def get_decision_types(df: pd.DataFrame) -> list[str]:
-    return sorted(df["decision"].dropna().unique().tolist())
+def get_fighter_uid_map(df: pd.DataFrame) -> dict[str, str]:
+    return (
+        df.groupby("fighter_name")
+        .agg({"fighter_uid": "first"})
+        .reset_index()
+        .set_index("fighter_name")["fighter_uid"]
+        .to_dict()
+    )
 
 
-def get_divisions(df: pd.DataFrame) -> list[str]:
-    return sorted(df["fight_division"].dropna().unique().tolist())
+def get_headshot_base64(fighter_uid: str) -> str | None:
+    headshot_path = HEADSHOTS_DIR / f"{fighter_uid}_headshot.png"
+    if not headshot_path.exists():
+        return None
+    with open(headshot_path, "rb") as f:
+        encoded = base64.b64encode(f.read()).decode("utf-8")
+    return f"data:image/png;base64,{encoded}"
 
 
 df = get_main_data()
 fighter_options = get_fighter_list(df)
-decision_options = get_decision_types(df)
-division_options = get_divisions(df)
+fighter_uid_map = get_fighter_uid_map(df)
 
 initial_fighter = df.sample(1)["fighter_name"].item()
 if not isinstance(initial_fighter, str):
@@ -235,200 +265,178 @@ app.layout = dmc.MantineProvider(
                 dmc.AppShellMain(
                     dmc.Container(
                         [
-                            dmc.Card(
-                            dmc.Grid(
+                            dmc.Group(
                                 [
-                                    dmc.GridCol(
-                                        dmc.Select(
-                                            label="Fighter",
-                                            placeholder="Select fighter",
-                                            id="fighter-select",
-                                            value=initial_fighter,
-                                            data=fighter_options,
-                                            searchable=True,
-                                            clearable=False,
-                                        ),
-                                        span=3,
+                                    html.Img(
+                                        id="fighter-headshot",
+                                        style={
+                                            "height": "150px",
+                                            "border": "2px solid #1a1a1a",
+                                            "borderRadius": "4px",
+                                        },
                                     ),
-                                    dmc.GridCol(
-                                        html.Div(
-                                            [
-                                                dmc.Text(
-                                                    "Date Range",
-                                                    size="sm",
-                                                    fw="bold",
-                                                    mb=4,
-                                                ),
-                                                dcc.DatePickerRange(
-                                                    id="date-range",
-                                                    start_date=df["event_date"]
-                                                    .min()
-                                                    .strftime("%Y-%m-%d"),
-                                                    end_date=df["event_date"]
-                                                    .max()
-                                                    .strftime("%Y-%m-%d"),
-                                                    display_format="YYYY-MM-DD",
-                                                    style={"width": "100%"},
-                                                ),
-                                            ]
-                                        ),
-                                        span=3,
-                                    ),
-                                    dmc.GridCol(
-                                        dmc.MultiSelect(
-                                            label="Decision Type",
-                                            placeholder="All decisions",
-                                            id="decision-filter",
-                                            data=decision_options,
-                                            clearable=True,
-                                        ),
-                                        span=3,
-                                    ),
-                                    dmc.GridCol(
-                                        dmc.MultiSelect(
-                                            label="Division",
-                                            placeholder="All divisions",
-                                            id="division-filter",
-                                            data=division_options,
-                                            clearable=True,
-                                        ),
-                                        span=3,
+                                    dmc.Select(
+                                        label="Fighter",
+                                        placeholder="Select fighter",
+                                        id="fighter-select",
+                                        value=initial_fighter,
+                                        data=fighter_options,
+                                        searchable=True,
+                                        clearable=False,
+                                        style={"width": "250px"},
                                     ),
                                 ],
-                                gutter="md",
+                                align="flex-start",
+                                gap="lg",
+                                mb="md",
                             ),
-                            shadow="sm",
-                            withBorder=True,
-                            p="lg",
-                            mb="md",
-                        ),
-                        dmc.Tabs(
-                            [
-                                dmc.TabsList(
-                                    [
-                                        dmc.TabsTab(
-                                            "Fighter Profile", value="profile"
-                                        ),
-                                        dmc.TabsTab(
-                                            "Fight History", value="history"
-                                        ),
-                                        dmc.TabsTab(
-                                            "Striking Analytics",
-                                            value="striking",
-                                        ),
-                                    ]
-                                ),
-                                dmc.TabsPanel(
-                                    [
-                                        dmc.SimpleGrid(
-                                            [
-                                                dmc.Card(
-                                                    [
-                                                        dmc.Text(
-                                                            "Total Fights",
-                                                            size="sm",
-                                                            c="gray",
-                                                        ),
-                                                        dmc.Title(
-                                                            id="total-fights",
-                                                            order=2,
-                                                        ),
-                                                    ],
-                                                    shadow="sm",
-                                                    withBorder=True,
-                                                    p="lg",
-                                                ),
-                                                dmc.Card(
-                                                    [
-                                                        dmc.Text(
-                                                            "Record",
-                                                            size="sm",
-                                                            c="gray",
-                                                        ),
-                                                        dmc.Title(
-                                                            id="record", order=2
-                                                        ),
-                                                    ],
-                                                    shadow="sm",
-                                                    withBorder=True,
-                                                    p="lg",
-                                                ),
-                                                dmc.Card(
-                                                    [
-                                                        dmc.Text(
-                                                            "Finish Rate",
-                                                            size="sm",
-                                                            c="gray",
-                                                        ),
-                                                        dmc.Title(
-                                                            id="finish-rate",
-                                                            order=2,
-                                                        ),
-                                                    ],
-                                                    shadow="sm",
-                                                    withBorder=True,
-                                                    p="lg",
-                                                ),
-                                            ],
-                                            cols=3,
-                                            spacing="md",
-                                            mb="md",
-                                        ),
-                                        create_plot_with_title("Career Timeline", "career-timeline", margin_bottom=True),
-                                        create_plot_with_title("Fight Outcome Distribution", "win-method-chart"),
-                                    ],
-                                    value="profile",
-                                    pt="md",
-                                ),
-                                dmc.TabsPanel(
-                                    dash_table.DataTable(
-                                        id="fight-history-table",
-                                        columns=[],
-                                        data=[],
-                                        sort_action="native",
-                                        filter_action="native",
-                                        style_table={
-                                            "height": "800px",
-                                            "overflowY": "scroll",
-                                        },
-                                        style_data={
-                                            "border": "none",
-                                        },
-                                        style_cell_conditional=[
-                                            {
-                                                "if": {"column_id": ""},
-                                                "width": "40px",
-                                                "textAlign": "center",
-                                            },
-                                        ],
-                                        style_data_conditional=[],
-                                        style_header={
-                                            "backgroundColor": "#e9ecef",
-                                            "fontWeight": "bold",
-                                            "border": "none",
-                                        },
+                            dmc.Tabs(
+                                [
+                                    dmc.TabsList(
+                                        [
+                                            dmc.TabsTab(
+                                                "Fighter Profile",
+                                                value="profile",
+                                            ),
+                                            dmc.TabsTab(
+                                                "Fight History", value="history"
+                                            ),
+                                            dmc.TabsTab(
+                                                "Striking Analytics",
+                                                value="striking",
+                                            ),
+                                        ]
                                     ),
-                                    value="history",
-                                    pt="md",
-                                ),
-                                dmc.TabsPanel(
-                                    [
-                                        create_plot_with_title("Striking Accuracy Over Time", "accuracy-trend", margin_bottom=True),
-                                        create_plot_with_title("Strike Target Distribution", "target-distribution", margin_bottom=True),
-                                        create_plot_with_title("Strikes Landed vs Absorbed", "strikes-comparison"),
-                                    ],
-                                    value="striking",
-                                    pt="md",
-                                ),
-                            ],
-                            value="profile",
-                            id="main-tabs",
-                        ),
-                    ],
-                    size="xl",
-                    p="md",
-                )
-            ),
+                                    dmc.TabsPanel(
+                                        [
+                                            dmc.SimpleGrid(
+                                                [
+                                                    dmc.Card(
+                                                        [
+                                                            dmc.Text(
+                                                                "Total Fights",
+                                                                size="sm",
+                                                                c="gray",
+                                                            ),
+                                                            dmc.Title(
+                                                                id="total-fights",
+                                                                order=2,
+                                                            ),
+                                                        ],
+                                                        shadow="sm",
+                                                        withBorder=True,
+                                                        p="lg",
+                                                    ),
+                                                    dmc.Card(
+                                                        [
+                                                            dmc.Text(
+                                                                "Record",
+                                                                size="sm",
+                                                                c="gray",
+                                                            ),
+                                                            dmc.Title(
+                                                                id="record",
+                                                                order=2,
+                                                            ),
+                                                        ],
+                                                        shadow="sm",
+                                                        withBorder=True,
+                                                        p="lg",
+                                                    ),
+                                                    dmc.Card(
+                                                        [
+                                                            dmc.Text(
+                                                                "Finish Rate",
+                                                                size="sm",
+                                                                c="gray",
+                                                            ),
+                                                            dmc.Title(
+                                                                id="finish-rate",
+                                                                order=2,
+                                                            ),
+                                                        ],
+                                                        shadow="sm",
+                                                        withBorder=True,
+                                                        p="lg",
+                                                    ),
+                                                ],
+                                                cols=3,
+                                                spacing="md",
+                                                mb="md",
+                                            ),
+                                            create_plot_with_title(
+                                                "Career Timeline",
+                                                "career-timeline",
+                                                margin_bottom=True,
+                                            ),
+                                            create_plot_with_title(
+                                                "Fight Outcome Distribution",
+                                                "win-method-chart",
+                                            ),
+                                        ],
+                                        value="profile",
+                                        pt="md",
+                                    ),
+                                    dmc.TabsPanel(
+                                        dash_table.DataTable(
+                                            id="fight-history-table",
+                                            columns=[],
+                                            data=[],
+                                            sort_action="native",
+                                            filter_action="native",
+                                            style_table={
+                                                "height": "800px",
+                                                "overflowY": "scroll",
+                                            },
+                                            style_data={
+                                                "border": "none",
+                                            },
+                                            style_cell_conditional=[
+                                                {
+                                                    "if": {"column_id": ""},
+                                                    "width": "40px",
+                                                    "textAlign": "center",
+                                                },
+                                            ],
+                                            style_data_conditional=[],
+                                            style_header={
+                                                "backgroundColor": "#e9ecef",
+                                                "fontWeight": "bold",
+                                                "border": "none",
+                                            },
+                                        ),
+                                        value="history",
+                                        pt="md",
+                                    ),
+                                    dmc.TabsPanel(
+                                        [
+                                            create_plot_with_title(
+                                                "Striking Accuracy Over Time",
+                                                "accuracy-trend",
+                                                margin_bottom=True,
+                                            ),
+                                            create_plot_with_title(
+                                                "Strike Target Distribution",
+                                                "target-distribution",
+                                                margin_bottom=True,
+                                            ),
+                                            create_plot_with_title(
+                                                "Strikes Landed vs Absorbed",
+                                                "strikes-comparison",
+                                            ),
+                                        ],
+                                        value="striking",
+                                        pt="md",
+                                    ),
+                                ],
+                                value="profile",
+                                id="main-tabs",
+                            ),
+                        ],
+                        size="xl",
+                        p="md",
+                    )
+                ),
             ],
             header={"height": 60},
         ),
@@ -463,28 +471,8 @@ def format_result(result: str) -> str:
     return result_map.get(result, result)
 
 
-def filter_data(
-    df: pd.DataFrame,
-    fighter: str,
-    start_date: str | None,
-    end_date: str | None,
-    decisions: list[str] | None,
-    divisions: list[str] | None,
-) -> pd.DataFrame:
-    filtered = df[df["fighter_name"] == fighter].copy()
-
-    if start_date:
-        filtered = filtered[
-            filtered["event_date"] >= pd.to_datetime(start_date)
-        ]
-    if end_date:
-        filtered = filtered[filtered["event_date"] <= pd.to_datetime(end_date)]
-    if decisions:
-        filtered = filtered[filtered["decision"].isin(decisions)]
-    if divisions:
-        filtered = filtered[filtered["fight_division"].isin(divisions)]
-
-    return filtered
+def filter_data(df: pd.DataFrame, fighter: str) -> pd.DataFrame:
+    return df[df["fighter_name"] == fighter].copy()
 
 
 def get_fighter_summary(df_fighter: pd.DataFrame) -> dict[str, Any]:
@@ -529,29 +517,27 @@ def get_fighter_summary(df_fighter: pd.DataFrame) -> dict[str, Any]:
 
 
 @callback(
+    Output("fighter-headshot", "src"),
+    [Input("fighter-select", "value")],
+)
+def update_headshot(fighter: str):
+    fighter_uid = fighter_uid_map.get(fighter)
+    if not fighter_uid:
+        return ""
+    headshot = get_headshot_base64(fighter_uid)
+    return headshot if headshot else ""
+
+
+@callback(
     [
         Output("total-fights", "children"),
         Output("record", "children"),
         Output("finish-rate", "children"),
     ],
-    [
-        Input("fighter-select", "value"),
-        Input("date-range", "start_date"),
-        Input("date-range", "end_date"),
-        Input("decision-filter", "value"),
-        Input("division-filter", "value"),
-    ],
+    [Input("fighter-select", "value")],
 )
-def update_summary_cards(
-    fighter: str,
-    start_date: str | None,
-    end_date: str | None,
-    decisions: list[str] | None,
-    divisions: list[str] | None,
-):
-    df_filtered = filter_data(
-        df, fighter, start_date, end_date, decisions, divisions
-    )
+def update_summary_cards(fighter: str):
+    df_filtered = filter_data(df, fighter)
     summary = get_fighter_summary(df_filtered)
 
     record = f"{summary['wins']}-{summary['losses']}-{summary['draws']}"
@@ -567,24 +553,10 @@ def update_summary_cards(
 
 @callback(
     Output("career-timeline", "figure"),
-    [
-        Input("fighter-select", "value"),
-        Input("date-range", "start_date"),
-        Input("date-range", "end_date"),
-        Input("decision-filter", "value"),
-        Input("division-filter", "value"),
-    ],
+    [Input("fighter-select", "value")],
 )
-def update_career_timeline(
-    fighter: str,
-    start_date: str | None,
-    end_date: str | None,
-    decisions: list[str] | None,
-    divisions: list[str] | None,
-):
-    df_filtered = filter_data(
-        df, fighter, start_date, end_date, decisions, divisions
-    )
+def update_career_timeline(fighter: str):
+    df_filtered = filter_data(df, fighter)
 
     if df_filtered.empty:
         fig = go.Figure()
@@ -673,24 +645,10 @@ def update_career_timeline(
 
 @callback(
     Output("win-method-chart", "figure"),
-    [
-        Input("fighter-select", "value"),
-        Input("date-range", "start_date"),
-        Input("date-range", "end_date"),
-        Input("decision-filter", "value"),
-        Input("division-filter", "value"),
-    ],
+    [Input("fighter-select", "value")],
 )
-def update_win_method_chart(
-    fighter: str,
-    start_date: str | None,
-    end_date: str | None,
-    decisions: list[str] | None,
-    divisions: list[str] | None,
-):
-    df_filtered = filter_data(
-        df, fighter, start_date, end_date, decisions, divisions
-    )
+def update_win_method_chart(fighter: str):
+    df_filtered = filter_data(df, fighter)
 
     if df_filtered.empty:
         fig = go.Figure()
@@ -757,24 +715,10 @@ def update_win_method_chart(
         Output("fight-history-table", "data"),
         Output("fight-history-table", "style_data_conditional"),
     ],
-    [
-        Input("fighter-select", "value"),
-        Input("date-range", "start_date"),
-        Input("date-range", "end_date"),
-        Input("decision-filter", "value"),
-        Input("division-filter", "value"),
-    ],
+    [Input("fighter-select", "value")],
 )
-def update_fight_history(
-    fighter: str,
-    start_date: str | None,
-    end_date: str | None,
-    decisions: list[str] | None,
-    divisions: list[str] | None,
-):
-    df_filtered = filter_data(
-        df, fighter, start_date, end_date, decisions, divisions
-    )
+def update_fight_history(fighter: str):
+    df_filtered = filter_data(df, fighter)
 
     if df_filtered.empty:
         return [], [], []
@@ -859,24 +803,10 @@ def update_fight_history(
 
 @callback(
     Output("accuracy-trend", "figure"),
-    [
-        Input("fighter-select", "value"),
-        Input("date-range", "start_date"),
-        Input("date-range", "end_date"),
-        Input("decision-filter", "value"),
-        Input("division-filter", "value"),
-    ],
+    [Input("fighter-select", "value")],
 )
-def update_accuracy_trend(
-    fighter: str,
-    start_date: str | None,
-    end_date: str | None,
-    decisions: list[str] | None,
-    divisions: list[str] | None,
-):
-    df_filtered = filter_data(
-        df, fighter, start_date, end_date, decisions, divisions
-    )
+def update_accuracy_trend(fighter: str):
+    df_filtered = filter_data(df, fighter)
 
     if df_filtered.empty:
         fig = px.line()
@@ -915,24 +845,10 @@ def update_accuracy_trend(
 
 @callback(
     Output("target-distribution", "figure"),
-    [
-        Input("fighter-select", "value"),
-        Input("date-range", "start_date"),
-        Input("date-range", "end_date"),
-        Input("decision-filter", "value"),
-        Input("division-filter", "value"),
-    ],
+    [Input("fighter-select", "value")],
 )
-def update_target_distribution(
-    fighter: str,
-    start_date: str | None,
-    end_date: str | None,
-    decisions: list[str] | None,
-    divisions: list[str] | None,
-):
-    df_filtered = filter_data(
-        df, fighter, start_date, end_date, decisions, divisions
-    )
+def update_target_distribution(fighter: str):
+    df_filtered = filter_data(df, fighter)
 
     if df_filtered.empty:
         fig = px.bar()
@@ -988,24 +904,10 @@ def update_target_distribution(
 
 @callback(
     Output("strikes-comparison", "figure"),
-    [
-        Input("fighter-select", "value"),
-        Input("date-range", "start_date"),
-        Input("date-range", "end_date"),
-        Input("decision-filter", "value"),
-        Input("division-filter", "value"),
-    ],
+    [Input("fighter-select", "value")],
 )
-def update_strikes_comparison(
-    fighter: str,
-    start_date: str | None,
-    end_date: str | None,
-    decisions: list[str] | None,
-    divisions: list[str] | None,
-):
-    df_filtered = filter_data(
-        df, fighter, start_date, end_date, decisions, divisions
-    )
+def update_strikes_comparison(fighter: str):
+    df_filtered = filter_data(df, fighter)
 
     if df_filtered.empty:
         fig = px.bar()
