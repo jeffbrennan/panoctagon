@@ -28,3 +28,4 @@ data/dagster/*
 helpers/
 
 .user.yml
+*.duckdb
