@@ -2,7 +2,7 @@ from pathlib import Path
 
 import bs4
 import requests
-from sqlmodel import col, Session, select
+from sqlmodel import Session, col, select
 
 from panoctagon.common import (
     create_header,
@@ -33,7 +33,7 @@ class HeadshotParsingResult(ParsingResult):
 
 def parse_headshot(bio: FileContents) -> HeadshotParsingResult:
     if bio.file_num % 100 == 0:
-        title = f"[{bio.file_num:05d} / {bio.n_files-1:05d}]"
+        title = f"[{bio.file_num:05d} / {bio.n_files - 1:05d}]"
         print(create_header(80, title, False, "."))
 
     headshot_dir = (
@@ -58,10 +58,10 @@ def parse_headshot(bio: FileContents) -> HeadshotParsingResult:
         [
             i["src"]
             for i in images
-            if fighter_name.lower() in i["src"].lower()
-            or fighter_name.upper() in i["src"].upper()
-            or fighter_name_last_first.lower() in i["src"].lower()
-            or fighter_name_last_first.upper() in i["src"].upper()
+            if fighter_name.lower() in str(i["src"]).lower()
+            or fighter_name.upper() in str(i["src"]).upper()
+            or fighter_name_last_first.lower() in str(i["src"]).lower()
+            or fighter_name_last_first.upper() in str(i["src"]).upper()
             and (
                 "headshot" in "".join(i["class"]).lower()
                 or "profile" in "".join(i["class"]).lower()
@@ -78,7 +78,7 @@ def parse_headshot(bio: FileContents) -> HeadshotParsingResult:
         )
 
     for url in fighter_image_urls:
-        url_clean = url.split("?")[0]
+        url_clean = str(url).split("?")[0]
         if "full_body" in url:
             image_type = "full"
         else:
@@ -93,7 +93,9 @@ def parse_headshot(bio: FileContents) -> HeadshotParsingResult:
     )
 
 
-def write_headshot_results_to_db(headshots: list[HeadshotParsingResult]) -> None:
+def write_headshot_results_to_db(
+    headshots: list[HeadshotParsingResult],
+) -> None:
     engine = get_engine()
 
     print(f"[n={len(headshots):5,d}] updating records in `UFCFighter`")

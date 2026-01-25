@@ -56,7 +56,7 @@ def parse_fighter(fighter: FileContents) -> FighterParsingResult:
         if nickname == "":
             nickname = None
     all_stats_raw = {}
-    stats = fighter_html.findAll("li", class_="b-list__box-list-item")
+    stats = fighter_html.find_all("li", class_="b-list__box-list-item")
     stats_bio = stats[0:5]
     for stat in stats_bio:
         stat_split = stat.text.strip().split(":")

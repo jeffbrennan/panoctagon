@@ -17,6 +17,7 @@ scratch/
 target/
 logs/
 dbt_packages/
+.venv/
 tmp*
 
 *.env
@@ -25,3 +26,6 @@ tmp*
 data/dagster/*
 !data/dagster/dagster.yaml
 helpers/
+
+.user.yml
+*.duckdb

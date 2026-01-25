@@ -102,8 +102,20 @@ def get_fight_uids(event: EventToParse) -> FightUidResult:
     return FightUidResult(success=True, uids=fight_uids, message=None)
 
 
-def get_fights_from_event(event: EventToParse) -> FightScrapingResult:
+def get_fights_from_event(event: EventToParse, force: bool) -> FightScrapingResult:
     header_title = f"[{event.i:03d}/{event.n_events:03d}] {event.uid}"
+    downloads = [i.stem for i in event.base_dir.glob("*.html")]
+    downloaded_events = sorted(set([i.split("_")[0] for i in downloads]))
+
+    if event.uid in downloaded_events and not force:
+        return FightScrapingResult(
+            event=event,
+            write=None,
+            n_fight_links=None,
+            success=True,
+            message="event already downloaded",
+        )
+
     fight_uid_result = get_fight_uids(event)
     if not fight_uid_result.success or fight_uid_result.uids is None:
         return FightScrapingResult(
@@ -114,7 +126,7 @@ def get_fights_from_event(event: EventToParse) -> FightScrapingResult:
             message=fight_uid_result.message,
         )
 
-    downloaded_fights = [i.stem for i in event.base_dir.glob("*.html")]
+    downloaded_fights = sorted(set([i.split("_")[1] for i in downloads]))
     configs = [
         ScrapingConfig(
             uid=fight_uid,

@@ -23,7 +23,7 @@ class Promotions(SQLModel, table=True):
 
 class Divisions(SQLModel, table=True):
     __table_args__ = (UniqueConstraint("promotion_uid", "name", name="divisions_pk"),)
-    promotion_uid: str = Field(primary_key=True, foreign_key="promotions.promotion_uid")
+    promotion_uid: str = Field(primary_key=True)
     division_uid: str = Field(primary_key=True)
     name: str
     weight_lbs: Optional[int]
@@ -60,15 +60,18 @@ class UFCFighter(SQLModel, table=True):
 
 class UFCFight(SQLModel, table=True):
     __tablename__ = "ufc_fights"  # pyright: ignore [reportAssignmentType]
-    __table_args__ = (UniqueConstraint("event_uid", "fight_uid", name="fight_pk"),)
+    __table_args__ = (
+        UniqueConstraint("event_uid", "fight_uid", name="fight_pk"),
+        UniqueConstraint("fight_uid", name="fight_uid_unique"),
+    )
 
-    event_uid: str = Field(primary_key=True, foreign_key="ufc_events.event_uid")
+    event_uid: str = Field(primary_key=True)
     fight_uid: str = Field(primary_key=True)
     fight_style: FightStyle
     fight_type: Optional[FightType] = None
     fight_division: Optional[UFCDivisionNames] = None
-    fighter1_uid: str = Field(foreign_key="ufc_fighters.fighter_uid")
-    fighter2_uid: str = Field(foreign_key="ufc_fighters.fighter_uid")
+    fighter1_uid: str
+    fighter2_uid: str
     fighter1_result: Optional[FightResult] = None
     fighter2_result: Optional[FightResult] = None
     decision: Optional[Decision] = None
@@ -79,8 +82,8 @@ class UFCFight(SQLModel, table=True):
 
 class UFCFightStats(SQLModel, table=True):
     __tablename__ = "ufc_fight_stats"  # pyright: ignore
-    fight_uid: str = Field(primary_key=True, foreign_key="ufc_fights.fight_uid")
-    fighter_uid: str = Field(primary_key=True, foreign_key="ufc_fighters.fighter_uid")
+    fight_uid: str = Field(primary_key=True)
+    fighter_uid: str = Field(primary_key=True)
     round_num: int = Field(primary_key=True)
     knockdowns: Optional[int] = None
     total_strikes_landed: Optional[int] = None

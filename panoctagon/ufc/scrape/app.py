@@ -1,7 +1,5 @@
 import random
 import time
-from concurrent.futures import ProcessPoolExecutor
-from itertools import repeat
 from pathlib import Path
 from typing import Optional
 
@@ -67,9 +65,9 @@ def events(force: bool = False) -> int:
 
 
 @app.command()
-def bios(force: bool = False, sequential: bool = False, n: Optional[int] = None) -> int:
+def bios(force: bool = False, n: Optional[int] = None) -> int:
     setup = setup_panoctagon(title="Panoctagon Fighter Bio Scraper")
-    output_dir = Path(__file__).parents[2] / "data" / "raw" / "ufc" / "fighter_bios"
+    output_dir = Path(__file__).parents[3] / "data" / "raw" / "ufc" / "fighter_bios"
     output_dir.mkdir(exist_ok=True, parents=True)
 
     fighters_to_download = get_unparsed_fighters()
@@ -81,26 +79,18 @@ def bios(force: bool = False, sequential: bool = False, n: Optional[int] = None)
         fighters_to_download = random.sample(fighters_to_download, n)
 
     n_fighters_to_download = len(fighters_to_download)
-    n_workers = setup.cpu_count
-    if n_fighters_to_download < setup.cpu_count:
-        n_workers = n_fighters_to_download
 
     start_header = create_header(
         80, f"SCRAPING n={n_fighters_to_download} Fighter Bios", True, "-"
     )
     print(start_header)
     start_time = time.time()
-    if sequential or n_fighters_to_download < setup.cpu_count:
-        results = [
-            get_fighter_bio(fighter, output_dir) for fighter in fighters_to_download
-        ]
-    else:
-        with ProcessPoolExecutor(max_workers=n_workers) as executor:
-            results = list(
-                executor.map(get_fighter_bio, fighters_to_download, repeat(output_dir))
-            )
-    end_time = time.time()
+    results = [
+        get_fighter_bio(fighter, output_dir, i, len(fighters_to_download))
+        for i, fighter in enumerate(fighters_to_download, 1)
+    ]
 
+    end_time = time.time()
     bios_downloaded = 0
     bios_deleted = 0
     for result in results:
@@ -127,12 +117,12 @@ def bios(force: bool = False, sequential: bool = False, n: Optional[int] = None)
 
 
 @app.command()
-def fighters(sequential: bool = False) -> int:
+def fighters() -> int:
     setup = setup_panoctagon(
         "Panoctagon UFC Fighter Scraper",
     )
 
-    output_dir = Path(__file__).parents[2] / "data" / "raw" / "ufc" / "fighters"
+    output_dir = Path(__file__).parents[3] / "data" / "raw" / "ufc" / "fighters"
     output_dir.mkdir(exist_ok=True, parents=True)
 
     all_fighter_uids = get_all_fighter_uids()
@@ -163,11 +153,7 @@ def fighters(sequential: bool = False) -> int:
     ]
 
     print(create_header(80, f"SCRAPING n={n_fighters} fighters", True, "-"))
-    if sequential or n_fighters < setup.cpu_count:
-        results = [scrape_fighter(i) for i in fighters_to_scrape]
-    else:
-        with ProcessPoolExecutor(max_workers=setup.cpu_count) as executor:
-            results = list(executor.map(scrape_fighter, fighters_to_scrape))
+    results = [scrape_fighter(i) for i in fighters_to_scrape]
 
     successes = [i for i in results if i.success]
     n_successes = len(successes)
@@ -188,11 +174,10 @@ def fighters(sequential: bool = False) -> int:
 
 
 @app.command()
-def fights(force: bool = False, sequential: bool = False) -> int:
+def fights(force: bool = False) -> int:
     setup = setup_panoctagon(title="Panoctagon UFC Fight Scraper")
 
-    cpu_count = setup.cpu_count
-    output_dir = Path(__file__).parents[2] / "data" / "raw" / "ufc" / "fights"
+    output_dir = Path(__file__).parents[3] / "data" / "raw" / "ufc" / "fights"
     output_dir.mkdir(exist_ok=True, parents=True)
 
     event_uids = read_event_uids(force)
@@ -207,20 +192,13 @@ def fights(force: bool = False, sequential: bool = False) -> int:
         for i, uid in enumerate(event_uids)
     ]
 
-    n_workers = cpu_count
-    if len(events_to_parse) < cpu_count:
-        n_workers = len(events_to_parse)
-
     start_header = create_header(
         80, f"SCRAPING n={len(events_to_parse)} UFC EVENTS", True, "-"
     )
     print(start_header)
     start_time = time.time()
-    if sequential or len(events_to_parse) < cpu_count:
-        results = [get_fights_from_event(event) for event in events_to_parse]
-    else:
-        with ProcessPoolExecutor(max_workers=n_workers) as executor:
-            results = list(executor.map(get_fights_from_event, events_to_parse))
+
+    results = [get_fights_from_event(event, force) for event in events_to_parse]
     end_time = time.time()
 
     fights_downloaded = 0

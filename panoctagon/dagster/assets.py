@@ -1,15 +1,16 @@
 from typing import Any
 
-from dagster import AssetExecutionContext, asset, multi_asset, AssetSpec
 from dagster_dbt import DbtCliResource, dbt_assets
 
-import panoctagon.ufc.scrape.app as scrape
 import panoctagon.ufc.parse.app as parse
+import panoctagon.ufc.scrape.app as scrape
+from dagster import AssetExecutionContext, AssetSpec, asset, multi_asset
 from panoctagon.divisions import setup_divisions
 from panoctagon.promotions import setup_promotions
+
 from .project import panoctagon_project
 
-db_path = panoctagon_project.project_dir.joinpath("data/panoctagon_orm.db")
+db_path = panoctagon_project.project_dir.joinpath("data/panoctagon_orm.duckdb")
 
 
 @dbt_assets(manifest=panoctagon_project.manifest_path)
@@ -17,7 +18,7 @@ def panoctagon_dbt_assets(context: AssetExecutionContext, dbt: DbtCliResource) -
     yield from dbt.cli(["build"], context=context).stream()
 
 
-@asset(compute_kind="python", key=["ufc_events"])
+@asset(compute_kind="python", key=["ufc_events"], deps=["divisions"])
 def dagster_scrape_events(context: AssetExecutionContext) -> None:
     n_new_events = scrape.events()
     context.add_output_metadata({"n_records": n_new_events})
@@ -67,7 +68,7 @@ def dagster_parse_fighter_bio(context: AssetExecutionContext) -> None:
     context.add_output_metadata({"n_records": n_bios})
 
 
-@asset(compute_kind="python", key=["divisions"])
+@asset(compute_kind="python", key=["divisions"], deps=["promotions"])
 def dagster_divisions():
     setup_divisions()
 

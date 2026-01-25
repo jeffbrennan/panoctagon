@@ -1,9 +1,11 @@
-from dash import Dash, dash_table, dcc, callback, Output, Input
+from typing import Any
+
+import dash_mantine_components as dmc
 import pandas as pd
 import plotly.express as px
-import dash_mantine_components as dmc
+from dash import Dash, Input, Output, callback, dash_table, dcc
+
 from panoctagon.common import get_engine
-from typing import Any
 
 
 def get_tbl_cols() -> list[str]:
@@ -133,44 +135,48 @@ if not isinstance(initial_fighter, str):
     raise TypeError()
 
 app = Dash(__name__)
-server=app.server
+server = app.server
 
-app.layout = dmc.Container(
-    [
-        dmc.Title("Panoctagon", color="blue", size="h3"),
-        dmc.TextInput(
-            w="200",
-            placeholder="Enter Fighter Name",
-            label="Fighter Name",
-            id="fighter_name",
-            value=initial_fighter,
-        ),
-        dmc.RadioGroup(
-            [
-                dmc.Radio(i, value=i)
-                for i in ["total_strikes_landed", "takedowns_landed"]
-            ],
-            id="my-dmc-radio-item",
-            value="total_strikes_landed",
-            size="sm",
-        ),
-        dmc.Stack(
-            [
-                dash_table.DataTable(
-                    id="table-placeholder",
-                    columns=[{"name": i, "id": i} for i in df[get_tbl_cols()].columns],
-                    sort_action="native",
-                    filter_action="native",
-                    style_table={
-                        "height": "250px",
-                        "overflowX": "scroll",
-                        "overflowY": "scroll",
-                    },
-                ),
-                dcc.Graph(figure={}, id="graph-placeholder"),
-            ]
-        ),
-    ]
+app.layout = dmc.MantineProvider(
+    dmc.Container(
+        [
+            dmc.Title("Panoctagon", c="blue", size="h3"),
+            dmc.TextInput(
+                w="200",
+                placeholder="Enter Fighter Name",
+                label="Fighter Name",
+                id="fighter_name",
+                value=initial_fighter,
+            ),
+            dmc.RadioGroup(
+                [
+                    dmc.Radio(i, value=i)
+                    for i in ["total_strikes_landed", "takedowns_landed"]
+                ],
+                id="my-dmc-radio-item",
+                value="total_strikes_landed",
+                size="sm",
+            ),
+            dmc.Stack(
+                [
+                    dash_table.DataTable(
+                        id="table-placeholder",
+                        columns=[
+                            {"name": i, "id": i} for i in df[get_tbl_cols()].columns
+                        ],
+                        sort_action="native",
+                        filter_action="native",
+                        style_table={
+                            "height": "250px",
+                            "overflowX": "scroll",
+                            "overflowY": "scroll",
+                        },
+                    ),
+                    dcc.Graph(figure={}, id="graph-placeholder"),
+                ]
+            ),
+        ]
+    )
 )
 
 
@@ -220,4 +226,4 @@ def update_graph(metric: str, fighter_name: str):
 
 
 if __name__ == "__main__":
-    app.run_server(debug=True, host="0.0.0.0", port=8050)
+    app.run(debug=True, host="0.0.0.0", port=8050)

@@ -11,7 +11,10 @@ from panoctagon.ufc.parse.bios import (
     parse_headshot,
     write_headshot_results_to_db,
 )
-from panoctagon.ufc.parse.fighters import parse_fighter, write_fighter_results_to_db
+from panoctagon.ufc.parse.fighters import (
+    parse_fighter,
+    write_fighter_results_to_db,
+)
 from panoctagon.ufc.parse.fights import (
     parse_fight,
     write_fight_results_to_db,
@@ -24,9 +27,9 @@ app = typer.Typer()
 @app.command(name="bios")
 def bios(force: bool = False) -> int:
     setup = setup_panoctagon(title="Fighter Bio Parser")
-    bio_dir = Path(__file__).parents[2] / "data" / "raw" / "ufc" / "fighter_bios"
+    bio_dir = Path(__file__).parents[3] / "data" / "raw" / "ufc" / "fighter_bios"
     headshot_dir = (
-        Path(__file__).parents[2] / "data" / "raw" / "ufc" / "fighter_headshots"
+        Path(__file__).parents[3] / "data" / "raw" / "ufc" / "fighter_headshots"
     )
 
     fighter_bios = get_html_files(
@@ -42,8 +45,7 @@ def bios(force: bool = False) -> int:
         return 0
 
     print(create_header(80, f"PARSING n={len(fighter_bios)} fighter bios", True, "-"))
-    with ProcessPoolExecutor(max_workers=setup.cpu_count - 1) as executor:
-        headshot_results = list(executor.map(parse_headshot, fighter_bios))
+    headshot_results = [parse_headshot(bio) for bio in fighter_bios]
 
     headshots_on_disk = list(headshot_dir.glob("*.png"))
     headshot_uids_on_disk = [i.stem.split("_")[0] for i in headshots_on_disk]
@@ -86,7 +88,7 @@ def fighters(force: bool = False) -> int:
 @app.command(name="fights")
 def fights(force: bool = False) -> int:
     setup = setup_panoctagon(title="Panoctagon UFC Fight Parser")
-    fight_dir = Path(__file__).parents[2] / "data/raw/ufc/fights"
+    fight_dir = Path(__file__).parents[3] / "data/raw/ufc/fights"
     fights_to_parse = get_html_files(
         path=fight_dir,
         uid_col=col(UFCFight.fight_uid),

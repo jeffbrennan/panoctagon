@@ -12,6 +12,7 @@ import requests
 from pydantic import BaseModel
 from sqlalchemy import Engine
 from sqlalchemy.orm import Mapped
+from sqlalchemy.pool import NullPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from panoctagon.enums import Symbols
@@ -39,9 +40,14 @@ class PanoctagonSetup(BaseModel):
 
 
 def get_engine() -> Engine:
-    db_path = Path(__file__).parent.parent / "data" / "panoctagon_orm.db"
-    engine_path = "sqlite:///" + str(db_path.resolve())
-    engine = create_engine(engine_path, echo=False)
+    db_path = Path(__file__).parent.parent / "data" / "panoctagon_orm.duckdb"
+    engine_path = "duckdb:///" + str(db_path.resolve())
+    engine = create_engine(
+        engine_path,
+        echo=False,
+        poolclass=NullPool,
+        connect_args={"read_only": False},
+    )
     return engine
 
 
@@ -148,7 +154,11 @@ def report_stats(stats: RunStats):
 
 
 def check_write_success(config: ScrapingConfig) -> bool:
-    issue_indicators = ["Internal Server Error", "Too Many Requests", "Search results"]
+    issue_indicators = [
+        "Internal Server Error",
+        "Too Many Requests",
+        "Search results",
+    ]
     with config.path.open() as f:
         contents = "".join(f.readlines())
 
@@ -196,7 +206,9 @@ def get_table_uids(
 
 
 def scrape_page(
-    config: ScrapingConfig, max_attempts: int = 3, sleep_multiplier_increment: int = 10
+    config: ScrapingConfig,
+    max_attempts: int = 3,
+    sleep_multiplier_increment: int = 10,
 ) -> ScrapingWriteResult:
     write_success = False
     attempts = 0
@@ -275,7 +287,7 @@ def write_data_to_db(data: list[SQLModelType]) -> None:
 def get_table_rows(
     soup: bs4.BeautifulSoup, table_num: int = 0
 ) -> bs4.ResultSet[bs4.Tag]:
-    tables = soup.findAll("table")
+    tables = soup.find_all("table")
     table = tables[table_num]
     if table is None:
         raise ValueError("No table found")
@@ -311,7 +323,6 @@ def write_parsing_timestamp(
     uid_col: Mapped[Any],
     result_uids: list[str],
 ) -> None:
-
     current_timestamp = datetime.datetime.now().isoformat(timespec="seconds")
     print(f"updating {len(result_uids)} rows")
     start = time.time()
@@ -323,4 +334,4 @@ def write_parsing_timestamp(
             session.add(record)
             session.commit()
     end = time.time()
-    print(f"elapsed time: {end-start:.2f} seconds")
+    print(f"elapsed time: {end - start:.2f} seconds")
