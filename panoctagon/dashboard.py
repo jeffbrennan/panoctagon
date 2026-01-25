@@ -359,23 +359,25 @@ app.layout = dmc.MantineProvider(
                                         sort_action="native",
                                         filter_action="native",
                                         style_table={
-                                            "height": "600px",
+                                            "height": "800px",
                                             "overflowY": "scroll",
                                         },
-                                        style_data_conditional=[
+                                        style_data={
+                                            "border": "none",
+                                        },
+                                        style_cell_conditional=[
                                             {
-                                                "if": {
-                                                    "filter_query": "{Result} = WIN"
-                                                },
-                                                "backgroundColor": "#d4edda",
-                                            },
-                                            {
-                                                "if": {
-                                                    "filter_query": "{Result} = LOSS"
-                                                },
-                                                "backgroundColor": "#f8d7da",
+                                                "if": {"column_id": ""},
+                                                "width": "40px",
+                                                "textAlign": "center",
                                             },
                                         ],
+                                        style_data_conditional=[],
+                                        style_header={
+                                            "backgroundColor": "#e9ecef",
+                                            "fontWeight": "bold",
+                                            "border": "none",
+                                        },
                                     ),
                                     value="history",
                                     pt="md",
@@ -408,6 +410,33 @@ app.layout = dmc.MantineProvider(
         header={"height": 60},
     )
 )
+
+
+def format_decision(decision: str) -> str:
+    decision_map = {
+        "UNANIMOUS_DECISION": "Unanimous Decision",
+        "SPLIT_DECISION": "Split Decision",
+        "MAJORITY_DECISION": "Majority Decision",
+        "TKO": "TKO",
+        "KO": "KO",
+        "SUB": "Submission",
+        "DQ": "DQ",
+        "DOC": "Doctor Stoppage",
+        "OVERTURNED": "Overturned",
+        "COULD_NOT_CONTINUE": "Could Not Continue",
+        "OTHER": "Other",
+    }
+    return decision_map.get(decision, decision)
+
+
+def format_result(result: str) -> str:
+    result_map = {
+        "WIN": "W",
+        "LOSS": "L",
+        "DRAW": "D",
+        "NO_CONTEST": "NC",
+    }
+    return result_map.get(result, result)
 
 
 def filter_data(
@@ -589,7 +618,6 @@ def update_career_timeline(
 
     fig.update_layout(
         title=f"{fighter} - Career Timeline",
-        xaxis_title="Fight Date",
         yaxis_title="Strikes Absorbed",
         height=400,
     )
@@ -668,7 +696,6 @@ def update_win_method_chart(
     fig.update_layout(
         barmode="stack",
         title=f"{fighter} - Fight Outcome Distribution",
-        xaxis_title="Number of Fights",
         height=400,
         showlegend=True,
         legend=dict(
@@ -683,6 +710,7 @@ def update_win_method_chart(
     [
         Output("fight-history-table", "columns"),
         Output("fight-history-table", "data"),
+        Output("fight-history-table", "style_data_conditional"),
     ],
     [
         Input("fighter-select", "value"),
@@ -704,7 +732,7 @@ def update_fight_history(
     )
 
     if df_filtered.empty:
-        return [], []
+        return [], [], []
 
     table_df = (
         df_filtered.groupby("fight_uid")
@@ -725,11 +753,13 @@ def update_fight_history(
     )
 
     table_df["event_date"] = table_df["event_date"].dt.strftime("%Y-%m-%d")
+    table_df["decision"] = table_df["decision"].apply(format_decision)
+    table_df["fighter_result"] = table_df["fighter_result"].apply(format_result)
     table_df = table_df.rename(
         columns={
             "event_date": "Date",
             "opponent_name": "Opponent",
-            "fighter_result": "Result",
+            "fighter_result": "",
             "decision": "Method",
             "decision_round": "Round",
             "total_strikes_landed": "Strikes Landed",
@@ -738,12 +768,35 @@ def update_fight_history(
         }
     )
 
-    columns = [
-        {"name": i, "id": i} for i in table_df.columns if i != "fight_uid"
-    ]
-    data = table_df.drop(columns=["fight_uid"]).to_dict("records")
+    column_order = ["", "Date", "Opponent", "Method", "Round", "Strikes Landed", "Strikes Attempted", "Takedowns"]
+    table_df = table_df[column_order]
 
-    return columns, data
+    columns = [{"name": col, "id": col} for col in column_order]
+
+    data = table_df.to_dict("records")
+
+    style_conditional = [
+        {"if": {"row_index": "odd"}, "backgroundColor": "#f9f9f9"}
+    ]
+
+    for i, row in enumerate(data):
+        result = row.get("", "")
+        if result == "W":
+            style_conditional.append({
+                "if": {"row_index": i, "column_id": ""},
+                "backgroundColor": "#d4edda",
+                "color": "darkgreen",
+                "fontWeight": "bold",
+            })
+        elif result == "L":
+            style_conditional.append({
+                "if": {"row_index": i, "column_id": ""},
+                "backgroundColor": "#f8d7da",
+                "color": "darkred",
+                "fontWeight": "bold",
+            })
+
+    return columns, data, style_conditional
 
 
 @callback(
@@ -870,7 +923,6 @@ def update_target_distribution(
         fig.update_layout(
             barmode="stack",
             title=f"{fighter} - Strike Target Distribution",
-            xaxis_title="Fight Date",
             yaxis_title="Strikes Landed",
             height=400,
         )
@@ -937,9 +989,8 @@ def update_strikes_comparison(
         )
 
         fig.update_layout(
-            barmode="group",
+            barmode="stack",
             title=f"{fighter} - Strikes Landed vs Absorbed",
-            xaxis_title="Fight Date",
             yaxis_title="Strikes Landed",
             height=400,
         )
