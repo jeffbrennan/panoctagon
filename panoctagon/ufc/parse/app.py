@@ -28,9 +28,7 @@ app = typer.Typer()
 def bios(force: bool = False) -> int:
     setup = setup_panoctagon(title="Fighter Bio Parser")
     bio_dir = Path(__file__).parents[3] / "data" / "raw" / "ufc" / "fighter_bios"
-    headshot_dir = (
-        Path(__file__).parents[3] / "data" / "raw" / "ufc" / "fighter_headshots"
-    )
+    headshot_dir = Path(__file__).parents[3] / "data" / "raw" / "ufc" / "fighter_headshots"
 
     fighter_bios = get_html_files(
         path=bio_dir,
@@ -50,9 +48,7 @@ def bios(force: bool = False) -> int:
     headshots_on_disk = list(headshot_dir.glob("*.png"))
     headshot_uids_on_disk = [i.stem.split("_")[0] for i in headshots_on_disk]
 
-    headshots_validated = [
-        i for i in headshot_results if i.uid in headshot_uids_on_disk
-    ]
+    headshots_validated = [i for i in headshot_results if i.uid in headshot_uids_on_disk]
     write_headshot_results_to_db(headshots_validated)
     return len(headshots_validated)
 
@@ -105,8 +101,7 @@ def fights(force: bool = False) -> int:
         return 0
 
     print(create_header(80, f"PARSING n={len(fights_to_parse)} fights", True, "-"))
-    with ProcessPoolExecutor(max_workers=setup.cpu_count - 1) as executor:
-        results = list(executor.map(parse_fight, fights_to_parse))
+    results = [parse_fight(fight) for fight in fights_to_parse]
 
     write_fight_results_to_db(results, force)
     write_stats_to_db(results)

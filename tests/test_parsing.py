@@ -48,7 +48,10 @@ def _test_parse_fight_details(
     actual = parse_fight_details(fight_html, event_uid, fight_uid)
     result_matches = actual == expected
     if not result_matches:
-        print(actual.result)
+        if actual is None:
+            print(None)
+        else:
+            print(actual.result)
         print("-----")
         print(expected.result)
         assert result_matches
@@ -80,22 +83,16 @@ def _run_test_parse_details(
     for expected in expected_results:
         fight_html = _get_fight_html(fight_dir, expected.uid)
         event_uid = get_event_uid(fight_html)
-        _test_parse_fight_details(
-            fight_html, event_uid, expected.uid, expected=expected
-        )
+        _test_parse_fight_details(fight_html, event_uid, expected.uid, expected=expected)
 
 
-def _run_total_stats(
-    fight_dir: Path, expected_results: list[TotalStatsParsingResult]
-) -> None:
+def _run_total_stats(fight_dir: Path, expected_results: list[TotalStatsParsingResult]) -> None:
     for expected in expected_results:
         fight_html = _get_fight_html(fight_dir, expected.uid)
         _test_total_stats(fight_html, expected.uid, expected=expected)
 
 
-def _run_sig_stats(
-    fight_dir: Path, expected_results: list[SigStatsParsingResult]
-) -> None:
+def _run_sig_stats(fight_dir: Path, expected_results: list[SigStatsParsingResult]) -> None:
     for expected in expected_results:
         fight_html = _get_fight_html(fight_dir, expected.uid)
         _test_sig_stats(fight_html, expected.uid, expected=expected)

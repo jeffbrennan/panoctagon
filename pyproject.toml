@@ -49,3 +49,6 @@ directory_type = "project"
 
 [tool.dg.project]
 root_module = "panoctagon.dagster"
+
+[tool.ruff]
+line-length = 100

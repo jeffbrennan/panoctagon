@@ -4,6 +4,7 @@ viz playground for app inclusion
 
 import pandas as pd
 import plotly.express as px
+
 from panoctagon.common import get_engine
 
 

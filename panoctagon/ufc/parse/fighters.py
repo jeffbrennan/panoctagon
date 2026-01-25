@@ -32,11 +32,9 @@ class FighterStats(BaseModel):
 
 def parse_fighter(fighter: FileContents) -> FighterParsingResult:
     if fighter.file_num % 100 == 0:
-        print(f"{fighter.file_num:04d} / {fighter.n_files:04d}")
+        print(f"{fighter.file_num + 1:04d} / {fighter.n_files:04d}")
     parsing_issues: list[str] = []
-    fighter_html = bs4.BeautifulSoup(
-        fighter.contents, parser="html.parser", features="lxml"
-    )
+    fighter_html = bs4.BeautifulSoup(fighter.contents, parser="html.parser", features="lxml")
 
     fighter_name_raw = fighter_html.find("span", class_="b-content__title-highlight")
     if fighter_name_raw is None:
@@ -67,9 +65,7 @@ def parse_fighter(fighter: FileContents) -> FighterParsingResult:
         all_stats_raw[col_name] = val
 
     fighter_stats_raw = FighterStatsRaw.model_validate(all_stats_raw)
-    fighter_stats = FighterStats(
-        height_inches=None, stance=None, reach_inches=None, dob=None
-    )
+    fighter_stats = FighterStats(height_inches=None, stance=None, reach_inches=None, dob=None)
 
     parsing_issues = []
 
@@ -87,9 +83,9 @@ def parse_fighter(fighter: FileContents) -> FighterParsingResult:
         fighter_stats.reach_inches = int(fighter_stats_raw.reach)
 
     if fighter_stats_raw.dob is not None:
-        fighter_stats.dob = datetime.strptime(
-            fighter_stats_raw.dob, "%b %d, %Y"
-        ).strftime("%Y-%m-%d")
+        fighter_stats.dob = datetime.strptime(fighter_stats_raw.dob, "%b %d, %Y").strftime(
+            "%Y-%m-%d"
+        )
 
     fighter_parsed = UFCFighter(
         fighter_uid=fighter.uid,
@@ -106,14 +102,10 @@ def parse_fighter(fighter: FileContents) -> FighterParsingResult:
         downloaded_ts=fighter.modified_ts.isoformat(),
     )
 
-    return FighterParsingResult(
-        uid=fighter.uid, result=fighter_parsed, issues=parsing_issues
-    )
+    return FighterParsingResult(uid=fighter.uid, result=fighter_parsed, issues=parsing_issues)
 
 
-def write_fighter_results_to_db(
-    results: list[FighterParsingResult], force_run: bool
-) -> None:
+def write_fighter_results_to_db(results: list[FighterParsingResult], force_run: bool) -> None:
     tbl_name = "ufc_fighters"
     print(create_header(80, tbl_name, True, spacer="-"))
 

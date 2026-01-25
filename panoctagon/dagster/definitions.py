@@ -14,6 +14,7 @@ from .assets import (
     dagster_scrape_fights,
     panoctagon_dbt_assets,
 )
+from .jobs import refresh
 from .project import panoctagon_project
 from .schedules import schedules
 
@@ -30,6 +31,7 @@ defs = Definitions(
         dagster_promotions,
         dagster_divisions,
     ],
+    jobs=[refresh],
     schedules=schedules,
     resources={
         "dbt": DbtCliResource(project_dir=panoctagon_project),

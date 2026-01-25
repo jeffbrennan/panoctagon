@@ -42,8 +42,7 @@ def get_round_vals(
     round_data: bs4.Tag, actual_cols: list[str], expected_cols: list[str]
 ) -> list[dict[str, Any]]:
     vals = [
-        val.text.strip()
-        for val in round_data.find_all("p", class_="b-fight-details__table-text")
+        val.text.strip() for val in round_data.find_all("p", class_="b-fight-details__table-text")
     ]
     f1_vals = [val for i, val in enumerate(vals) if i % 2 == 0]
     f2_vals = [val for i, val in enumerate(vals) if i % 2 == 1]
@@ -61,12 +60,8 @@ def get_round_vals(
     return all_sig_stats_raw
 
 
-def parse_sig_stats(
-    fight_html: bs4.BeautifulSoup, fight_uid: str
-) -> SigStatsParsingResult:
-    sig_stats_cols = [
-        i.text.strip() for i in fight_html.find_all("table")[2].find_all("th")
-    ]
+def parse_sig_stats(fight_html: bs4.BeautifulSoup, fight_uid: str) -> SigStatsParsingResult:
+    sig_stats_cols = [i.text.strip() for i in fight_html.find_all("table")[2].find_all("th")]
     expected_cols = [
         "Fighter",
         "Sig. str",
@@ -102,8 +97,8 @@ def parse_sig_stats(
             sig_strikes_leg_landed, sig_strikes_leg_attempted = get_split_stat(
                 sig_stats_raw["Leg"], "of"
             )
-            sig_strikes_distance_landed, sig_strikes_distance_attempted = (
-                get_split_stat(sig_stats_raw["Distance"], "of")
+            sig_strikes_distance_landed, sig_strikes_distance_attempted = get_split_stat(
+                sig_stats_raw["Distance"], "of"
             )
             sig_strikes_clinch_landed, sig_strikes_clinch_attempted = get_split_stat(
                 sig_stats_raw["Clinch"], "of"
@@ -137,12 +132,8 @@ def parse_sig_stats(
     return SigStatsParsingResult(uid=fight_uid, result=sig_stats, issues=issues)
 
 
-def parse_round_totals(
-    fight_html: bs4.BeautifulSoup, fight_uid: str
-) -> TotalStatsParsingResult:
-    totals_cols = [
-        i.text.strip() for i in fight_html.find_all("table")[0].find_all("th")
-    ]
+def parse_round_totals(fight_html: bs4.BeautifulSoup, fight_uid: str) -> TotalStatsParsingResult:
+    totals_cols = [i.text.strip() for i in fight_html.find_all("table")[0].find_all("th")]
     expected_cols = [
         "Fighter",
         "KD",
@@ -167,16 +158,12 @@ def parse_round_totals(
             total_strikes_landed, total_strikes_attempted = get_split_stat(
                 totals_raw["Total str."], "of"
             )
-            takedowns_landed, takedowns_attempted = get_split_stat(
-                totals_raw["Td"], "of"
-            )
+            takedowns_landed, takedowns_attempted = get_split_stat(totals_raw["Td"], "of")
             control_time = totals_raw["Ctrl"].split(":")
             if control_time[0] == "--":
                 control_time_seconds = None
             else:
-                control_time_seconds = (int(control_time[0]) * 60) + (
-                    int(control_time[1])
-                )
+                control_time_seconds = (int(control_time[0]) * 60) + (int(control_time[1]))
             totals.append(
                 RoundTotalStats(
                     fight_uid=fight_uid,
@@ -197,9 +184,7 @@ def parse_round_totals(
 
 
 def get_event_uid(fight_html: bs4.BeautifulSoup) -> str:
-    event_uid_results = [
-        i for i in fight_html.find_all("a") if "event-details" in str(i)
-    ]
+    event_uid_results = [i for i in fight_html.find_all("a") if "event-details" in str(i)]
     if len(event_uid_results) != 1:
         raise ValueError(f"Expected exactly one event, got {len(event_uid_results)}")
 
@@ -209,13 +194,12 @@ def get_event_uid(fight_html: bs4.BeautifulSoup) -> str:
 
 def parse_fight_details(
     fight_html: bs4.BeautifulSoup, event_uid: str, fight_uid: str
-) -> FightDetailsParsingResult:
+) -> FightDetailsParsingResult | None:
     tbl = get_table_rows(fight_html)
     parsing_issues: list[str] = []
 
     detail_headers = [
-        i.text.strip()
-        for i in fight_html.find_all("i", class_="b-fight-details__label")
+        i.text.strip() for i in fight_html.find_all("i", class_="b-fight-details__label")
     ][1:]
     detail_headers = [i.replace(":", "").strip() for i in detail_headers]
 
@@ -259,11 +243,15 @@ def parse_fight_details(
             decision = None
 
     f1_uid, f2_uid = [str(i["href"]).split("/")[-1] for i in tbl[0].find_all("a")]
-    f1_result_raw, f2_result_raw = [
-        i.find_all("i")[0].text.strip()
-        for i in fight_html.find_all("div", _class="b-fight-details__person")
-    ]
 
+    fight_details = [
+        i.find_all("i")[0].text.strip()
+        for i in fight_html.find_all("div", class_="b-fight-details__person")
+    ]
+    if len(fight_details) == 0:
+        return None
+
+    f1_result_raw, f2_result_raw = fight_details
     fight_results: list[Optional[FightResult]] = []
     for result in [f1_result_raw, f2_result_raw]:
         result_clean = (
@@ -282,9 +270,7 @@ def parse_fight_details(
 
     f1_result, f2_result = fight_results
 
-    division_fight_type_raw = fight_html.find(
-        "i", class_="b-fight-details__fight-title"
-    )
+    division_fight_type_raw = fight_html.find("i", class_="b-fight-details__fight-title")
     weight_division = None
     fight_type = None
     if division_fight_type_raw is not None:
@@ -412,7 +398,7 @@ def parse_fight(
 ) -> FightParsingResult:
     file_issues: list[str] = []
     if fight_contents.file_num % 100 == 0:
-        title = f"[{fight_contents.file_num:05d} / {fight_contents.n_files - 1:05d}]"
+        title = f"[{fight_contents.file_num + 1:05d} / {fight_contents.n_files:05d}]"
         print(create_header(80, title, False, "."))
 
     fight_html = bs4.BeautifulSoup(fight_contents.contents, features="lxml")
@@ -421,9 +407,7 @@ def parse_fight(
         return check_results
 
     event_uid = get_event_uid(fight_html)
-    fight_parsing_results = parse_fight_details(
-        fight_html, event_uid, fight_contents.uid
-    )
+    fight_parsing_results = parse_fight_details(fight_html, event_uid, fight_contents.uid)
     total_stats = parse_round_totals(fight_html, fight_contents.uid)
     sig_stats = parse_sig_stats(fight_html, fight_contents.uid)
 
@@ -436,15 +420,14 @@ def parse_fight(
     )
 
 
-def write_fight_results_to_db(
-    results: list[FightParsingResult], force_run: bool
-) -> None:
+def write_fight_results_to_db(results: list[FightParsingResult], force_run: bool) -> None:
     tbl_name = "ufc_fights"
     print(create_header(80, tbl_name, True, spacer="-"))
 
     clean_fight_results = handle_parsing_issues(
         [i.fight_result for i in results if i.fight_result is not None], False
     )
+
     if len(clean_fight_results) == 0:
         print("no fights to write")
         return
@@ -491,5 +474,4 @@ def write_stats_to_db(results: list[FightParsingResult]) -> None:
         return
 
     delete_existing_records(UFCFightStats, col(UFCFightStats.fight_uid), uids)
-
     write_data_to_db(stats_combined)

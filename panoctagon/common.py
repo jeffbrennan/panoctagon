@@ -85,13 +85,9 @@ def handle_parsing_issues(
                 all_parsing_issues[issue_index].uids += [parsing_result.uid]
                 continue
 
-            all_parsing_issues.append(
-                ParsingIssue(issue=issue, uids=[parsing_result.uid])
-            )
+            all_parsing_issues.append(ParsingIssue(issue=issue, uids=[parsing_result.uid]))
 
-    all_parsing_issues = sorted(
-        all_parsing_issues, key=lambda x: len(x.uids), reverse=True
-    )
+    all_parsing_issues = sorted(all_parsing_issues, key=lambda x: len(x.uids), reverse=True)
 
     n_parsing_issues = len(all_parsing_issues)
     clean_results = parsing_results
@@ -129,9 +125,7 @@ def handle_parsing_issues(
 
         print(create_header(80, "", True, "."))
         print(f"[n={len(problem_uids):5,d}] removing invalid records from insert")
-        clean_results = [
-            i for i in parsing_results if i.uid not in problem_uids_deduped
-        ]
+        clean_results = [i for i in parsing_results if i.uid not in problem_uids_deduped]
     return clean_results
 
 
@@ -139,18 +133,14 @@ def report_stats(stats: RunStats):
     print(create_header(80, "RUN STATS", True, "-"))
 
     if stats.successes is not None and stats.failures is not None:
-        print(
-            f"{Symbols.CHECK.value} {stats.successes} | {Symbols.DELETED.value} {stats.failures}"
-        )
+        print(f"{Symbols.CHECK.value} {stats.successes} | {Symbols.DELETED.value} {stats.failures}")
 
     elapsed_time_seconds = stats.end - stats.start
     print(f"elapsed time: {elapsed_time_seconds:.2f} seconds")
 
     if stats.n_ops is not None:
         elapsed_time_seconds_per_event = elapsed_time_seconds / stats.n_ops
-        print(
-            f"elapsed time per {stats.op_name}: {elapsed_time_seconds_per_event:.2f} seconds"
-        )
+        print(f"elapsed time per {stats.op_name}: {elapsed_time_seconds_per_event:.2f} seconds")
 
 
 def check_write_success(config: ScrapingConfig) -> bool:
@@ -244,11 +234,16 @@ def get_html_files(
     if existing_uids is None:
         files_to_parse = all_files
     else:
-        files_to_parse = [i for i in all_files if i.stem not in existing_uids]
+        files_to_parse = []
+        for f in all_files:
+            uid_parts = f.stem.split("_")
+            if not any(part in existing_uids for part in uid_parts):
+                files_to_parse.append(f)
 
     fight_contents_to_parse: list[FileContents] = []
     for i, fpath in enumerate(files_to_parse):
         uid = fpath.stem
+
         modification_time = datetime.datetime.fromtimestamp(os.path.getmtime(fpath))
         with fpath.open() as f:
             fight_contents_to_parse.append(
@@ -284,9 +279,7 @@ def write_data_to_db(data: list[SQLModelType]) -> None:
         session.commit()
 
 
-def get_table_rows(
-    soup: bs4.BeautifulSoup, table_num: int = 0
-) -> bs4.ResultSet[bs4.Tag]:
+def get_table_rows(soup: bs4.BeautifulSoup, table_num: int = 0) -> bs4.ResultSet[bs4.Tag]:
     tables = soup.find_all("table")
     table = tables[table_num]
     if table is None:
