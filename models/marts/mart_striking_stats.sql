@@ -71,7 +71,6 @@ with
     ),
     sum_by_division_quarter as (
         select
-            c.event_uid,
             strftime('%Y', c.event_date::DATE) || '-01-01' as event_year,
             b.fight_division,
             a.target,
