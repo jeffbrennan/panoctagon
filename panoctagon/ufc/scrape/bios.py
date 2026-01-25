@@ -26,17 +26,27 @@ def get_fighter_bio(
 ) -> FighterBioScrapingResult:
     first_name = "-".join(fighter.first_name.split(" ")).lower().replace(".", "").replace(" ", "")
 
+    uid_map = {
+        "machado-garry": "garry",
+        "alberta-cerra-leon": "alberto-cerro-leon",
+        "alex-ricci": "alessandro-ricci",
+    }
+
     last_name = (
         "-".join(fighter.last_name.split(" "))
         .lower()
         .replace("-jr.", "")
         .replace(".", "")
         .replace("'", "")
-        .replace("machado-garry", "garry")
         .replace(" ", "")
     )
 
     url_uid = f"{first_name}-{last_name}"
+    url_uid = url_uid.removesuffix("-")
+
+    for orig, replacement in uid_map.items():
+        url_uid.replace(orig, replacement)
+
     config = ScrapingConfig(
         base_dir=base_dir,
         uid=url_uid,
@@ -45,7 +55,7 @@ def get_fighter_bio(
         path=base_dir / f"{fighter.fighter_uid}.html",
     )
 
-    write_result = scrape_page(config)
+    write_result = scrape_page(config, max_attempts=1)
     message = ""
     if not write_result.success:
         message = "failed to download"
@@ -57,10 +67,8 @@ def get_fighter_bio(
     else:
         result_indicator = Symbols.DELETED.value
 
-    prefix = f"[{index:03d} / {total_fighters:03d}]"
-    output_message = (
-        f"[{prefix}] {result_indicator} {fighter.first_name} {fighter.last_name} ({url_uid})"
-    )
+    prefix = f"{index:03d} / {total_fighters:03d}"
+    output_message = f"[{prefix}] {result_indicator} {fighter.first_name} {fighter.last_name} ({config.base_url}{url_uid})"
     print(create_header(title=output_message, center=False, spacer=" ", header_length=80))
 
     return FighterBioScrapingResult(
