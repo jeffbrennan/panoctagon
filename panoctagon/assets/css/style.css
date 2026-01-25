@@ -1,0 +1,285 @@
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&display=swap");
+
+body,
+#panoctagon-page,
+.dash-table-container {
+    font-family: "JetBrains Mono", monospace !important;
+    font-weight: 400 !important;
+}
+
+.gtitle,
+.g-gtitle,
+.plotly-graph-div,
+.js-plotly-plot .plotly .modebar,
+.annotation-text,
+.legend-item-text,
+.ytitle,
+.xtitle,
+.tick text,
+.legendtext {
+    font-family: "JetBrains Mono", monospace !important;
+    font-weight: 300 !important;
+}
+
+#panoctagon-page {
+    background-color: rgb(242, 240, 227);
+    min-height: 100vh;
+}
+
+.js-plotly-plot .plotly .svg-container {
+    background-color: transparent !important;
+}
+
+.js-plotly-plot .plotly .main-svg {
+    background-color: transparent !important;
+}
+
+._dash-loading {
+    display: none !important;
+}
+
+.dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner table {
+    border-collapse: collapse !important;
+}
+
+.dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner th {
+    font-family: "JetBrains Mono", monospace !important;
+    font-weight: 600 !important;
+    margin: 0 !important;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+    position: relative;
+    border: none !important;
+    font-size: 0.85em !important;
+}
+
+.dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner td,
+.dash-cell-value {
+    font-family: "JetBrains Mono", monospace !important;
+    font-weight: 300 !important;
+    font-size: 0.9em !important;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+    margin: 0 !important;
+    border-right: none !important;
+    background-color: rgb(242, 240, 227) !important;
+}
+
+td.dash-cell.cell--selected.focused {
+    background-color: transparent !important;
+    outline: none !important;
+}
+
+.dash-table-container .dash-cell-value p {
+    margin-bottom: 0 !important;
+    padding-bottom: 12px !important;
+    padding-top: 12px !important;
+    padding-left: 5px !important;
+    padding-right: 5px !important;
+    text-align: left !important;
+}
+
+.dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner {
+    border: 2px solid #1a1a1a !important;
+    border-radius: 4px !important;
+}
+
+.dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner th {
+    border-bottom: 2px solid #f5f5f5 !important;
+    border-right: 2px solid #f5f5f5 !important;
+    background-color: #1a1a1a !important;
+    color: #f5f5f5 !important;
+}
+
+.dash-table-container
+    .dash-spreadsheet-container
+    .dash-spreadsheet-inner
+    th:last-child {
+    border-right: none !important;
+}
+
+.dash-table-container
+    .dash-spreadsheet-container
+    .dash-spreadsheet-inner
+    .dash-filter {
+    border-right: 2px solid #f5f5f5 !important;
+}
+
+.dash-table-container
+    .dash-spreadsheet-container
+    .dash-spreadsheet-inner
+    .dash-filter
+    > div
+    input[type="text"] {
+    color: #f5f5f5 !important;
+    background-color: #1a1a1a !important;
+}
+
+.dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner td {
+    border-bottom: 1px solid #1a1a1a !important;
+    border-right: 2px solid #1a1a1a !important;
+}
+
+.dash-table-container
+    .dash-spreadsheet-container
+    .dash-spreadsheet-inner
+    tr
+    td:last-child {
+    border-right: none !important;
+}
+
+.dash-table-container
+    .dash-spreadsheet-container
+    .dash-spreadsheet-inner
+    tr:hover
+    td {
+    background-color: rgba(210, 10, 10, 0.15) !important;
+}
+
+.dash-spreadsheet-container .column-header--sort {
+    opacity: 1 !important;
+    padding-left: 5px !important;
+    padding-right: 6px !important;
+    color: #f5f5f5 !important;
+}
+
+.dash-table-container a {
+    color: #1a1a1a !important;
+    text-decoration: none;
+}
+
+.dash-table-container a:hover {
+    text-decoration: underline;
+    color: #d20a0a !important;
+}
+
+.current-page {
+    font-size: 1em !important;
+}
+
+.dash-table-container
+    .previous-next-container
+    .page-number
+    .current-page-container
+    input.current-page {
+    border-bottom: 1px solid #1a1a1a !important;
+}
+
+.modebar {
+    background-color: transparent !important;
+}
+
+.modebar-btn {
+    background-color: transparent !important;
+}
+
+svg.main-svg {
+    background-color: transparent !important;
+}
+
+.mantine-Card-root {
+    background-color: rgb(242, 240, 227) !important;
+}
+
+.mantine-AppShell-header {
+    background-color: rgb(242, 240, 227) !important;
+    border-bottom: 2px solid #1a1a1a !important;
+}
+
+.mantine-AppShell-main {
+    background-color: rgb(242, 240, 227) !important;
+}
+
+.mantine-Tabs-tab {
+    font-family: "JetBrains Mono", monospace !important;
+    font-weight: 600 !important;
+    border: none !important;
+    color: #1a1a1a !important;
+    background-color: transparent !important;
+    padding: 10px 20px !important;
+    border-radius: 4px 4px 0 0 !important;
+}
+
+.mantine-Tabs-tab:hover {
+    background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+.mantine-Tabs-tab[data-active="true"] {
+    background-color: #1a1a1a !important;
+    color: rgb(242, 240, 227) !important;
+    border-bottom: none !important;
+}
+
+.mantine-Tabs-list {
+    border-bottom: 2px solid #1a1a1a !important;
+}
+
+.plot-title {
+    font-family: "JetBrains Mono", monospace !important;
+    font-weight: 600 !important;
+    background-color: #1a1a1a !important;
+    color: rgb(242, 240, 227) !important;
+    padding: 10px 20px !important;
+    border-radius: 0 0 0 0 !important;
+    font-size: 14px !important;
+    margin-bottom: 0 !important;
+    margin-left: 50px !important;
+    display: inline-block !important;
+}
+
+.plot-container-wrapper {
+    background-color: rgb(242, 240, 227) !important;
+    padding-top: 0 !important;
+    margin-top: -2px !important;
+}
+
+.plot-container-wrapper .dash-graph {
+    margin-top: 0 !important;
+}
+
+.plot-container-wrapper .js-plotly-plot {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+}
+
+.mantine-Select-input,
+.mantine-Select-wrapper input {
+    font-family: "JetBrains Mono", monospace !important;
+    background-color: rgb(242, 240, 227) !important;
+    border: 2px solid #1a1a1a !important;
+    color: #1a1a1a !important;
+}
+
+.mantine-Select-input:focus,
+.mantine-Select-wrapper input:focus {
+    border-color: #d20a0a !important;
+}
+
+.mantine-Select-dropdown {
+    font-family: "JetBrains Mono", monospace !important;
+    background-color: rgb(242, 240, 227) !important;
+    border: 2px solid #1a1a1a !important;
+}
+
+.mantine-Select-option {
+    font-family: "JetBrains Mono", monospace !important;
+    color: #1a1a1a !important;
+}
+
+.mantine-Select-option:hover,
+.mantine-Select-option[data-hovered="true"] {
+    background-color: rgba(210, 10, 10, 0.15) !important;
+}
+
+.mantine-Select-option[data-selected="true"] {
+    background-color: #1a1a1a !important;
+    color: rgb(242, 240, 227) !important;
+}
+
+.mantine-Select-label {
+    font-family: "JetBrains Mono", monospace !important;
+    font-weight: 600 !important;
+    color: #1a1a1a !important;
+}
