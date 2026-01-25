@@ -110,7 +110,10 @@ def handle_parsing_issues(
             if len(uids) > n_uids_sample:
                 uids = random.sample(uids, n_uids_sample)
             if len(parsing_issue.issue) > header_len - issue_prefix_len:
-                issue = parsing_issue.issue[0 : header_len - issue_padded_len] + "..."
+                issue = (
+                    parsing_issue.issue[0 : header_len - issue_padded_len]
+                    + "..."
+                )
 
             else:
                 issue = parsing_issue.issue
@@ -123,12 +126,16 @@ def handle_parsing_issues(
         if raise_error:
             assert n_parsing_issues == 0
         problem_uids = [
-            item for sublist in [i.uids for i in all_parsing_issues] for item in sublist
+            item
+            for sublist in [i.uids for i in all_parsing_issues]
+            for item in sublist
         ]
         problem_uids_deduped = sorted(list(set(problem_uids)))
 
         print(create_header(80, "", True, "."))
-        print(f"[n={len(problem_uids):5,d}] removing invalid records from insert")
+        print(
+            f"[n={len(problem_uids):5,d}] removing invalid records from insert"
+        )
         clean_results = [
             i for i in parsing_results if i.uid not in problem_uids_deduped
         ]
@@ -164,7 +171,9 @@ def check_write_success(config: ScrapingConfig) -> bool:
 
     file_size_bytes = config.path.stat().st_size
     file_too_small = file_size_bytes < 1024
-    issues_exist = any(i in contents for i in issue_indicators) or file_too_small
+    issues_exist = (
+        any(i in contents for i in issue_indicators) or file_too_small
+    )
     return not issues_exist
 
 
@@ -215,7 +224,9 @@ def scrape_page(
     sleep_multiplier = 0
 
     while not write_success and attempts < max_attempts:
-        ms_to_sleep = random.randint(100 * sleep_multiplier, 200 * sleep_multiplier)
+        ms_to_sleep = random.randint(
+            100 * sleep_multiplier, 200 * sleep_multiplier
+        )
         time.sleep(ms_to_sleep / 1000)
 
         dump_html(config)
@@ -244,16 +255,19 @@ def get_html_files(
     if existing_uids is None:
         files_to_parse = all_files
     else:
-        files_to_parse = [i for i in all_files if i.stem not in existing_uids]
+        files_to_parse = []
+        for f in all_files:
+            uid_parts = f.stem.split("_")
+            if not any(part in existing_uids for part in uid_parts):
+                files_to_parse.append(f)
 
     fight_contents_to_parse: list[FileContents] = []
     for i, fpath in enumerate(files_to_parse):
         uid = fpath.stem
 
-        # temp
-        if uid.split("_")[0] != "00e11b5c8b7bfeeb":
-            continue
-        modification_time = datetime.datetime.fromtimestamp(os.path.getmtime(fpath))
+        modification_time = datetime.datetime.fromtimestamp(
+            os.path.getmtime(fpath)
+        )
         with fpath.open() as f:
             fight_contents_to_parse.append(
                 FileContents(
