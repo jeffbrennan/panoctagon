@@ -32,6 +32,8 @@ class ScrapingWriteResult(BaseModel):
     path: Optional[Path]
     success: bool
     attempts: int
+    status_code: Optional[int] = None
+    error_type: Optional[str] = None
 
 
 class RunStats(BaseModel):

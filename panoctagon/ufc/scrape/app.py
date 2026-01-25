@@ -86,15 +86,19 @@ def bios(force: bool = False, n: Optional[int] = None, max_workers: int = 8) -> 
 
     end_time = time.time()
     bios_downloaded = 0
-    bios_deleted = 0
+    bios_not_found = 0
+    bios_failed = 0
+
     for result in results:
         if result.write is None:
             continue
         for write in result.write:
             if write.success:
                 bios_downloaded += 1
+            elif write.error_type == "page_not_found":
+                bios_not_found += 1
             else:
-                bios_deleted += 1
+                bios_failed += 1
 
     report_stats(
         RunStats(
@@ -103,9 +107,13 @@ def bios(force: bool = False, n: Optional[int] = None, max_workers: int = 8) -> 
             n_ops=n_fighters_to_download,
             op_name="fighter bio",
             successes=bios_downloaded,
-            failures=bios_deleted,
+            failures=bios_failed,
         )
     )
+
+    if bios_not_found > 0:
+        print(f"- {bios_not_found} fighters have no UFC athlete page (skipped)")
+
     print(setup.footer)
     return bios_downloaded
 

@@ -169,19 +169,23 @@ def report_stats(stats: RunStats):
         print(f"elapsed time per {stats.op_name}: {elapsed_time_seconds_per_event:.2f} seconds")
 
 
-def check_write_success(config: ScrapingConfig) -> bool:
-    issue_indicators = [
-        "Internal Server Error",
-        "Too Many Requests",
-        "Search results",
-    ]
+def check_write_success(config: ScrapingConfig) -> tuple[bool, Optional[str]]:
     with config.path.open() as f:
         contents = "".join(f.readlines())
 
     file_size_bytes = config.path.stat().st_size
     file_too_small = file_size_bytes < 1024
-    issues_exist = any(i in contents for i in issue_indicators) or file_too_small
-    return not issues_exist
+
+    if "Search results" in contents:
+        return False, "page_not_found"
+    if "Internal Server Error" in contents:
+        return False, "server_error"
+    if "Too Many Requests" in contents:
+        return False, "rate_limited"
+    if file_too_small:
+        return False, "file_too_small"
+
+    return True, None
 
 
 def create_header(header_length: int, title: str, center: bool, spacer: str):
@@ -230,15 +234,28 @@ def scrape_page(
     write_success = False
     attempts = 0
     sleep_multiplier = 0
+    last_status_code = None
+    error_type = None
 
     while not write_success and attempts < max_attempts:
-        dump_success = dump_html(config, session=session)
-        if dump_success:
-            write_success = check_write_success(config)
-
         attempts += 1
+        dump_success, status_code = dump_html(config, session=session)
+        last_status_code = status_code
+
+        if status_code == 404:
+            error_type = "page_not_found"
+            break
+
+        if dump_success:
+            write_success, content_error = check_write_success(config)
+            if not write_success:
+                error_type = content_error or "invalid_content"
+                if error_type == "page_not_found":
+                    break
 
         if attempts == max_attempts:
+            if not write_success and status_code != 200 and error_type is None:
+                error_type = "http_error"
             break
 
         ms_to_sleep = random.randint(100 * sleep_multiplier, 200 * sleep_multiplier)
@@ -250,6 +267,8 @@ def scrape_page(
         path=config.path,
         success=write_success,
         attempts=attempts,
+        status_code=last_status_code,
+        error_type=error_type,
     )
 
 
@@ -291,7 +310,7 @@ def get_html_files(
     return fight_contents_to_parse
 
 
-def dump_html(config: ScrapingConfig, log_uid: bool = False, session: Optional[requests.Session] = None) -> bool:
+def dump_html(config: ScrapingConfig, log_uid: bool = False, session: Optional[requests.Session] = None) -> tuple[bool, int]:
     if log_uid:
         print(f"saving {config.description}: {config.uid}")
     url = f"{config.base_url}/{config.uid}"
@@ -301,15 +320,17 @@ def dump_html(config: ScrapingConfig, log_uid: bool = False, session: Optional[r
     else:
         response = session.get(url)
 
-    if not response.status_code == 200:
-        return False
+    status_code = response.status_code
+
+    if status_code != 200:
+        return False, status_code
 
     soup = bs4.BeautifulSoup(response.text, "html.parser")
 
     with config.path.open("w") as f:
         f.write(str(soup))
 
-    return True
+    return True, status_code
 
 
 def write_data_to_db(data: list[SQLModelType]) -> None:
