@@ -1601,7 +1601,7 @@ def create_matchup_card(
                             dmc.Text(
                                 format_diff(reach_diff, "\""),
                                 size="xs",
-                                c="green" if reach_diff and reach_diff > 0 else "red" if reach_diff and reach_diff < 0 else "gray",
+                                c="teal" if reach_diff and reach_diff > 0 else "salmon" if reach_diff and reach_diff < 0 else "gray",
                             ),
                         ]
                     ),
@@ -1615,7 +1615,7 @@ def create_matchup_card(
                             dmc.Text(
                                 format_diff(height_diff, "\""),
                                 size="xs",
-                                c="green" if height_diff and height_diff > 0 else "red" if height_diff and height_diff < 0 else "gray",
+                                c="teal" if height_diff and height_diff > 0 else "salmon" if height_diff and height_diff < 0 else "gray",
                             ),
                         ]
                     ),
