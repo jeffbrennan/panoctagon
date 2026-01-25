@@ -33,7 +33,7 @@ class HeadshotParsingResult(ParsingResult):
 
 def parse_headshot(bio: FileContents) -> HeadshotParsingResult:
     if bio.file_num % 100 == 0:
-        title = f"[{bio.file_num:05d} / {bio.n_files - 1:05d}]"
+        title = f"[{bio.file_num + 1:05d} / {bio.n_files:05d}]"
         print(create_header(80, title, False, "."))
 
     headshot_dir = (

@@ -32,7 +32,7 @@ class FighterStats(BaseModel):
 
 def parse_fighter(fighter: FileContents) -> FighterParsingResult:
     if fighter.file_num % 100 == 0:
-        print(f"{fighter.file_num:04d} / {fighter.n_files:04d}")
+        print(f"{fighter.file_num + 1:04d} / {fighter.n_files:04d}")
     parsing_issues: list[str] = []
     fighter_html = bs4.BeautifulSoup(
         fighter.contents, parser="html.parser", features="lxml"

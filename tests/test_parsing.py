@@ -48,13 +48,18 @@ def _test_parse_fight_details(
     actual = parse_fight_details(fight_html, event_uid, fight_uid)
     result_matches = actual == expected
     if not result_matches:
-        print(actual.result)
+        if actual is None:
+            print(None)
+        else:
+            print(actual.result)
         print("-----")
         print(expected.result)
         assert result_matches
 
 
-def _test_total_stats(fight_html, fight_uid, expected: TotalStatsParsingResult) -> None:
+def _test_total_stats(
+    fight_html, fight_uid, expected: TotalStatsParsingResult
+) -> None:
     actual = parse_round_totals(fight_html, fight_uid)
     result_matches = actual == expected
     if not result_matches:
@@ -64,7 +69,9 @@ def _test_total_stats(fight_html, fight_uid, expected: TotalStatsParsingResult) 
         assert result_matches
 
 
-def _test_sig_stats(fight_html, fight_uid, expected: SigStatsParsingResult) -> None:
+def _test_sig_stats(
+    fight_html, fight_uid, expected: SigStatsParsingResult
+) -> None:
     actual = parse_sig_stats(fight_html, fight_uid)
     result_matches = actual == expected
     if not result_matches:
