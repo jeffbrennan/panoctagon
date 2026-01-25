@@ -10,7 +10,9 @@ from dash import Dash, Input, Output, callback, dash_table, dcc, html
 
 from panoctagon.common import get_engine
 
-HEADSHOTS_DIR = Path(__file__).parent.parent / "data" / "raw" / "ufc" / "fighter_headshots"
+HEADSHOTS_DIR = (
+    Path(__file__).parent.parent / "data" / "raw" / "ufc" / "fighter_headshots"
+)
 
 
 def apply_figure_styling(fig: go.Figure) -> go.Figure:
@@ -219,10 +221,20 @@ def get_fighter_uid_map(df: pd.DataFrame) -> dict[str, str]:
     )
 
 
-def get_headshot_base64(fighter_uid: str) -> str | None:
+PLACEHOLDER_IMAGE = (
+    "data:image/svg+xml,"
+    "%3Csvg xmlns='http://www.w3.org/2000/svg' width='237' height='150' viewBox='0 0 237 150'%3E"
+    "%3Crect fill='%23e0ded3' width='237' height='150'/%3E"
+    "%3Ccircle cx='118' cy='55' r='30' fill='%23a0a0a0'/%3E"
+    "%3Cellipse cx='118' cy='130' rx='45' ry='35' fill='%23a0a0a0'/%3E"
+    "%3C/svg%3E"
+)
+
+
+def get_headshot_base64(fighter_uid: str) -> str:
     headshot_path = HEADSHOTS_DIR / f"{fighter_uid}_headshot.png"
     if not headshot_path.exists():
-        return None
+        return PLACEHOLDER_IMAGE
     with open(headshot_path, "rb") as f:
         encoded = base64.b64encode(f.read()).decode("utf-8")
     return f"data:image/png;base64,{encoded}"
@@ -250,7 +262,7 @@ app.layout = dmc.MantineProvider(
                 dmc.AppShellHeader(
                     dmc.Group(
                         [
-                            dmc.Title("Panoctagon", c="red", size="h2"),
+                            dmc.Title("panoctagon", c="red", size="h2"),
                             dmc.Badge(
                                 f"Data current as of {most_recent_event}",
                                 color="gray",
@@ -270,6 +282,7 @@ app.layout = dmc.MantineProvider(
                                     html.Img(
                                         id="fighter-headshot",
                                         style={
+                                            "width": "237px",
                                             "height": "150px",
                                             "border": "2px solid #1a1a1a",
                                             "borderRadius": "4px",
@@ -359,8 +372,40 @@ app.layout = dmc.MantineProvider(
                                                         withBorder=True,
                                                         p="lg",
                                                     ),
+                                                    dmc.Card(
+                                                        [
+                                                            dmc.Text(
+                                                                "Strikes Landed",
+                                                                size="sm",
+                                                                c="gray",
+                                                            ),
+                                                            dmc.Title(
+                                                                id="strikes-landed",
+                                                                order=2,
+                                                            ),
+                                                        ],
+                                                        shadow="sm",
+                                                        withBorder=True,
+                                                        p="lg",
+                                                    ),
+                                                    dmc.Card(
+                                                        [
+                                                            dmc.Text(
+                                                                "Strikes Absorbed",
+                                                                size="sm",
+                                                                c="gray",
+                                                            ),
+                                                            dmc.Title(
+                                                                id="strikes-absorbed",
+                                                                order=2,
+                                                            ),
+                                                        ],
+                                                        shadow="sm",
+                                                        withBorder=True,
+                                                        p="lg",
+                                                    ),
                                                 ],
-                                                cols=3,
+                                                cols=5,
                                                 spacing="md",
                                                 mb="md",
                                             ),
@@ -523,9 +568,8 @@ def get_fighter_summary(df_fighter: pd.DataFrame) -> dict[str, Any]:
 def update_headshot(fighter: str):
     fighter_uid = fighter_uid_map.get(fighter)
     if not fighter_uid:
-        return ""
-    headshot = get_headshot_base64(fighter_uid)
-    return headshot if headshot else ""
+        return PLACEHOLDER_IMAGE
+    return get_headshot_base64(fighter_uid)
 
 
 @callback(
@@ -533,6 +577,8 @@ def update_headshot(fighter: str):
         Output("total-fights", "children"),
         Output("record", "children"),
         Output("finish-rate", "children"),
+        Output("strikes-landed", "children"),
+        Output("strikes-absorbed", "children"),
     ],
     [Input("fighter-select", "value")],
 )
@@ -544,10 +590,15 @@ def update_summary_cards(fighter: str):
     if summary["no_contests"] > 0:
         record += f" ({summary['no_contests']} NC)"
 
+    strikes_landed = int(df_filtered["total_strikes_landed"].sum())
+    strikes_absorbed = int(df_filtered["opponent_strikes_landed"].sum())
+
     return (
         str(summary["total_fights"]),
         record,
         f"{summary['finish_rate']:.1f}%",
+        f"{strikes_landed:,}",
+        f"{strikes_absorbed:,}",
     )
 
 
