@@ -60,7 +60,7 @@ def create_plot_with_title(
                 className="plot-container-wrapper",
             ),
         ],
-        style={"marginBottom": "0rem"} if margin_bottom else {},
+        style={"marginBottom": "2rem"} if margin_bottom else {},
     )
 
 
@@ -91,6 +91,9 @@ def get_main_data() -> pd.DataFrame:
                     fighter_uid,
                     first_name,
                     last_name,
+                    nickname,
+                    stance,
+                    style,
                     height_inches,
                     reach_inches
                 from ufc_fighters
@@ -115,6 +118,9 @@ def get_main_data() -> pd.DataFrame:
                     a.fighter_uid,
                     c.fighter_result,
                     b.first_name || ' ' || b.last_name as fighter_name,
+                    b.nickname,
+                    b.stance,
+                    b.style,
                     b.reach_inches,
                     b.height_inches,
                     total_strikes_landed,
@@ -166,6 +172,9 @@ def get_main_data() -> pd.DataFrame:
             fs.round_num,
             fs.fighter_uid,
             fighter_name,
+            fs.nickname,
+            fs.stance,
+            fs.style,
             fighter_result,
             height_inches,
             reach_inches,
@@ -225,6 +234,36 @@ def get_fighter_uid_map(df: pd.DataFrame) -> dict[str, str]:
     )
 
 
+def get_fighter_nickname_map(df: pd.DataFrame) -> dict[str, str | None]:
+    return (
+        df.groupby("fighter_name")
+        .agg({"nickname": "first"})
+        .reset_index()
+        .set_index("fighter_name")["nickname"]
+        .to_dict()
+    )
+
+
+def get_fighter_stance_map(df: pd.DataFrame) -> dict[str, str | None]:
+    return (
+        df.groupby("fighter_name")
+        .agg({"stance": "first"})
+        .reset_index()
+        .set_index("fighter_name")["stance"]
+        .to_dict()
+    )
+
+
+def get_fighter_style_map(df: pd.DataFrame) -> dict[str, str | None]:
+    return (
+        df.groupby("fighter_name")
+        .agg({"style": "first"})
+        .reset_index()
+        .set_index("fighter_name")["style"]
+        .to_dict()
+    )
+
+
 PLACEHOLDER_IMAGE = (
     "data:image/svg+xml,"
     "%3Csvg xmlns='http://www.w3.org/2000/svg' width='237' height='150' viewBox='0 0 237 150'%3E"
@@ -247,6 +286,9 @@ def get_headshot_base64(fighter_uid: str) -> str:
 df = get_main_data()
 fighter_options = get_fighter_list(df)
 fighter_uid_map = get_fighter_uid_map(df)
+fighter_nickname_map = get_fighter_nickname_map(df)
+fighter_stance_map = get_fighter_stance_map(df)
+fighter_style_map = get_fighter_style_map(df)
 
 initial_fighter = df.sample(1)["fighter_name"].item()
 if not isinstance(initial_fighter, str):
@@ -292,15 +334,70 @@ app.layout = dmc.MantineProvider(
                                             "borderRadius": "4px",
                                         },
                                     ),
-                                    dmc.Select(
-                                        label="Fighter",
-                                        placeholder="Select fighter",
-                                        id="fighter-select",
-                                        value=initial_fighter,
-                                        data=fighter_options,
-                                        searchable=True,
-                                        clearable=False,
-                                        style={"width": "250px"},
+                                    html.Div(
+                                        [
+                                            dmc.Select(
+                                                label="",
+                                                placeholder="Select fighter",
+                                                id="fighter-select",
+                                                value=initial_fighter,
+                                                data=fighter_options,
+                                                searchable=True,
+                                                clearable=False,
+                                                style={"width": "250px"},
+                                            ),
+                                            dmc.Group(
+                                                [
+                                                    html.Div(
+                                                        [
+                                                            dmc.Text(
+                                                                "Nickname",
+                                                                size="xs",
+                                                                c="gray",
+                                                                style={"height": "14px"},
+                                                            ),
+                                                            dmc.Text(
+                                                                id="fighter-nickname",
+                                                                size="sm",
+                                                                style={"minHeight": "18px"},
+                                                            ),
+                                                        ]
+                                                    ),
+                                                    html.Div(
+                                                        [
+                                                            dmc.Text(
+                                                                "Stance",
+                                                                size="xs",
+                                                                c="gray",
+                                                                style={"height": "14px"},
+                                                            ),
+                                                            dmc.Text(
+                                                                id="fighter-stance",
+                                                                size="sm",
+                                                                style={"minHeight": "18px"},
+                                                            ),
+                                                        ]
+                                                    ),
+                                                    html.Div(
+                                                        [
+                                                            dmc.Text(
+                                                                "Style",
+                                                                size="xs",
+                                                                c="gray",
+                                                                style={"height": "14px"},
+                                                            ),
+                                                            dmc.Text(
+                                                                id="fighter-style",
+                                                                size="sm",
+                                                                style={"minHeight": "18px"},
+                                                            ),
+                                                        ]
+                                                    ),
+                                                ],
+                                                gap="md",
+                                                mt="md",
+                                            ),
+                                        ]
                                     ),
                                 ],
                                 align="flex-start",
@@ -566,14 +663,28 @@ def get_fighter_summary(df_fighter: pd.DataFrame) -> dict[str, Any]:
 
 
 @callback(
-    Output("fighter-headshot", "src"),
+    [
+        Output("fighter-headshot", "src"),
+        Output("fighter-nickname", "children"),
+        Output("fighter-stance", "children"),
+        Output("fighter-style", "children"),
+    ],
     [Input("fighter-select", "value")],
 )
 def update_headshot(fighter: str):
     fighter_uid = fighter_uid_map.get(fighter)
+    nickname = fighter_nickname_map.get(fighter)
+    stance = fighter_stance_map.get(fighter)
+    style = fighter_style_map.get(fighter)
+
     if not fighter_uid:
-        return PLACEHOLDER_IMAGE
-    return get_headshot_base64(fighter_uid)
+        return PLACEHOLDER_IMAGE, "", "", ""
+
+    headshot = get_headshot_base64(fighter_uid)
+    nickname_text = nickname if nickname else ""
+    stance_text = stance if stance else ""
+    style_text = style if style else ""
+    return headshot, nickname_text, stance_text, style_text
 
 
 @callback(
