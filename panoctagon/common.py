@@ -4,6 +4,7 @@ import datetime
 import os
 import random
 import time
+from functools import wraps
 from pathlib import Path
 from typing import Any, Optional, Type
 
@@ -37,6 +38,31 @@ class PanoctagonSetup(BaseModel):
     footer: str
     cpu_count: int
     start_time: float
+
+
+def get_current_time() -> datetime.datetime:
+    return datetime.datetime.now(datetime.timezone.utc)
+
+
+def timeit(func):
+    @wraps(func)
+    def timeit_wrapper(*args, **kwargs):
+        print(create_header(100, f"[START] {func.__name__}", center=False, spacer="-"))
+        start_time = time.perf_counter()
+        result = func(*args, **kwargs)
+        end_time = time.perf_counter()
+        total_time = end_time - start_time
+        print(
+            create_header(
+                100,
+                f"[ END ] {func.__name__} - took {total_time:.4f} s",
+                center=False,
+                spacer="=",
+            )
+        )
+        return result
+
+    return timeit_wrapper
 
 
 def get_engine() -> Engine:
@@ -195,6 +221,7 @@ def get_table_uids(
     return list(results)
 
 
+@timeit
 def scrape_page(
     config: ScrapingConfig,
     max_attempts: int = 3,
@@ -205,14 +232,18 @@ def scrape_page(
     sleep_multiplier = 0
 
     while not write_success and attempts < max_attempts:
+        dump_success = dump_html(config)
+        if dump_success:
+            write_success = check_write_success(config)
+
+        attempts += 1
+
+        if attempts == max_attempts:
+            break
+
         ms_to_sleep = random.randint(100 * sleep_multiplier, 200 * sleep_multiplier)
         time.sleep(ms_to_sleep / 1000)
-
-        dump_html(config)
-
-        write_success = check_write_success(config)
         sleep_multiplier += sleep_multiplier_increment
-        attempts += 1
 
     return ScrapingWriteResult(
         config=config,
@@ -260,15 +291,21 @@ def get_html_files(
     return fight_contents_to_parse
 
 
-def dump_html(config: ScrapingConfig, log_uid: bool = False) -> None:
+@timeit
+def dump_html(config: ScrapingConfig, log_uid: bool = False) -> bool:
     if log_uid:
         print(f"saving {config.description}: {config.uid}")
     url = f"{config.base_url}/{config.uid}"
     response = requests.get(url)
+    if not response.status_code == 200:
+        return False
+
     soup = bs4.BeautifulSoup(response.text, "html.parser")
 
     with config.path.open("w") as f:
         f.write(str(soup))
+
+    return True
 
 
 def write_data_to_db(data: list[SQLModelType]) -> None:
