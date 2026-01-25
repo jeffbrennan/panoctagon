@@ -1,11 +1,17 @@
 refresh:
-    uv run dg launch --assets promotions+
+    uv run dg launch --job refresh
 
 dag:
     uv run dg dev
 
 db:
-    duckdb data/panoctagon_orm.db -ui
+    duckdb -readonly data/panoctagon_orm.duckdb
+
+dbw:
+    duckdb data/panoctagon_orm.duckdb
+
+viz:
+    uv run python panoctagon/dashboard.py
 
 check:
     uv run pyright .
