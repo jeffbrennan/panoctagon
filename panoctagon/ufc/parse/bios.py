@@ -36,9 +36,7 @@ def parse_headshot(bio: FileContents) -> HeadshotParsingResult:
         title = f"[{bio.file_num + 1:05d} / {bio.n_files:05d}]"
         print(create_header(80, title, False, "."))
 
-    headshot_dir = (
-        Path(__file__).parents[3] / "data" / "raw" / "ufc" / "fighter_headshots"
-    )
+    headshot_dir = Path(__file__).parents[3] / "data" / "raw" / "ufc" / "fighter_headshots"
 
     bio_downloaded_ts = bio.modified_ts.isoformat()
 
@@ -48,11 +46,7 @@ def parse_headshot(bio: FileContents) -> HeadshotParsingResult:
     fighter_name = fighter.first_name + "_" + fighter.last_name
     fighter_name_last_first = fighter.last_name + "_" + fighter.first_name
 
-    images = [
-        i
-        for i in bio_html.find_all("img")
-        if all(x in i.attrs for x in ["src", "class"])
-    ]
+    images = [i for i in bio_html.find_all("img") if all(x in i.attrs for x in ["src", "class"])]
 
     fighter_image_urls = set(
         [

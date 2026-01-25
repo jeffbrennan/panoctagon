@@ -85,13 +85,9 @@ def handle_parsing_issues(
                 all_parsing_issues[issue_index].uids += [parsing_result.uid]
                 continue
 
-            all_parsing_issues.append(
-                ParsingIssue(issue=issue, uids=[parsing_result.uid])
-            )
+            all_parsing_issues.append(ParsingIssue(issue=issue, uids=[parsing_result.uid]))
 
-    all_parsing_issues = sorted(
-        all_parsing_issues, key=lambda x: len(x.uids), reverse=True
-    )
+    all_parsing_issues = sorted(all_parsing_issues, key=lambda x: len(x.uids), reverse=True)
 
     n_parsing_issues = len(all_parsing_issues)
     clean_results = parsing_results
@@ -110,10 +106,7 @@ def handle_parsing_issues(
             if len(uids) > n_uids_sample:
                 uids = random.sample(uids, n_uids_sample)
             if len(parsing_issue.issue) > header_len - issue_prefix_len:
-                issue = (
-                    parsing_issue.issue[0 : header_len - issue_padded_len]
-                    + "..."
-                )
+                issue = parsing_issue.issue[0 : header_len - issue_padded_len] + "..."
 
             else:
                 issue = parsing_issue.issue
@@ -126,19 +119,13 @@ def handle_parsing_issues(
         if raise_error:
             assert n_parsing_issues == 0
         problem_uids = [
-            item
-            for sublist in [i.uids for i in all_parsing_issues]
-            for item in sublist
+            item for sublist in [i.uids for i in all_parsing_issues] for item in sublist
         ]
         problem_uids_deduped = sorted(list(set(problem_uids)))
 
         print(create_header(80, "", True, "."))
-        print(
-            f"[n={len(problem_uids):5,d}] removing invalid records from insert"
-        )
-        clean_results = [
-            i for i in parsing_results if i.uid not in problem_uids_deduped
-        ]
+        print(f"[n={len(problem_uids):5,d}] removing invalid records from insert")
+        clean_results = [i for i in parsing_results if i.uid not in problem_uids_deduped]
     return clean_results
 
 
@@ -146,18 +133,14 @@ def report_stats(stats: RunStats):
     print(create_header(80, "RUN STATS", True, "-"))
 
     if stats.successes is not None and stats.failures is not None:
-        print(
-            f"{Symbols.CHECK.value} {stats.successes} | {Symbols.DELETED.value} {stats.failures}"
-        )
+        print(f"{Symbols.CHECK.value} {stats.successes} | {Symbols.DELETED.value} {stats.failures}")
 
     elapsed_time_seconds = stats.end - stats.start
     print(f"elapsed time: {elapsed_time_seconds:.2f} seconds")
 
     if stats.n_ops is not None:
         elapsed_time_seconds_per_event = elapsed_time_seconds / stats.n_ops
-        print(
-            f"elapsed time per {stats.op_name}: {elapsed_time_seconds_per_event:.2f} seconds"
-        )
+        print(f"elapsed time per {stats.op_name}: {elapsed_time_seconds_per_event:.2f} seconds")
 
 
 def check_write_success(config: ScrapingConfig) -> bool:
@@ -171,9 +154,7 @@ def check_write_success(config: ScrapingConfig) -> bool:
 
     file_size_bytes = config.path.stat().st_size
     file_too_small = file_size_bytes < 1024
-    issues_exist = (
-        any(i in contents for i in issue_indicators) or file_too_small
-    )
+    issues_exist = any(i in contents for i in issue_indicators) or file_too_small
     return not issues_exist
 
 
@@ -224,9 +205,7 @@ def scrape_page(
     sleep_multiplier = 0
 
     while not write_success and attempts < max_attempts:
-        ms_to_sleep = random.randint(
-            100 * sleep_multiplier, 200 * sleep_multiplier
-        )
+        ms_to_sleep = random.randint(100 * sleep_multiplier, 200 * sleep_multiplier)
         time.sleep(ms_to_sleep / 1000)
 
         dump_html(config)
@@ -265,9 +244,7 @@ def get_html_files(
     for i, fpath in enumerate(files_to_parse):
         uid = fpath.stem
 
-        modification_time = datetime.datetime.fromtimestamp(
-            os.path.getmtime(fpath)
-        )
+        modification_time = datetime.datetime.fromtimestamp(os.path.getmtime(fpath))
         with fpath.open() as f:
             fight_contents_to_parse.append(
                 FileContents(
@@ -302,9 +279,7 @@ def write_data_to_db(data: list[SQLModelType]) -> None:
         session.commit()
 
 
-def get_table_rows(
-    soup: bs4.BeautifulSoup, table_num: int = 0
-) -> bs4.ResultSet[bs4.Tag]:
+def get_table_rows(soup: bs4.BeautifulSoup, table_num: int = 0) -> bs4.ResultSet[bs4.Tag]:
     tables = soup.find_all("table")
     table = tables[table_num]
     if table is None:

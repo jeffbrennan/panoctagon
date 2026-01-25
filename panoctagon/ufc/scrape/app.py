@@ -72,17 +72,13 @@ def bios(force: bool = False, n: Optional[int] = None) -> int:
 
     fighters_to_download = get_unparsed_fighters()
 
-    fighters_to_download = get_fighters_to_download(
-        fighters_to_download, output_dir, force
-    )
+    fighters_to_download = get_fighters_to_download(fighters_to_download, output_dir, force)
     if n:
         fighters_to_download = random.sample(fighters_to_download, n)
 
     n_fighters_to_download = len(fighters_to_download)
 
-    start_header = create_header(
-        80, f"SCRAPING n={n_fighters_to_download} Fighter Bios", True, "-"
-    )
+    start_header = create_header(80, f"SCRAPING n={n_fighters_to_download} Fighter Bios", True, "-")
     print(start_header)
     start_time = time.time()
     results = [
@@ -192,9 +188,7 @@ def fights(force: bool = False) -> int:
         for i, uid in enumerate(event_uids)
     ]
 
-    start_header = create_header(
-        80, f"SCRAPING n={len(events_to_parse)} UFC EVENTS", True, "-"
-    )
+    start_header = create_header(80, f"SCRAPING n={len(events_to_parse)} UFC EVENTS", True, "-")
     print(start_header)
     start_time = time.time()
 
@@ -229,9 +223,7 @@ def fights(force: bool = False) -> int:
     if len(successful_results) > 0:
         print(create_header(80, "UPDATING UFC_EVENTS", True, "-"))
         success_uids = [i.event.uid for i in successful_results]
-        write_parsing_timestamp(
-            UFCEvent, "downloaded_ts", col(UFCEvent.event_uid), success_uids
-        )
+        write_parsing_timestamp(UFCEvent, "downloaded_ts", col(UFCEvent.event_uid), success_uids)
 
     print(setup.footer)
     return len(successful_results)

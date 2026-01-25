@@ -27,12 +27,8 @@ app = typer.Typer()
 @app.command(name="bios")
 def bios(force: bool = False) -> int:
     setup = setup_panoctagon(title="Fighter Bio Parser")
-    bio_dir = (
-        Path(__file__).parents[3] / "data" / "raw" / "ufc" / "fighter_bios"
-    )
-    headshot_dir = (
-        Path(__file__).parents[3] / "data" / "raw" / "ufc" / "fighter_headshots"
-    )
+    bio_dir = Path(__file__).parents[3] / "data" / "raw" / "ufc" / "fighter_bios"
+    headshot_dir = Path(__file__).parents[3] / "data" / "raw" / "ufc" / "fighter_headshots"
 
     fighter_bios = get_html_files(
         path=bio_dir,
@@ -46,19 +42,13 @@ def bios(force: bool = False) -> int:
         print(setup.footer)
         return 0
 
-    print(
-        create_header(
-            80, f"PARSING n={len(fighter_bios)} fighter bios", True, "-"
-        )
-    )
+    print(create_header(80, f"PARSING n={len(fighter_bios)} fighter bios", True, "-"))
     headshot_results = [parse_headshot(bio) for bio in fighter_bios]
 
     headshots_on_disk = list(headshot_dir.glob("*.png"))
     headshot_uids_on_disk = [i.stem.split("_")[0] for i in headshots_on_disk]
 
-    headshots_validated = [
-        i for i in headshot_results if i.uid in headshot_uids_on_disk
-    ]
+    headshots_validated = [i for i in headshot_results if i.uid in headshot_uids_on_disk]
     write_headshot_results_to_db(headshots_validated)
     return len(headshots_validated)
 
@@ -68,9 +58,7 @@ def fighters(force: bool = False) -> int:
     setup = setup_panoctagon(title="Panoctagon UFC Fighter Parser")
     script_dir = Path(__file__).parents[3] / "data/raw/ufc/fighters"
     if not script_dir.exists():
-        raise ValueError(
-            "expecting a directory containing at least one fighter"
-        )
+        raise ValueError("expecting a directory containing at least one fighter")
 
     fighters_to_parse = get_html_files(
         path=script_dir,
@@ -112,9 +100,7 @@ def fights(force: bool = False) -> int:
         print(setup.footer)
         return 0
 
-    print(
-        create_header(80, f"PARSING n={len(fights_to_parse)} fights", True, "-")
-    )
+    print(create_header(80, f"PARSING n={len(fights_to_parse)} fights", True, "-"))
     results = [parse_fight(fight) for fight in fights_to_parse]
 
     write_fight_results_to_db(results, force)

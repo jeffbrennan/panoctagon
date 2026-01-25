@@ -142,9 +142,7 @@ def get_fights_from_event(event: EventToParse, force: bool) -> FightScrapingResu
     if len(configs) == 0:
         event_header = create_header(80, header_title, False, ".")
         print(event_header)
-        write_result = ScrapingWriteResult(
-            config=None, path=None, success=True, attempts=1
-        )
+        write_result = ScrapingWriteResult(config=None, path=None, success=True, attempts=1)
         return FightScrapingResult(
             event=event,
             write=[write_result],
