@@ -490,21 +490,59 @@ def update_win_method_chart(
     divisions: list[str] | None,
 ):
     df_filtered = filter_data(df, fighter, start_date, end_date, decisions, divisions)
+
+    if df_filtered.empty:
+        fig = go.Figure()
+        fig.update_layout(title=f"No data for {fighter}", height=400)
+        return fig
+
     df_wins = df_filtered[df_filtered["fighter_result"] == "WIN"]
+    df_losses = df_filtered[df_filtered["fighter_result"] == "LOSS"]
 
-    if df_wins.empty:
-        fig = px.pie(title=f"No wins for {fighter}")
-    else:
-        win_methods = df_wins.groupby("fight_uid").agg({"decision": "first"}).reset_index()
-        method_counts = win_methods["decision"].value_counts()
+    win_methods = df_wins.groupby("fight_uid").agg({"decision": "first"}).reset_index()
+    win_counts = win_methods["decision"].value_counts()
 
-        fig = px.pie(
-            values=method_counts.values,
-            names=method_counts.index,
-            title=f"{fighter} - Win Method Distribution",
-        )
+    loss_methods = df_losses.groupby("fight_uid").agg({"decision": "first"}).reset_index()
+    loss_counts = loss_methods["decision"].value_counts()
 
-    fig.update_layout(height=400)
+    fig = go.Figure()
+
+    if not win_counts.empty:
+        for method in win_counts.index:
+            fig.add_trace(
+                go.Bar(
+                    y=["Wins"],
+                    x=[win_counts[method]],
+                    name=method,
+                    orientation="h",
+                    text=f"{method} ({win_counts[method]})",
+                    textposition="inside",
+                )
+            )
+
+    if not loss_counts.empty:
+        for method in loss_counts.index:
+            fig.add_trace(
+                go.Bar(
+                    y=["Losses"],
+                    x=[loss_counts[method]],
+                    name=method,
+                    orientation="h",
+                    text=f"{method} ({loss_counts[method]})",
+                    textposition="inside",
+                    showlegend=method not in win_counts.index,
+                )
+            )
+
+    fig.update_layout(
+        barmode="stack",
+        title=f"{fighter} - Fight Outcome Distribution",
+        xaxis_title="Number of Fights",
+        height=400,
+        showlegend=True,
+        legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.02),
+    )
+
     return fig
 
 
