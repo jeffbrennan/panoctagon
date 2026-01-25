@@ -324,11 +324,11 @@ app.layout = dmc.MantineProvider(
                                         },
                                         style_data_conditional=[
                                             {
-                                                "if": {"filter_query": "{Result} = W"},
+                                                "if": {"filter_query": "{Result} = WIN"},
                                                 "backgroundColor": "#d4edda",
                                             },
                                             {
-                                                "if": {"filter_query": "{Result} = L"},
+                                                "if": {"filter_query": "{Result} = LOSS"},
                                                 "backgroundColor": "#f8d7da",
                                             },
                                         ],
@@ -389,9 +389,9 @@ def get_fighter_summary(df_fighter: pd.DataFrame) -> dict[str, Any]:
     fights = df_fighter.groupby("fight_uid").agg({"fighter_result": "first"}).reset_index()
 
     total_fights = len(fights)
-    wins = (fights["fighter_result"] == "W").sum()
-    losses = (fights["fighter_result"] == "L").sum()
-    draws = (fights["fighter_result"] == "D").sum()
+    wins = (fights["fighter_result"] == "WIN").sum()
+    losses = (fights["fighter_result"] == "LOSS").sum()
+    draws = (fights["fighter_result"] == "DRAW").sum()
 
     finish_decisions = ["KO", "TKO", "SUB", "Submission"]
     finishes = df_fighter[df_fighter["decision"].isin(finish_decisions)].groupby("fight_uid").ngroups
@@ -465,7 +465,7 @@ def update_career_timeline(
             y="total_strikes_landed",
             color="fighter_result",
             title=f"{fighter} - Career Timeline",
-            color_discrete_map={"W": "green", "L": "red", "D": "gray"},
+            color_discrete_map={"WIN": "green", "LOSS": "red", "DRAW": "gray", "NO_CONTEST": "orange"},
         )
 
     fig.update_layout(height=400)
@@ -490,7 +490,7 @@ def update_win_method_chart(
     divisions: list[str] | None,
 ):
     df_filtered = filter_data(df, fighter, start_date, end_date, decisions, divisions)
-    df_wins = df_filtered[df_filtered["fighter_result"] == "W"]
+    df_wins = df_filtered[df_filtered["fighter_result"] == "WIN"]
 
     if df_wins.empty:
         fig = px.pie(title=f"No wins for {fighter}")
