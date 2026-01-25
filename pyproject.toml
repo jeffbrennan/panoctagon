@@ -32,6 +32,7 @@ dependencies = [
     "duckdb-engine==0.13.2",
     "dbt-duckdb==1.9.0",
     "dagster-dg-cli>=1.12.12",
+    "networkx==3.4.2",
 ]
 
 [tool.pyright]

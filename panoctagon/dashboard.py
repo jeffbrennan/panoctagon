@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any
 
 import dash_mantine_components as dmc
+import networkx as nx
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -208,6 +209,282 @@ def get_main_data() -> pd.DataFrame:
     return df
 
 
+def get_network_data() -> pd.DataFrame:
+    return pd.read_sql_query(
+        """
+        select
+            a.fighter1_uid,
+            a.fighter2_uid,
+            f1.first_name || ' ' || f1.last_name as fighter1_name,
+            f2.first_name || ' ' || f2.last_name as fighter2_name,
+            count(*) as fight_count
+        from ufc_fights a
+        inner join ufc_fighters f1 on a.fighter1_uid = f1.fighter_uid
+        inner join ufc_fighters f2 on a.fighter2_uid = f2.fighter_uid
+        group by a.fighter1_uid, a.fighter2_uid, fighter1_name, fighter2_name
+        """,
+        get_engine(),
+    )
+
+
+def get_fighter_divisions() -> dict[str, str]:
+    df = pd.read_sql_query(
+        """
+        with fighter_division_counts as (
+            select
+                fighter_uid,
+                fight_division,
+                count(*) as fight_count
+            from (
+                select fighter1_uid as fighter_uid, fight_division from ufc_fights
+                union all
+                select fighter2_uid as fighter_uid, fight_division from ufc_fights
+            )
+            where fight_division is not null
+            group by fighter_uid, fight_division
+        ),
+        fighter_primary_division as (
+            select
+                fighter_uid,
+                fight_division,
+                row_number() over (partition by fighter_uid order by fight_count desc) as rn
+            from fighter_division_counts
+        )
+        select
+            f.first_name || ' ' || f.last_name as fighter_name,
+            fpd.fight_division
+        from fighter_primary_division fpd
+        inner join ufc_fighters f on fpd.fighter_uid = f.fighter_uid
+        where fpd.rn = 1
+        """,
+        get_engine(),
+    )
+    return dict(zip(df["fighter_name"], df["fight_division"]))
+
+
+DIVISION_COLORS = {
+    "Strawweight": "#FF69B4",
+    "Women's Strawweight": "#FF1493",
+    "Flyweight": "#9370DB",
+    "Women's Flyweight": "#8A2BE2",
+    "Bantamweight": "#4169E1",
+    "Women's Bantamweight": "#0000CD",
+    "Featherweight": "#20B2AA",
+    "Women's Featherweight": "#008B8B",
+    "Lightweight": "#32CD32",
+    "Welterweight": "#FFD700",
+    "Middleweight": "#FFA500",
+    "Light Heavyweight": "#FF6347",
+    "Heavyweight": "#DC143C",
+    "Super Heavyweight": "#8B0000",
+    "Catch Weight": "#808080",
+    "Open Weight": "#A9A9A9",
+}
+
+
+def build_fighter_graph(
+    network_df: pd.DataFrame, fighter_divisions: dict[str, str]
+) -> nx.Graph:
+    G = nx.Graph()
+    for _, row in network_df.iterrows():
+        f1_name = row["fighter1_name"]
+        f2_name = row["fighter2_name"]
+        if f1_name not in G:
+            G.add_node(f1_name, division=fighter_divisions.get(f1_name, "Unknown"))
+        if f2_name not in G:
+            G.add_node(f2_name, division=fighter_divisions.get(f2_name, "Unknown"))
+        G.add_edge(f1_name, f2_name, weight=row["fight_count"])
+    return G
+
+
+def get_subgraph_for_fighter(G: nx.Graph, fighter_name: str, depth: int = 2) -> nx.Graph:
+    if fighter_name not in G:
+        return nx.Graph()
+
+    nodes = {fighter_name}
+    current_level = {fighter_name}
+
+    for _ in range(depth):
+        next_level = set()
+        for node in current_level:
+            next_level.update(G.neighbors(node))
+        nodes.update(next_level)
+        current_level = next_level
+
+    return G.subgraph(nodes).copy()
+
+
+def create_network_figure(
+    G: nx.Graph,
+    search_fighter: str | None = None,
+    highlight_path: list[str] | None = None,
+    show_labels: bool = False,
+) -> go.Figure:
+    if len(G.nodes()) == 0:
+        fig = go.Figure()
+        fig.update_layout(
+            annotations=[
+                dict(
+                    text="No connections found",
+                    xref="paper",
+                    yref="paper",
+                    x=0.5,
+                    y=0.5,
+                    showarrow=False,
+                    font=dict(size=20),
+                )
+            ]
+        )
+        return apply_figure_styling(fig)
+
+    pos = nx.spring_layout(G, k=2, iterations=50, seed=42)
+
+    edge_x = []
+    edge_y = []
+    for edge in G.edges():
+        x0, y0 = pos[edge[0]]
+        x1, y1 = pos[edge[1]]
+        edge_x.extend([x0, x1, None])
+        edge_y.extend([y0, y1, None])
+
+    edge_trace = go.Scatter(
+        x=edge_x,
+        y=edge_y,
+        line=dict(width=0.5, color="#cccccc"),
+        hoverinfo="none",
+        mode="lines",
+        showlegend=False,
+    )
+
+    highlight_edge_x = []
+    highlight_edge_y = []
+    if highlight_path and len(highlight_path) > 1:
+        for i in range(len(highlight_path) - 1):
+            if highlight_path[i] in pos and highlight_path[i + 1] in pos:
+                x0, y0 = pos[highlight_path[i]]
+                x1, y1 = pos[highlight_path[i + 1]]
+                highlight_edge_x.extend([x0, x1, None])
+                highlight_edge_y.extend([y0, y1, None])
+
+    highlight_edge_trace = go.Scatter(
+        x=highlight_edge_x,
+        y=highlight_edge_y,
+        line=dict(width=4, color="#ff4444"),
+        hoverinfo="none",
+        mode="lines",
+        showlegend=False,
+    )
+
+    path_set = set(highlight_path) if highlight_path else set()
+
+    division_nodes: dict[str, dict[str, list]] = {}
+    for node in G.nodes():
+        division = G.nodes[node].get("division", "Unknown")
+        if division not in division_nodes:
+            division_nodes[division] = {"x": [], "y": [], "text": [], "sizes": []}
+
+        x, y = pos[node]
+        degree = G.degree(node)
+        size = max(8, min(30, 6 + degree))
+
+        if node == search_fighter or node in path_set:
+            size = max(20, size + 10)
+
+        division_nodes[division]["x"].append(x)
+        division_nodes[division]["y"].append(y)
+        division_nodes[division]["text"].append(node)
+        division_nodes[division]["sizes"].append(size)
+
+    fig = go.Figure()
+    fig.add_trace(edge_trace)
+    fig.add_trace(highlight_edge_trace)
+
+    division_order = [
+        "Strawweight",
+        "Women's Strawweight",
+        "Flyweight",
+        "Women's Flyweight",
+        "Bantamweight",
+        "Women's Bantamweight",
+        "Featherweight",
+        "Women's Featherweight",
+        "Lightweight",
+        "Welterweight",
+        "Middleweight",
+        "Light Heavyweight",
+        "Heavyweight",
+        "Super Heavyweight",
+        "Catch Weight",
+        "Open Weight",
+        "Unknown",
+    ]
+
+    for division in division_order:
+        if division not in division_nodes:
+            continue
+        data = division_nodes[division]
+        color = DIVISION_COLORS.get(division, "#888888")
+
+        show_text = show_labels or (search_fighter and search_fighter in data["text"])
+        text_display = data["text"] if show_text else [""] * len(data["text"])
+
+        fig.add_trace(
+            go.Scatter(
+                x=data["x"],
+                y=data["y"],
+                mode="markers+text" if show_labels else "markers",
+                hoverinfo="text",
+                hovertext=data["text"],
+                text=text_display,
+                textposition="top center",
+                textfont=dict(size=8),
+                marker=dict(
+                    size=data["sizes"],
+                    color=color,
+                    line=dict(width=1, color="white"),
+                ),
+                name=division,
+                legendgroup=division,
+            )
+        )
+
+    if search_fighter and search_fighter in pos:
+        x, y = pos[search_fighter]
+        fig.add_annotation(
+            x=x,
+            y=y,
+            text=search_fighter,
+            showarrow=True,
+            arrowhead=2,
+            arrowsize=1,
+            arrowwidth=2,
+            arrowcolor="#ff4444",
+            font=dict(size=12, color="#ff4444"),
+            bgcolor="white",
+            bordercolor="#ff4444",
+            borderwidth=1,
+        )
+
+    fig.update_layout(
+        showlegend=True,
+        legend=dict(
+            orientation="v",
+            yanchor="top",
+            y=1,
+            xanchor="left",
+            x=1.02,
+            font=dict(size=10),
+        ),
+        hovermode="closest",
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False, showline=False),
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False, showline=False),
+        height=700,
+        margin=dict(l=20, r=150, t=20, b=20),
+    )
+
+    return apply_figure_styling(fig)
+
+
 def get_fighter_list(df: pd.DataFrame) -> list[str]:
     fighter_counts = (
         df.groupby("fighter_name")
@@ -280,6 +557,10 @@ def get_headshot_base64(fighter_uid: str) -> str:
 
 
 df = get_main_data()
+network_df = get_network_data()
+fighter_divisions = get_fighter_divisions()
+fighter_graph = build_fighter_graph(network_df, fighter_divisions)
+
 fighter_options = get_fighter_list(df)
 fighter_uid_map = get_fighter_uid_map(df)
 fighter_nickname_map = get_fighter_nickname_map(df)
@@ -295,6 +576,312 @@ most_recent_event = df["event_date"].max().strftime("%Y-%m-%d")
 assets_path = Path(__file__).parent / "assets"
 app = Dash(__name__, assets_folder=str(assets_path))
 server = app.server
+
+fighter_analysis_content = html.Div(
+    [
+        dmc.Group(
+            [
+                html.Img(
+                    id="fighter-headshot",
+                    style={
+                        "width": "237px",
+                        "height": "150px",
+                        "border": "2px solid #1a1a1a",
+                        "borderRadius": "4px",
+                    },
+                ),
+                html.Div(
+                    [
+                        dmc.Select(
+                            label="",
+                            placeholder="Select fighter",
+                            id="fighter-select",
+                            value=initial_fighter,
+                            data=fighter_options,
+                            searchable=True,
+                            clearable=False,
+                            style={"width": "250px"},
+                        ),
+                        dmc.Group(
+                            [
+                                html.Div(
+                                    [
+                                        dmc.Text(
+                                            "Nickname",
+                                            size="xs",
+                                            c="gray",
+                                            style={"height": "14px"},
+                                        ),
+                                        dmc.Text(
+                                            id="fighter-nickname",
+                                            size="sm",
+                                            style={"minHeight": "18px"},
+                                        ),
+                                    ]
+                                ),
+                                html.Div(
+                                    [
+                                        dmc.Text(
+                                            "Stance",
+                                            size="xs",
+                                            c="gray",
+                                            style={"height": "14px"},
+                                        ),
+                                        dmc.Text(
+                                            id="fighter-stance",
+                                            size="sm",
+                                            style={"minHeight": "18px"},
+                                        ),
+                                    ]
+                                ),
+                                html.Div(
+                                    [
+                                        dmc.Text(
+                                            "Style",
+                                            size="xs",
+                                            c="gray",
+                                            style={"height": "14px"},
+                                        ),
+                                        dmc.Text(
+                                            id="fighter-style",
+                                            size="sm",
+                                            style={"minHeight": "18px"},
+                                        ),
+                                    ]
+                                ),
+                            ],
+                            gap="md",
+                            mt="md",
+                        ),
+                    ]
+                ),
+            ],
+            align="flex-start",
+            gap="lg",
+            mb="md",
+        ),
+        dmc.Tabs(
+            [
+                dmc.TabsList(
+                    [
+                        dmc.TabsTab(
+                            "Fighter Profile",
+                            value="profile",
+                        ),
+                        dmc.TabsTab("Fight History", value="history"),
+                        dmc.TabsTab(
+                            "Striking Analytics",
+                            value="striking",
+                        ),
+                    ]
+                ),
+                dmc.TabsPanel(
+                    [
+                        dmc.SimpleGrid(
+                            [
+                                dmc.Card(
+                                    [
+                                        dmc.Text(
+                                            "Total Fights",
+                                            size="sm",
+                                            c="gray",
+                                        ),
+                                        dmc.Title(
+                                            id="total-fights",
+                                            order=2,
+                                        ),
+                                    ],
+                                    shadow="sm",
+                                    withBorder=True,
+                                    p="lg",
+                                ),
+                                dmc.Card(
+                                    [
+                                        dmc.Text(
+                                            "Record",
+                                            size="sm",
+                                            c="gray",
+                                        ),
+                                        dmc.Title(
+                                            id="record",
+                                            order=2,
+                                        ),
+                                    ],
+                                    shadow="sm",
+                                    withBorder=True,
+                                    p="lg",
+                                ),
+                                dmc.Card(
+                                    [
+                                        dmc.Text(
+                                            "Finish Rate",
+                                            size="sm",
+                                            c="gray",
+                                        ),
+                                        dmc.Title(
+                                            id="finish-rate",
+                                            order=2,
+                                        ),
+                                    ],
+                                    shadow="sm",
+                                    withBorder=True,
+                                    p="lg",
+                                ),
+                                dmc.Card(
+                                    [
+                                        dmc.Text(
+                                            "Strikes Landed",
+                                            size="sm",
+                                            c="gray",
+                                        ),
+                                        dmc.Title(
+                                            id="strikes-landed",
+                                            order=2,
+                                        ),
+                                    ],
+                                    shadow="sm",
+                                    withBorder=True,
+                                    p="lg",
+                                ),
+                                dmc.Card(
+                                    [
+                                        dmc.Text(
+                                            "Strikes Absorbed",
+                                            size="sm",
+                                            c="gray",
+                                        ),
+                                        dmc.Title(
+                                            id="strikes-absorbed",
+                                            order=2,
+                                        ),
+                                    ],
+                                    shadow="sm",
+                                    withBorder=True,
+                                    p="lg",
+                                ),
+                            ],
+                            cols=5,
+                            spacing="md",
+                            mb="md",
+                        ),
+                        create_plot_with_title(
+                            "Career Timeline",
+                            "career-timeline",
+                            margin_bottom=True,
+                        ),
+                        create_plot_with_title(
+                            "Fight Outcome Distribution",
+                            "win-method-chart",
+                        ),
+                    ],
+                    value="profile",
+                    pt="md",
+                ),
+                dmc.TabsPanel(
+                    dash_table.DataTable(
+                        id="fight-history-table",
+                        columns=[],
+                        data=[],
+                        sort_action="native",
+                        filter_action="native",
+                        style_table={
+                            "height": "800px",
+                            "overflowY": "scroll",
+                        },
+                        style_data={
+                            "border": "none",
+                        },
+                        style_cell_conditional=[
+                            {
+                                "if": {"column_id": ""},
+                                "width": "40px",
+                                "textAlign": "center",
+                            },
+                        ],
+                        style_data_conditional=[],
+                        style_header={
+                            "backgroundColor": "#e9ecef",
+                            "fontWeight": "bold",
+                            "border": "none",
+                        },
+                    ),
+                    value="history",
+                    pt="md",
+                ),
+                dmc.TabsPanel(
+                    [
+                        create_plot_with_title(
+                            "Striking Accuracy Over Time",
+                            "accuracy-trend",
+                            margin_bottom=True,
+                        ),
+                        create_plot_with_title(
+                            "Strike Target Distribution",
+                            "target-distribution",
+                            margin_bottom=True,
+                        ),
+                        create_plot_with_title(
+                            "Strikes Landed vs Absorbed",
+                            "strikes-comparison",
+                        ),
+                    ],
+                    value="striking",
+                    pt="md",
+                ),
+            ],
+            value="profile",
+            id="main-tabs",
+        ),
+    ]
+)
+
+fighter_network_content = html.Div(
+    [
+        dmc.Group(
+            [
+                dmc.Select(
+                    label="Search Fighter",
+                    placeholder="Search for a fighter",
+                    id="network-fighter-select",
+                    data=fighter_options,
+                    searchable=True,
+                    clearable=True,
+                    style={"width": "250px"},
+                ),
+                dmc.Select(
+                    label="Find Path To",
+                    placeholder="Select second fighter",
+                    id="network-fighter-target",
+                    data=fighter_options,
+                    searchable=True,
+                    clearable=True,
+                    style={"width": "250px"},
+                ),
+                dmc.Switch(
+                    label="Show Labels",
+                    id="network-show-labels",
+                    checked=False,
+                    style={"marginTop": "24px"},
+                ),
+            ],
+            align="flex-end",
+            gap="md",
+            mb="md",
+        ),
+        html.Div(
+            id="network-path-info",
+            style={"marginBottom": "1rem"},
+        ),
+        html.Div(
+            dcc.Graph(
+                id="fighter-network-graph",
+                figure={},
+                config={"displayModeBar": False},
+            ),
+            className="plot-container-wrapper",
+        ),
+    ]
+)
 
 app.layout = dmc.MantineProvider(
     html.Div(
@@ -318,261 +905,28 @@ app.layout = dmc.MantineProvider(
                 ),
                 dmc.AppShellMain(
                     dmc.Container(
-                        [
-                            dmc.Group(
-                                [
-                                    html.Img(
-                                        id="fighter-headshot",
-                                        style={
-                                            "width": "237px",
-                                            "height": "150px",
-                                            "border": "2px solid #1a1a1a",
-                                            "borderRadius": "4px",
-                                        },
-                                    ),
-                                    html.Div(
-                                        [
-                                            dmc.Select(
-                                                label="",
-                                                placeholder="Select fighter",
-                                                id="fighter-select",
-                                                value=initial_fighter,
-                                                data=fighter_options,
-                                                searchable=True,
-                                                clearable=False,
-                                                style={"width": "250px"},
-                                            ),
-                                            dmc.Group(
-                                                [
-                                                    html.Div(
-                                                        [
-                                                            dmc.Text(
-                                                                "Nickname",
-                                                                size="xs",
-                                                                c="gray",
-                                                                style={"height": "14px"},
-                                                            ),
-                                                            dmc.Text(
-                                                                id="fighter-nickname",
-                                                                size="sm",
-                                                                style={"minHeight": "18px"},
-                                                            ),
-                                                        ]
-                                                    ),
-                                                    html.Div(
-                                                        [
-                                                            dmc.Text(
-                                                                "Stance",
-                                                                size="xs",
-                                                                c="gray",
-                                                                style={"height": "14px"},
-                                                            ),
-                                                            dmc.Text(
-                                                                id="fighter-stance",
-                                                                size="sm",
-                                                                style={"minHeight": "18px"},
-                                                            ),
-                                                        ]
-                                                    ),
-                                                    html.Div(
-                                                        [
-                                                            dmc.Text(
-                                                                "Style",
-                                                                size="xs",
-                                                                c="gray",
-                                                                style={"height": "14px"},
-                                                            ),
-                                                            dmc.Text(
-                                                                id="fighter-style",
-                                                                size="sm",
-                                                                style={"minHeight": "18px"},
-                                                            ),
-                                                        ]
-                                                    ),
-                                                ],
-                                                gap="md",
-                                                mt="md",
-                                            ),
-                                        ]
-                                    ),
-                                ],
-                                align="flex-start",
-                                gap="lg",
-                                mb="md",
-                            ),
-                            dmc.Tabs(
-                                [
-                                    dmc.TabsList(
-                                        [
-                                            dmc.TabsTab(
-                                                "Fighter Profile",
-                                                value="profile",
-                                            ),
-                                            dmc.TabsTab("Fight History", value="history"),
-                                            dmc.TabsTab(
-                                                "Striking Analytics",
-                                                value="striking",
-                                            ),
-                                        ]
-                                    ),
-                                    dmc.TabsPanel(
-                                        [
-                                            dmc.SimpleGrid(
-                                                [
-                                                    dmc.Card(
-                                                        [
-                                                            dmc.Text(
-                                                                "Total Fights",
-                                                                size="sm",
-                                                                c="gray",
-                                                            ),
-                                                            dmc.Title(
-                                                                id="total-fights",
-                                                                order=2,
-                                                            ),
-                                                        ],
-                                                        shadow="sm",
-                                                        withBorder=True,
-                                                        p="lg",
-                                                    ),
-                                                    dmc.Card(
-                                                        [
-                                                            dmc.Text(
-                                                                "Record",
-                                                                size="sm",
-                                                                c="gray",
-                                                            ),
-                                                            dmc.Title(
-                                                                id="record",
-                                                                order=2,
-                                                            ),
-                                                        ],
-                                                        shadow="sm",
-                                                        withBorder=True,
-                                                        p="lg",
-                                                    ),
-                                                    dmc.Card(
-                                                        [
-                                                            dmc.Text(
-                                                                "Finish Rate",
-                                                                size="sm",
-                                                                c="gray",
-                                                            ),
-                                                            dmc.Title(
-                                                                id="finish-rate",
-                                                                order=2,
-                                                            ),
-                                                        ],
-                                                        shadow="sm",
-                                                        withBorder=True,
-                                                        p="lg",
-                                                    ),
-                                                    dmc.Card(
-                                                        [
-                                                            dmc.Text(
-                                                                "Strikes Landed",
-                                                                size="sm",
-                                                                c="gray",
-                                                            ),
-                                                            dmc.Title(
-                                                                id="strikes-landed",
-                                                                order=2,
-                                                            ),
-                                                        ],
-                                                        shadow="sm",
-                                                        withBorder=True,
-                                                        p="lg",
-                                                    ),
-                                                    dmc.Card(
-                                                        [
-                                                            dmc.Text(
-                                                                "Strikes Absorbed",
-                                                                size="sm",
-                                                                c="gray",
-                                                            ),
-                                                            dmc.Title(
-                                                                id="strikes-absorbed",
-                                                                order=2,
-                                                            ),
-                                                        ],
-                                                        shadow="sm",
-                                                        withBorder=True,
-                                                        p="lg",
-                                                    ),
-                                                ],
-                                                cols=5,
-                                                spacing="md",
-                                                mb="md",
-                                            ),
-                                            create_plot_with_title(
-                                                "Career Timeline",
-                                                "career-timeline",
-                                                margin_bottom=True,
-                                            ),
-                                            create_plot_with_title(
-                                                "Fight Outcome Distribution",
-                                                "win-method-chart",
-                                            ),
-                                        ],
-                                        value="profile",
-                                        pt="md",
-                                    ),
-                                    dmc.TabsPanel(
-                                        dash_table.DataTable(
-                                            id="fight-history-table",
-                                            columns=[],
-                                            data=[],
-                                            sort_action="native",
-                                            filter_action="native",
-                                            style_table={
-                                                "height": "800px",
-                                                "overflowY": "scroll",
-                                            },
-                                            style_data={
-                                                "border": "none",
-                                            },
-                                            style_cell_conditional=[
-                                                {
-                                                    "if": {"column_id": ""},
-                                                    "width": "40px",
-                                                    "textAlign": "center",
-                                                },
-                                            ],
-                                            style_data_conditional=[],
-                                            style_header={
-                                                "backgroundColor": "#e9ecef",
-                                                "fontWeight": "bold",
-                                                "border": "none",
-                                            },
-                                        ),
-                                        value="history",
-                                        pt="md",
-                                    ),
-                                    dmc.TabsPanel(
-                                        [
-                                            create_plot_with_title(
-                                                "Striking Accuracy Over Time",
-                                                "accuracy-trend",
-                                                margin_bottom=True,
-                                            ),
-                                            create_plot_with_title(
-                                                "Strike Target Distribution",
-                                                "target-distribution",
-                                                margin_bottom=True,
-                                            ),
-                                            create_plot_with_title(
-                                                "Strikes Landed vs Absorbed",
-                                                "strikes-comparison",
-                                            ),
-                                        ],
-                                        value="striking",
-                                        pt="md",
-                                    ),
-                                ],
-                                value="profile",
-                                id="main-tabs",
-                            ),
-                        ],
+                        dmc.Tabs(
+                            [
+                                dmc.TabsList(
+                                    [
+                                        dmc.TabsTab("Fighter Analysis", value="analysis"),
+                                        dmc.TabsTab("Fighter Network", value="network"),
+                                    ]
+                                ),
+                                dmc.TabsPanel(
+                                    fighter_analysis_content,
+                                    value="analysis",
+                                    pt="md",
+                                ),
+                                dmc.TabsPanel(
+                                    fighter_network_content,
+                                    value="network",
+                                    pt="md",
+                                ),
+                            ],
+                            value="analysis",
+                            id="top-level-tabs",
+                        ),
                         size="xl",
                         p="md",
                     )
@@ -1090,6 +1444,61 @@ def update_strikes_comparison(fighter: str):
         )
 
     return apply_figure_styling(fig)
+
+
+@callback(
+    [
+        Output("fighter-network-graph", "figure"),
+        Output("network-path-info", "children"),
+    ],
+    [
+        Input("network-fighter-select", "value"),
+        Input("network-fighter-target", "value"),
+        Input("network-show-labels", "checked"),
+    ],
+)
+def update_network_graph(
+    search_fighter: str | None, target_fighter: str | None, show_labels: bool
+):
+    highlight_path = None
+    path_info = ""
+
+    if search_fighter and target_fighter and search_fighter != target_fighter:
+        if search_fighter in fighter_graph and target_fighter in fighter_graph:
+            try:
+                path = nx.shortest_path(fighter_graph, search_fighter, target_fighter)
+                highlight_path = path
+                path_length = len(path) - 1
+                path_str = " -> ".join(path)
+                path_info = dmc.Alert(
+                    [
+                        dmc.Text(f"Shortest path ({path_length} fights): ", fw=700, span=True),
+                        dmc.Text(path_str, span=True),
+                    ],
+                    color="blue",
+                    variant="light",
+                )
+            except nx.NetworkXNoPath:
+                path_info = dmc.Alert(
+                    f"No path found between {search_fighter} and {target_fighter}",
+                    color="red",
+                    variant="light",
+                )
+        elif search_fighter not in fighter_graph:
+            path_info = dmc.Alert(
+                f"{search_fighter} not found in the network",
+                color="orange",
+                variant="light",
+            )
+        elif target_fighter not in fighter_graph:
+            path_info = dmc.Alert(
+                f"{target_fighter} not found in the network",
+                color="orange",
+                variant="light",
+            )
+
+    fig = create_network_figure(fighter_graph, search_fighter, highlight_path, show_labels)
+    return fig, path_info
 
 
 if __name__ == "__main__":
