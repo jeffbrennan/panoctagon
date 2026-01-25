@@ -92,7 +92,8 @@ def bios(force: bool = False, n: Optional[int] = None) -> int:
     print(start_header)
     start_time = time.time()
     results = [
-        get_fighter_bio(fighter, output_dir) for fighter in fighters_to_download
+        get_fighter_bio(fighter, output_dir, i, len(fighters_to_download))
+        for i, fighter in enumerate(fighters_to_download, 1)
     ]
 
     end_time = time.time()

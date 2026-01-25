@@ -1,19 +1,17 @@
-from pydantic import BaseModel
-
-from panoctagon.tables import UFCFighter
-
 from pathlib import Path
 from typing import Optional
 
+from pydantic import BaseModel
 from sqlmodel import Session, and_, col, select
 
 from panoctagon.common import (
+    Symbols,
     create_header,
     get_engine,
     scrape_page,
-    Symbols,
 )
 from panoctagon.models import ScrapingConfig, ScrapingWriteResult
+from panoctagon.tables import UFCFighter
 
 
 class FighterBioScrapingResult(BaseModel):
@@ -23,7 +21,9 @@ class FighterBioScrapingResult(BaseModel):
     message: Optional[str]
 
 
-def get_fighter_bio(fighter: UFCFighter, base_dir: Path) -> FighterBioScrapingResult:
+def get_fighter_bio(
+    fighter: UFCFighter, base_dir: Path, index: int, total_fighters: int
+) -> FighterBioScrapingResult:
     first_name = (
         "-".join(fighter.first_name.split(" "))
         .lower()
@@ -62,11 +62,12 @@ def get_fighter_bio(fighter: UFCFighter, base_dir: Path) -> FighterBioScrapingRe
     else:
         result_indicator = Symbols.DELETED.value
 
-    output_message = (
-        f"[{result_indicator}] {fighter.first_name} {fighter.last_name} ({url_uid})"
-    )
+    prefix = f"[{index:03d} / {total_fighters:03d}]"
+    output_message = f"[{prefix}] {result_indicator} {fighter.first_name} {fighter.last_name} ({url_uid})"
     print(
-        create_header(title=output_message, center=False, spacer=" ", header_length=80)
+        create_header(
+            title=output_message, center=False, spacer=" ", header_length=80
+        )
     )
 
     return FighterBioScrapingResult(
@@ -82,7 +83,10 @@ def get_fighter(first_name: str, last_name: str) -> UFCFighter:
 
     with Session(engine) as session:
         cmd = select(UFCFighter).where(
-            and_(UFCFighter.first_name == first_name, UFCFighter.last_name == last_name)
+            and_(
+                UFCFighter.first_name == first_name,
+                UFCFighter.last_name == last_name,
+            )
         )
         fighter = session.exec(cmd).one()
     return fighter
@@ -109,5 +113,7 @@ def get_fighters_to_download(
 
     downloaded_fighter_uids = [i.stem for i in base_dir.glob("*.html")]
     return [
-        i for i in unparsed_fighters if i.fighter_uid not in downloaded_fighter_uids
+        i
+        for i in unparsed_fighters
+        if i.fighter_uid not in downloaded_fighter_uids
     ]
