@@ -7,7 +7,7 @@ import networkx as nx
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from dash import Dash, Input, Output, callback, dash_table, dcc, html
+from dash import ALL, Dash, Input, Output, State, callback, ctx, dash_table, dcc, html
 
 from panoctagon.common import get_engine
 
@@ -369,6 +369,143 @@ def get_matchup_data() -> pd.DataFrame:
     )
 
 
+def get_upcoming_fights() -> pd.DataFrame:
+    return pd.read_sql_query(
+        """
+        with fighter_info as (
+            select
+                fighter_uid,
+                first_name || ' ' || last_name as fighter_name,
+                dob,
+                reach_inches,
+                height_inches,
+                stance
+            from ufc_fighters
+        ),
+        fighter_records as (
+            select
+                fighter_uid,
+                count(*) as total_fights,
+                sum(case when result = 'WIN' then 1 else 0 end) as wins,
+                sum(case when result = 'LOSS' then 1 else 0 end) as losses,
+                sum(case when result = 'DRAW' then 1 else 0 end) as draws
+            from (
+                select fighter1_uid as fighter_uid, fighter1_result as result
+                from ufc_fights where fighter1_result is not null
+                union all
+                select fighter2_uid as fighter_uid, fighter2_result as result
+                from ufc_fights where fighter2_result is not null
+            )
+            group by fighter_uid
+        )
+        select
+            f.fight_uid,
+            f.event_uid,
+            e.title as event_title,
+            e.event_date,
+            e.event_location,
+            f.fight_division,
+            f.fight_type,
+            f.fighter1_uid,
+            f1.fighter_name as fighter1_name,
+            f1.dob as fighter1_dob,
+            f1.reach_inches as fighter1_reach,
+            f1.height_inches as fighter1_height,
+            f1.stance as fighter1_stance,
+            coalesce(fr1.total_fights, 0) as fighter1_total_fights,
+            coalesce(fr1.wins, 0) as fighter1_wins,
+            coalesce(fr1.losses, 0) as fighter1_losses,
+            coalesce(fr1.draws, 0) as fighter1_draws,
+            f.fighter2_uid,
+            f2.fighter_name as fighter2_name,
+            f2.dob as fighter2_dob,
+            f2.reach_inches as fighter2_reach,
+            f2.height_inches as fighter2_height,
+            f2.stance as fighter2_stance,
+            coalesce(fr2.total_fights, 0) as fighter2_total_fights,
+            coalesce(fr2.wins, 0) as fighter2_wins,
+            coalesce(fr2.losses, 0) as fighter2_losses,
+            coalesce(fr2.draws, 0) as fighter2_draws
+        from ufc_fights f
+        inner join ufc_events e on f.event_uid = e.event_uid
+        inner join fighter_info f1 on f.fighter1_uid = f1.fighter_uid
+        inner join fighter_info f2 on f.fighter2_uid = f2.fighter_uid
+        left join fighter_records fr1 on f.fighter1_uid = fr1.fighter_uid
+        left join fighter_records fr2 on f.fighter2_uid = fr2.fighter_uid
+        where f.fighter1_result is null
+        order by e.event_date asc
+        """,
+        get_engine(),
+    )
+
+
+def get_fighter_recent_form(fighter_uid: str, n_fights: int = 5) -> pd.DataFrame:
+    return pd.read_sql_query(
+        f"""
+        with fighter_fights as (
+            select
+                f.fight_uid,
+                e.event_date,
+                f.fighter1_uid as fighter_uid,
+                f.fighter2_uid as opponent_uid,
+                f.fighter1_result as result,
+                f.decision,
+                f.decision_round
+            from ufc_fights f
+            inner join ufc_events e on f.event_uid = e.event_uid
+            where f.fighter1_uid = '{fighter_uid}'
+              and f.fighter1_result is not null
+            union all
+            select
+                f.fight_uid,
+                e.event_date,
+                f.fighter2_uid as fighter_uid,
+                f.fighter1_uid as opponent_uid,
+                f.fighter2_result as result,
+                f.decision,
+                f.decision_round
+            from ufc_fights f
+            inner join ufc_events e on f.event_uid = e.event_uid
+            where f.fighter2_uid = '{fighter_uid}'
+              and f.fighter2_result is not null
+        ),
+        fighter_stats_agg as (
+            select
+                fs.fight_uid,
+                fs.fighter_uid,
+                sum(fs.total_strikes_landed) as strikes_landed,
+                sum(fs.total_strikes_attempted) as strikes_attempted,
+                sum(fs.takedowns_landed) as takedowns_landed,
+                sum(fs.takedowns_attempted) as takedowns_attempted,
+                sum(fs.sig_strikes_landed) as sig_strikes_landed,
+                sum(fs.knockdowns) as knockdowns
+            from ufc_fight_stats fs
+            group by fs.fight_uid, fs.fighter_uid
+        )
+        select
+            ff.fight_uid,
+            ff.event_date,
+            ff.result,
+            ff.decision,
+            ff.decision_round,
+            opp.first_name || ' ' || opp.last_name as opponent_name,
+            fsa.strikes_landed,
+            fsa.strikes_attempted,
+            fsa.takedowns_landed,
+            fsa.takedowns_attempted,
+            fsa.sig_strikes_landed,
+            fsa.knockdowns
+        from fighter_fights ff
+        inner join ufc_fighters opp on ff.opponent_uid = opp.fighter_uid
+        left join fighter_stats_agg fsa on ff.fight_uid = fsa.fight_uid
+            and ff.fighter_uid = fsa.fighter_uid
+        order by ff.event_date desc
+        limit {n_fights}
+        """,
+        get_engine(),
+    )
+
+
 def get_fighter_divisions() -> dict[str, str]:
     df = pd.read_sql_query(
         """
@@ -630,6 +767,11 @@ def create_network_figure(
 def create_fighter_clustering_figure(
     roster_df: pd.DataFrame, fighter_divisions: dict[str, str]
 ) -> go.Figure:
+    if roster_df.empty:
+        fig = go.Figure()
+        fig.update_layout(height=600)
+        return apply_figure_styling(fig)
+
     roster_df = roster_df.copy()
     roster_df["division"] = roster_df["fighter_name"].map(fighter_divisions).fillna("Unknown")
     roster_df["win_pct"] = roster_df["wins"] / roster_df["total_fights"] * 100
@@ -703,6 +845,11 @@ def create_fighter_clustering_figure(
 
 
 def create_striking_target_winrate_figure(roster_df: pd.DataFrame) -> go.Figure:
+    if roster_df.empty:
+        fig = go.Figure()
+        fig.update_layout(height=500)
+        return apply_figure_styling(fig)
+
     roster_df = roster_df.copy()
     roster_df = roster_df[roster_df["total_sig_strikes"] > 0]
     roster_df["head_pct"] = roster_df["total_head_strikes"] / roster_df["total_sig_strikes"] * 100
@@ -773,6 +920,11 @@ def create_striking_target_winrate_figure(roster_df: pd.DataFrame) -> go.Figure:
 
 
 def create_matchup_discrepancy_figure(matchup_df: pd.DataFrame) -> go.Figure:
+    if matchup_df.empty:
+        fig = go.Figure()
+        fig.update_layout(height=500)
+        return apply_figure_styling(fig)
+
     matchup_df = matchup_df.copy()
     matchup_df["event_date"] = pd.to_datetime(matchup_df["event_date"])
     matchup_df["fighter1_dob"] = pd.to_datetime(matchup_df["fighter1_dob"])
@@ -962,24 +1114,39 @@ def get_headshot_base64(fighter_uid: str) -> str:
     return f"data:image/png;base64,{encoded}"
 
 
-df = get_main_data()
-network_df = get_network_data()
-fighter_divisions = get_fighter_divisions()
-fighter_graph = build_fighter_graph(network_df, fighter_divisions)
-roster_df = get_roster_stats()
-matchup_df = get_matchup_data()
+try:
+    df = get_main_data()
+    network_df = get_network_data()
+    fighter_divisions = get_fighter_divisions()
+    fighter_graph = build_fighter_graph(network_df, fighter_divisions)
+    roster_df = get_roster_stats()
+    matchup_df = get_matchup_data()
+    fighter_options = get_fighter_list(df)
+except Exception:
+    df = pd.DataFrame()
+    network_df = pd.DataFrame()
+    fighter_divisions = {}
+    fighter_graph = nx.Graph()
+    roster_df = pd.DataFrame()
+    matchup_df = pd.DataFrame()
+    fighter_options = []
 
-fighter_options = get_fighter_list(df)
-fighter_uid_map = get_fighter_uid_map(df)
-fighter_nickname_map = get_fighter_nickname_map(df)
-fighter_stance_map = get_fighter_stance_map(df)
-fighter_style_map = get_fighter_style_map(df)
-
-initial_fighter = df.sample(1)["fighter_name"].item()
-if not isinstance(initial_fighter, str):
-    raise TypeError()
-
-most_recent_event = df["event_date"].max().strftime("%Y-%m-%d")
+if fighter_options:
+    fighter_uid_map = get_fighter_uid_map(df)
+    fighter_nickname_map = get_fighter_nickname_map(df)
+    fighter_stance_map = get_fighter_stance_map(df)
+    fighter_style_map = get_fighter_style_map(df)
+    initial_fighter = df.sample(1)["fighter_name"].item()
+    if not isinstance(initial_fighter, str):
+        raise TypeError()
+    most_recent_event = df["event_date"].max().strftime("%Y-%m-%d")
+else:
+    fighter_uid_map = {}
+    fighter_nickname_map = {}
+    fighter_stance_map = {}
+    fighter_style_map = {}
+    initial_fighter = ""
+    most_recent_event = "No data"
 
 assets_path = Path(__file__).parent / "assets"
 app = Dash(__name__, assets_folder=str(assets_path))
@@ -1367,6 +1534,225 @@ roster_analysis_content = html.Div(
     ]
 )
 
+def create_matchup_card(
+    fight: dict,
+    fighter_num: int,
+    opponent_num: int,
+) -> dmc.Card:
+    fighter_name = fight[f"fighter{fighter_num}_name"]
+    fighter_uid = fight[f"fighter{fighter_num}_uid"]
+    fighter_record = f"{fight[f'fighter{fighter_num}_wins']}-{fight[f'fighter{fighter_num}_losses']}-{fight[f'fighter{fighter_num}_draws']}"
+    fighter_reach = fight[f"fighter{fighter_num}_reach"]
+    fighter_height = fight[f"fighter{fighter_num}_height"]
+    fighter_stance = fight[f"fighter{fighter_num}_stance"]
+    fighter_dob = fight[f"fighter{fighter_num}_dob"]
+
+    opponent_reach = fight[f"fighter{opponent_num}_reach"]
+    opponent_height = fight[f"fighter{opponent_num}_height"]
+
+    reach_diff = None
+    if fighter_reach and opponent_reach:
+        reach_diff = fighter_reach - opponent_reach
+
+    height_diff = None
+    if fighter_height and opponent_height:
+        height_diff = fighter_height - opponent_height
+
+    def format_diff(diff: int | None, unit: str = "") -> str:
+        if diff is None:
+            return "-"
+        sign = "+" if diff > 0 else ""
+        return f"{sign}{diff}{unit}"
+
+    headshot_src = get_headshot_base64(fighter_uid)
+
+    return dmc.Card(
+        [
+            dmc.Group(
+                [
+                    html.Img(
+                        src=headshot_src,
+                        style={
+                            "width": "100px",
+                            "height": "63px",
+                            "objectFit": "cover",
+                            "borderRadius": "4px",
+                        },
+                    ),
+                    html.Div(
+                        [
+                            dmc.Text(fighter_name, fw=700, size="lg"),
+                            dmc.Text(fighter_record, size="sm", c="gray"),
+                        ]
+                    ),
+                ],
+                gap="md",
+            ),
+            dmc.Divider(my="sm"),
+            dmc.SimpleGrid(
+                [
+                    html.Div(
+                        [
+                            dmc.Text("Reach", size="xs", c="gray"),
+                            dmc.Text(
+                                f"{fighter_reach or '-'}\"",
+                                size="sm",
+                            ),
+                            dmc.Text(
+                                format_diff(reach_diff, "\""),
+                                size="xs",
+                                c="green" if reach_diff and reach_diff > 0 else "red" if reach_diff and reach_diff < 0 else "gray",
+                            ),
+                        ]
+                    ),
+                    html.Div(
+                        [
+                            dmc.Text("Height", size="xs", c="gray"),
+                            dmc.Text(
+                                f"{fighter_height or '-'}\"",
+                                size="sm",
+                            ),
+                            dmc.Text(
+                                format_diff(height_diff, "\""),
+                                size="xs",
+                                c="green" if height_diff and height_diff > 0 else "red" if height_diff and height_diff < 0 else "gray",
+                            ),
+                        ]
+                    ),
+                    html.Div(
+                        [
+                            dmc.Text("Stance", size="xs", c="gray"),
+                            dmc.Text(fighter_stance or "-", size="sm"),
+                        ]
+                    ),
+                ],
+                cols=3,
+            ),
+        ],
+        shadow="sm",
+        withBorder=True,
+        p="md",
+        style={"minWidth": "280px"},
+    )
+
+
+def create_matchup_row(fight: dict) -> html.Div:
+    fighter1_card = create_matchup_card(fight, 1, 2)
+    fighter2_card = create_matchup_card(fight, 2, 1)
+
+    return html.Div(
+        [
+            dmc.Group(
+                [
+                    fighter1_card,
+                    html.Div(
+                        [
+                            dmc.Text("VS", fw=700, size="xl", c="gray"),
+                        ],
+                        style={"textAlign": "center", "minWidth": "60px"},
+                    ),
+                    fighter2_card,
+                ],
+                align="stretch",
+                justify="center",
+                gap="lg",
+            ),
+            dmc.Group(
+                [
+                    dmc.Button(
+                        f"View {fight['fighter1_name'].split()[-1]}",
+                        id={"type": "view-fighter-btn", "index": fight["fighter1_name"]},
+                        variant="light",
+                        size="xs",
+                    ),
+                    dmc.Button(
+                        f"View {fight['fighter2_name'].split()[-1]}",
+                        id={"type": "view-fighter-btn", "index": fight["fighter2_name"]},
+                        variant="light",
+                        size="xs",
+                    ),
+                ],
+                justify="center",
+                mt="sm",
+            ),
+        ],
+        style={"marginBottom": "1.5rem"},
+    )
+
+
+def create_upcoming_fights_content() -> html.Div:
+    try:
+        upcoming_df = get_upcoming_fights()
+    except Exception:
+        upcoming_df = pd.DataFrame()
+
+    if upcoming_df.empty:
+        return html.Div(
+            [
+                dmc.Alert(
+                    "No upcoming fights found. Upcoming fights will appear here after scraping events with unfinished matchups.",
+                    color="gray",
+                    variant="light",
+                ),
+            ]
+        )
+
+    upcoming_df["event_date"] = pd.to_datetime(upcoming_df["event_date"])
+    events = upcoming_df.groupby(["event_uid", "event_title", "event_date", "event_location"])
+
+    event_sections = []
+    for (event_uid, event_title, event_date, event_location), fights in events:
+        event_date_str = event_date.strftime("%B %d, %Y")
+        fights_list = fights.to_dict("records")
+
+        matchup_rows = [create_matchup_row(fight) for fight in fights_list]
+
+        event_section = html.Div(
+            [
+                dmc.Paper(
+                    [
+                        dmc.Group(
+                            [
+                                html.Div(
+                                    [
+                                        dmc.Title(event_title, order=3),
+                                        dmc.Text(f"{event_date_str} - {event_location}", c="gray", size="sm"),
+                                    ]
+                                ),
+                                dmc.Badge(
+                                    f"{len(fights_list)} fights",
+                                    color="blue",
+                                    variant="light",
+                                ),
+                            ],
+                            justify="space-between",
+                        ),
+                    ],
+                    p="md",
+                    mb="md",
+                    withBorder=True,
+                ),
+                html.Div(matchup_rows),
+            ],
+            style={"marginBottom": "2rem"},
+        )
+        event_sections.append(event_section)
+
+    return html.Div(
+        [
+            dmc.Text(
+                "Upcoming UFC events with scheduled matchups. Click fighter names to view detailed analysis.",
+                c="gray",
+                size="sm",
+                mb="md",
+            ),
+            html.Div(event_sections),
+        ]
+    )
+
+
+upcoming_fights_content = create_upcoming_fights_content()
+
 app.layout = dmc.MantineProvider(
     html.Div(
         id="panoctagon-page",
@@ -1393,10 +1779,16 @@ app.layout = dmc.MantineProvider(
                             [
                                 dmc.TabsList(
                                     [
+                                        dmc.TabsTab("Upcoming Fights", value="upcoming"),
                                         dmc.TabsTab("Fighter Analysis", value="analysis"),
                                         dmc.TabsTab("Fighter Network", value="network"),
                                         dmc.TabsTab("Roster Analysis", value="roster"),
                                     ]
+                                ),
+                                dmc.TabsPanel(
+                                    upcoming_fights_content,
+                                    value="upcoming",
+                                    pt="md",
                                 ),
                                 dmc.TabsPanel(
                                     fighter_analysis_content,
@@ -1414,7 +1806,7 @@ app.layout = dmc.MantineProvider(
                                     pt="md",
                                 ),
                             ],
-                            value="analysis",
+                            value="upcoming",
                             id="top-level-tabs",
                         ),
                         size="xl",
@@ -1989,6 +2381,27 @@ def update_network_graph(
 
     fig = create_network_figure(fighter_graph, search_fighter, highlight_path, show_labels)
     return fig, path_info
+
+
+@callback(
+    [
+        Output("top-level-tabs", "value"),
+        Output("fighter-select", "value"),
+    ],
+    Input({"type": "view-fighter-btn", "index": ALL}, "n_clicks"),
+    prevent_initial_call=True,
+)
+def navigate_to_fighter(n_clicks):
+    if not any(n_clicks):
+        return "upcoming", initial_fighter
+
+    triggered = ctx.triggered_id
+    if triggered and isinstance(triggered, dict):
+        fighter_name = triggered["index"]
+        if fighter_name in fighter_options:
+            return "analysis", fighter_name
+
+    return "upcoming", initial_fighter
 
 
 if __name__ == "__main__":
