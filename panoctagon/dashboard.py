@@ -227,14 +227,73 @@ def get_network_data() -> pd.DataFrame:
     )
 
 
-def build_fighter_graph(network_df: pd.DataFrame) -> nx.Graph:
+def get_fighter_divisions() -> dict[str, str]:
+    df = pd.read_sql_query(
+        """
+        with fighter_division_counts as (
+            select
+                fighter_uid,
+                fight_division,
+                count(*) as fight_count
+            from (
+                select fighter1_uid as fighter_uid, fight_division from ufc_fights
+                union all
+                select fighter2_uid as fighter_uid, fight_division from ufc_fights
+            )
+            where fight_division is not null
+            group by fighter_uid, fight_division
+        ),
+        fighter_primary_division as (
+            select
+                fighter_uid,
+                fight_division,
+                row_number() over (partition by fighter_uid order by fight_count desc) as rn
+            from fighter_division_counts
+        )
+        select
+            f.first_name || ' ' || f.last_name as fighter_name,
+            fpd.fight_division
+        from fighter_primary_division fpd
+        inner join ufc_fighters f on fpd.fighter_uid = f.fighter_uid
+        where fpd.rn = 1
+        """,
+        get_engine(),
+    )
+    return dict(zip(df["fighter_name"], df["fight_division"]))
+
+
+DIVISION_COLORS = {
+    "Strawweight": "#FF69B4",
+    "Women's Strawweight": "#FF1493",
+    "Flyweight": "#9370DB",
+    "Women's Flyweight": "#8A2BE2",
+    "Bantamweight": "#4169E1",
+    "Women's Bantamweight": "#0000CD",
+    "Featherweight": "#20B2AA",
+    "Women's Featherweight": "#008B8B",
+    "Lightweight": "#32CD32",
+    "Welterweight": "#FFD700",
+    "Middleweight": "#FFA500",
+    "Light Heavyweight": "#FF6347",
+    "Heavyweight": "#DC143C",
+    "Super Heavyweight": "#8B0000",
+    "Catch Weight": "#808080",
+    "Open Weight": "#A9A9A9",
+}
+
+
+def build_fighter_graph(
+    network_df: pd.DataFrame, fighter_divisions: dict[str, str]
+) -> nx.Graph:
     G = nx.Graph()
     for _, row in network_df.iterrows():
-        G.add_edge(
-            row["fighter1_name"],
-            row["fighter2_name"],
-            weight=row["fight_count"],
-        )
+        f1_name = row["fighter1_name"]
+        f2_name = row["fighter2_name"]
+        if f1_name not in G:
+            G.add_node(f1_name, division=fighter_divisions.get(f1_name, "Unknown"))
+        if f2_name not in G:
+            G.add_node(f2_name, division=fighter_divisions.get(f2_name, "Unknown"))
+        G.add_edge(f1_name, f2_name, weight=row["fight_count"])
     return G
 
 
@@ -256,7 +315,10 @@ def get_subgraph_for_fighter(G: nx.Graph, fighter_name: str, depth: int = 2) -> 
 
 
 def create_network_figure(
-    G: nx.Graph, center_fighter: str | None = None, highlight_path: list[str] | None = None
+    G: nx.Graph,
+    search_fighter: str | None = None,
+    highlight_path: list[str] | None = None,
+    show_labels: bool = False,
 ) -> go.Figure:
     if len(G.nodes()) == 0:
         fig = go.Figure()
@@ -288,9 +350,10 @@ def create_network_figure(
     edge_trace = go.Scatter(
         x=edge_x,
         y=edge_y,
-        line=dict(width=1, color="#888"),
+        line=dict(width=0.5, color="#cccccc"),
         hoverinfo="none",
         mode="lines",
+        showlegend=False,
     )
 
     highlight_edge_x = []
@@ -309,56 +372,114 @@ def create_network_figure(
         line=dict(width=4, color="#ff4444"),
         hoverinfo="none",
         mode="lines",
+        showlegend=False,
     )
-
-    node_x = []
-    node_y = []
-    node_text = []
-    node_colors = []
-    node_sizes = []
 
     path_set = set(highlight_path) if highlight_path else set()
 
+    division_nodes: dict[str, dict[str, list]] = {}
     for node in G.nodes():
+        division = G.nodes[node].get("division", "Unknown")
+        if division not in division_nodes:
+            division_nodes[division] = {"x": [], "y": [], "text": [], "sizes": []}
+
         x, y = pos[node]
-        node_x.append(x)
-        node_y.append(y)
-        node_text.append(node)
-
         degree = G.degree(node)
-        node_sizes.append(max(15, min(40, 10 + degree * 2)))
+        size = max(8, min(30, 6 + degree))
 
-        if node == center_fighter:
-            node_colors.append("#ff4444")
-        elif node in path_set:
-            node_colors.append("#ff8888")
-        else:
-            node_colors.append("#1a1a1a")
+        if node == search_fighter or node in path_set:
+            size = max(20, size + 10)
 
-    node_trace = go.Scatter(
-        x=node_x,
-        y=node_y,
-        mode="markers+text",
-        hoverinfo="text",
-        text=node_text,
-        textposition="top center",
-        textfont=dict(size=10),
-        marker=dict(
-            size=node_sizes,
-            color=node_colors,
-            line=dict(width=2, color="white"),
-        ),
-    )
+        division_nodes[division]["x"].append(x)
+        division_nodes[division]["y"].append(y)
+        division_nodes[division]["text"].append(node)
+        division_nodes[division]["sizes"].append(size)
 
-    fig = go.Figure(data=[edge_trace, highlight_edge_trace, node_trace])
+    fig = go.Figure()
+    fig.add_trace(edge_trace)
+    fig.add_trace(highlight_edge_trace)
+
+    division_order = [
+        "Strawweight",
+        "Women's Strawweight",
+        "Flyweight",
+        "Women's Flyweight",
+        "Bantamweight",
+        "Women's Bantamweight",
+        "Featherweight",
+        "Women's Featherweight",
+        "Lightweight",
+        "Welterweight",
+        "Middleweight",
+        "Light Heavyweight",
+        "Heavyweight",
+        "Super Heavyweight",
+        "Catch Weight",
+        "Open Weight",
+        "Unknown",
+    ]
+
+    for division in division_order:
+        if division not in division_nodes:
+            continue
+        data = division_nodes[division]
+        color = DIVISION_COLORS.get(division, "#888888")
+
+        show_text = show_labels or (search_fighter and search_fighter in data["text"])
+        text_display = data["text"] if show_text else [""] * len(data["text"])
+
+        fig.add_trace(
+            go.Scatter(
+                x=data["x"],
+                y=data["y"],
+                mode="markers+text" if show_labels else "markers",
+                hoverinfo="text",
+                hovertext=data["text"],
+                text=text_display,
+                textposition="top center",
+                textfont=dict(size=8),
+                marker=dict(
+                    size=data["sizes"],
+                    color=color,
+                    line=dict(width=1, color="white"),
+                ),
+                name=division,
+                legendgroup=division,
+            )
+        )
+
+    if search_fighter and search_fighter in pos:
+        x, y = pos[search_fighter]
+        fig.add_annotation(
+            x=x,
+            y=y,
+            text=search_fighter,
+            showarrow=True,
+            arrowhead=2,
+            arrowsize=1,
+            arrowwidth=2,
+            arrowcolor="#ff4444",
+            font=dict(size=12, color="#ff4444"),
+            bgcolor="white",
+            bordercolor="#ff4444",
+            borderwidth=1,
+        )
 
     fig.update_layout(
-        showlegend=False,
+        showlegend=True,
+        legend=dict(
+            orientation="v",
+            yanchor="top",
+            y=1,
+            xanchor="left",
+            x=1.02,
+            font=dict(size=10),
+        ),
         hovermode="closest",
         xaxis=dict(showgrid=False, zeroline=False, showticklabels=False, showline=False),
         yaxis=dict(showgrid=False, zeroline=False, showticklabels=False, showline=False),
         height=700,
-        margin=dict(l=20, r=20, t=20, b=20),
+        margin=dict(l=20, r=150, t=20, b=20),
     )
 
     return apply_figure_styling(fig)
@@ -437,7 +558,8 @@ def get_headshot_base64(fighter_uid: str) -> str:
 
 df = get_main_data()
 network_df = get_network_data()
-fighter_graph = build_fighter_graph(network_df)
+fighter_divisions = get_fighter_divisions()
+fighter_graph = build_fighter_graph(network_df, fighter_divisions)
 
 fighter_options = get_fighter_list(df)
 fighter_uid_map = get_fighter_uid_map(df)
@@ -718,8 +840,8 @@ fighter_network_content = html.Div(
         dmc.Group(
             [
                 dmc.Select(
-                    label="Center Fighter",
-                    placeholder="Select a fighter to center the graph",
+                    label="Search Fighter",
+                    placeholder="Search for a fighter",
                     id="network-fighter-select",
                     data=fighter_options,
                     searchable=True,
@@ -735,13 +857,11 @@ fighter_network_content = html.Div(
                     clearable=True,
                     style={"width": "250px"},
                 ),
-                dmc.NumberInput(
-                    label="Connection Depth",
-                    id="network-depth",
-                    value=2,
-                    min=1,
-                    max=4,
-                    style={"width": "150px"},
+                dmc.Switch(
+                    label="Show Labels",
+                    id="network-show-labels",
+                    checked=False,
+                    style={"marginTop": "24px"},
                 ),
             ],
             align="flex-end",
@@ -1334,23 +1454,19 @@ def update_strikes_comparison(fighter: str):
     [
         Input("network-fighter-select", "value"),
         Input("network-fighter-target", "value"),
-        Input("network-depth", "value"),
+        Input("network-show-labels", "checked"),
     ],
 )
-def update_network_graph(center_fighter: str | None, target_fighter: str | None, depth: int):
-    if not center_fighter:
-        fig = create_network_figure(nx.Graph())
-        return fig, ""
-
-    subgraph = get_subgraph_for_fighter(fighter_graph, center_fighter, depth)
-
+def update_network_graph(
+    search_fighter: str | None, target_fighter: str | None, show_labels: bool
+):
     highlight_path = None
     path_info = ""
 
-    if target_fighter and target_fighter != center_fighter:
-        if target_fighter in fighter_graph:
+    if search_fighter and target_fighter and search_fighter != target_fighter:
+        if search_fighter in fighter_graph and target_fighter in fighter_graph:
             try:
-                path = nx.shortest_path(fighter_graph, center_fighter, target_fighter)
+                path = nx.shortest_path(fighter_graph, search_fighter, target_fighter)
                 highlight_path = path
                 path_length = len(path) - 1
                 path_str = " -> ".join(path)
@@ -1362,26 +1478,26 @@ def update_network_graph(center_fighter: str | None, target_fighter: str | None,
                     color="blue",
                     variant="light",
                 )
-                for node in path:
-                    if node not in subgraph:
-                        subgraph = fighter_graph.subgraph(
-                            set(subgraph.nodes()) | set(path)
-                        ).copy()
-                        break
             except nx.NetworkXNoPath:
                 path_info = dmc.Alert(
-                    f"No path found between {center_fighter} and {target_fighter}",
+                    f"No path found between {search_fighter} and {target_fighter}",
                     color="red",
                     variant="light",
                 )
-        else:
+        elif search_fighter not in fighter_graph:
+            path_info = dmc.Alert(
+                f"{search_fighter} not found in the network",
+                color="orange",
+                variant="light",
+            )
+        elif target_fighter not in fighter_graph:
             path_info = dmc.Alert(
                 f"{target_fighter} not found in the network",
                 color="orange",
                 variant="light",
             )
 
-    fig = create_network_figure(subgraph, center_fighter, highlight_path)
+    fig = create_network_figure(fighter_graph, search_fighter, highlight_path, show_labels)
     return fig, path_info
 
 
