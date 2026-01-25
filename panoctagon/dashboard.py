@@ -568,7 +568,15 @@ def update_career_timeline(
         return fig
 
     fight_timeline = (
-        df_filtered.groupby(["fight_uid", "event_date", "fighter_result"])
+        df_filtered.groupby(
+            [
+                "fight_uid",
+                "event_date",
+                "fighter_result",
+                "title",
+                "opponent_name",
+            ]
+        )
         .agg(
             {
                 "opponent_strikes_landed": "sum",
@@ -589,6 +597,20 @@ def update_career_timeline(
         for result in fight_timeline["fighter_result"]
     ]
 
+    result_map = {
+        "WIN": "Beat",
+        "LOSS": "Defeated by",
+        "DRAW": "Draw vs",
+        "NO_CONTEST": "No Contest vs",
+    }
+
+    hover_text = [
+        f"<b>{row['title']}</b> | {row['event_date'].strftime('%Y-%m-%d')}"
+        f"<br>{result_map.get(row['fighter_result'])} <b>{row['opponent_name']}</b>"
+        f"<br>absorbed <b>{row['opponent_strikes_landed']}</b> strikes"
+        for _, row in fight_timeline.iterrows()
+    ]
+
     fig = go.Figure()
 
     fig.add_trace(
@@ -601,7 +623,8 @@ def update_career_timeline(
                 size=10, color=marker_colors, line=dict(width=1, color="white")
             ),
             showlegend=False,
-            hovertemplate="<b>%{x}</b><br>Strikes Absorbed: %{y}<extra></extra>",
+            hovertext=hover_text,
+            hoverinfo="text",
         )
     )
 
@@ -768,7 +791,16 @@ def update_fight_history(
         }
     )
 
-    column_order = ["", "Date", "Opponent", "Method", "Round", "Strikes Landed", "Strikes Attempted", "Takedowns"]
+    column_order = [
+        "",
+        "Date",
+        "Opponent",
+        "Method",
+        "Round",
+        "Strikes Landed",
+        "Strikes Attempted",
+        "Takedowns",
+    ]
     table_df = table_df[column_order]
 
     columns = [{"name": col, "id": col} for col in column_order]
@@ -782,19 +814,23 @@ def update_fight_history(
     for i, row in enumerate(data):
         result = row.get("", "")
         if result == "W":
-            style_conditional.append({
-                "if": {"row_index": i, "column_id": ""},
-                "backgroundColor": "#d4edda",
-                "color": "darkgreen",
-                "fontWeight": "bold",
-            })
+            style_conditional.append(
+                {
+                    "if": {"row_index": i, "column_id": ""},
+                    "backgroundColor": "#d4edda",
+                    "color": "darkgreen",
+                    "fontWeight": "bold",
+                }
+            )
         elif result == "L":
-            style_conditional.append({
-                "if": {"row_index": i, "column_id": ""},
-                "backgroundColor": "#f8d7da",
-                "color": "darkred",
-                "fontWeight": "bold",
-            })
+            style_conditional.append(
+                {
+                    "if": {"row_index": i, "column_id": ""},
+                    "backgroundColor": "#f8d7da",
+                    "color": "darkred",
+                    "fontWeight": "bold",
+                }
+            )
 
     return columns, data, style_conditional
 
