@@ -1,7 +1,6 @@
 from sqlmodel import SQLModel
 
 from panoctagon.common import get_engine
-from panoctagon import tables
 
 
 def main() -> None:

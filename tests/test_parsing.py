@@ -2,6 +2,7 @@ from pathlib import Path
 
 import bs4
 import pytest
+from sqlalchemy.sql.operators import is_
 from sqlmodel import col
 
 from panoctagon.common import (
@@ -22,20 +23,19 @@ from panoctagon.models import (
     TotalStatsParsingResult,
 )
 from panoctagon.tables import UFCFight, UFCFighter
-from panoctagon.ufc.parse_fights import (
+from panoctagon.ufc.parse.fights import (
     get_event_uid,
     parse_fight_details,
     parse_round_totals,
     parse_sig_stats,
 )
-from sqlalchemy.sql.operators import is_
 
 
 def _get_fight_html(fight_dir: Path, uid: str) -> bs4.BeautifulSoup:
     fight_contents = get_html_files(
         path=fight_dir,
         uid_col=col(UFCFight.fight_uid),
-        where_clause=is_(UFCFighter.fighter_uid, uid),
+        where_clause=is_(UFCFighter.fighter_uid, uid),  # pyright: ignore[reportCallIssue, reportArgumentType]
         force_run=True,
     )
     assert len(fight_contents) == 1
