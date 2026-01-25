@@ -220,11 +220,20 @@ app.layout = dmc.MantineProvider(
                                     dmc.GridCol(
                                         html.Div(
                                             [
-                                                dmc.Text("Date Range", size="sm", fw="bold", mb=4),
+                                                dmc.Text(
+                                                    "Date Range",
+                                                    size="sm",
+                                                    fw="bold",
+                                                    mb=4,
+                                                ),
                                                 dcc.DatePickerRange(
                                                     id="date-range",
-                                                    start_date=df["event_date"].min().strftime("%Y-%m-%d"),
-                                                    end_date=df["event_date"].max().strftime("%Y-%m-%d"),
+                                                    start_date=df["event_date"]
+                                                    .min()
+                                                    .strftime("%Y-%m-%d"),
+                                                    end_date=df["event_date"]
+                                                    .max()
+                                                    .strftime("%Y-%m-%d"),
                                                     display_format="YYYY-MM-DD",
                                                     style={"width": "100%"},
                                                 ),
@@ -264,9 +273,16 @@ app.layout = dmc.MantineProvider(
                             [
                                 dmc.TabsList(
                                     [
-                                        dmc.TabsTab("Fighter Profile", value="profile"),
-                                        dmc.TabsTab("Fight History", value="history"),
-                                        dmc.TabsTab("Striking Analytics", value="striking"),
+                                        dmc.TabsTab(
+                                            "Fighter Profile", value="profile"
+                                        ),
+                                        dmc.TabsTab(
+                                            "Fight History", value="history"
+                                        ),
+                                        dmc.TabsTab(
+                                            "Striking Analytics",
+                                            value="striking",
+                                        ),
                                     ]
                                 ),
                                 dmc.TabsPanel(
@@ -275,8 +291,15 @@ app.layout = dmc.MantineProvider(
                                             [
                                                 dmc.Card(
                                                     [
-                                                        dmc.Text("Total Fights", size="sm", c="gray"),
-                                                        dmc.Title(id="total-fights", order=2),
+                                                        dmc.Text(
+                                                            "Total Fights",
+                                                            size="sm",
+                                                            c="gray",
+                                                        ),
+                                                        dmc.Title(
+                                                            id="total-fights",
+                                                            order=2,
+                                                        ),
                                                     ],
                                                     shadow="sm",
                                                     withBorder=True,
@@ -284,8 +307,14 @@ app.layout = dmc.MantineProvider(
                                                 ),
                                                 dmc.Card(
                                                     [
-                                                        dmc.Text("Record", size="sm", c="gray"),
-                                                        dmc.Title(id="record", order=2),
+                                                        dmc.Text(
+                                                            "Record",
+                                                            size="sm",
+                                                            c="gray",
+                                                        ),
+                                                        dmc.Title(
+                                                            id="record", order=2
+                                                        ),
                                                     ],
                                                     shadow="sm",
                                                     withBorder=True,
@@ -293,8 +322,15 @@ app.layout = dmc.MantineProvider(
                                                 ),
                                                 dmc.Card(
                                                     [
-                                                        dmc.Text("Finish Rate", size="sm", c="gray"),
-                                                        dmc.Title(id="finish-rate", order=2),
+                                                        dmc.Text(
+                                                            "Finish Rate",
+                                                            size="sm",
+                                                            c="gray",
+                                                        ),
+                                                        dmc.Title(
+                                                            id="finish-rate",
+                                                            order=2,
+                                                        ),
                                                     ],
                                                     shadow="sm",
                                                     withBorder=True,
@@ -305,8 +341,12 @@ app.layout = dmc.MantineProvider(
                                             spacing="md",
                                             mb="md",
                                         ),
-                                        dcc.Graph(id="career-timeline", figure={}),
-                                        dcc.Graph(id="win-method-chart", figure={}),
+                                        dcc.Graph(
+                                            id="career-timeline", figure={}
+                                        ),
+                                        dcc.Graph(
+                                            id="win-method-chart", figure={}
+                                        ),
                                     ],
                                     value="profile",
                                     pt="md",
@@ -324,11 +364,15 @@ app.layout = dmc.MantineProvider(
                                         },
                                         style_data_conditional=[
                                             {
-                                                "if": {"filter_query": "{Result} = WIN"},
+                                                "if": {
+                                                    "filter_query": "{Result} = WIN"
+                                                },
                                                 "backgroundColor": "#d4edda",
                                             },
                                             {
-                                                "if": {"filter_query": "{Result} = LOSS"},
+                                                "if": {
+                                                    "filter_query": "{Result} = LOSS"
+                                                },
                                                 "backgroundColor": "#f8d7da",
                                             },
                                         ],
@@ -338,9 +382,15 @@ app.layout = dmc.MantineProvider(
                                 ),
                                 dmc.TabsPanel(
                                     [
-                                        dcc.Graph(id="accuracy-trend", figure={}),
-                                        dcc.Graph(id="target-distribution", figure={}),
-                                        dcc.Graph(id="strikes-comparison", figure={}),
+                                        dcc.Graph(
+                                            id="accuracy-trend", figure={}
+                                        ),
+                                        dcc.Graph(
+                                            id="target-distribution", figure={}
+                                        ),
+                                        dcc.Graph(
+                                            id="strikes-comparison", figure={}
+                                        ),
                                     ],
                                     value="striking",
                                     pt="md",
@@ -371,7 +421,9 @@ def filter_data(
     filtered = df[df["fighter_name"] == fighter].copy()
 
     if start_date:
-        filtered = filtered[filtered["event_date"] >= pd.to_datetime(start_date)]
+        filtered = filtered[
+            filtered["event_date"] >= pd.to_datetime(start_date)
+        ]
     if end_date:
         filtered = filtered[filtered["event_date"] <= pd.to_datetime(end_date)]
     if decisions:
@@ -384,17 +436,33 @@ def filter_data(
 
 def get_fighter_summary(df_fighter: pd.DataFrame) -> dict[str, Any]:
     if df_fighter.empty:
-        return {"total_fights": 0, "wins": 0, "losses": 0, "draws": 0, "finish_rate": 0}
+        return {
+            "total_fights": 0,
+            "wins": 0,
+            "losses": 0,
+            "draws": 0,
+            "no_contests": 0,
+            "finish_rate": 0,
+        }
 
-    fights = df_fighter.groupby("fight_uid").agg({"fighter_result": "first"}).reset_index()
+    fights = (
+        df_fighter.groupby("fight_uid")
+        .agg({"fighter_result": "first"})
+        .reset_index()
+    )
 
     total_fights = len(fights)
     wins = (fights["fighter_result"] == "WIN").sum()
     losses = (fights["fighter_result"] == "LOSS").sum()
     draws = (fights["fighter_result"] == "DRAW").sum()
+    no_contests = (fights["fighter_result"] == "NO_CONTEST").sum()
 
     finish_decisions = ["KO", "TKO", "SUB", "Submission"]
-    finishes = df_fighter[df_fighter["decision"].isin(finish_decisions)].groupby("fight_uid").ngroups
+    finishes = (
+        df_fighter[df_fighter["decision"].isin(finish_decisions)]
+        .groupby("fight_uid")
+        .ngroups
+    )
     finish_rate = (finishes / total_fights * 100) if total_fights > 0 else 0
 
     return {
@@ -402,6 +470,7 @@ def get_fighter_summary(df_fighter: pd.DataFrame) -> dict[str, Any]:
         "wins": wins,
         "losses": losses,
         "draws": draws,
+        "no_contests": no_contests,
         "finish_rate": finish_rate,
     }
 
@@ -427,12 +496,18 @@ def update_summary_cards(
     decisions: list[str] | None,
     divisions: list[str] | None,
 ):
-    df_filtered = filter_data(df, fighter, start_date, end_date, decisions, divisions)
+    df_filtered = filter_data(
+        df, fighter, start_date, end_date, decisions, divisions
+    )
     summary = get_fighter_summary(df_filtered)
+
+    record = f"{summary['wins']}-{summary['losses']}-{summary['draws']}"
+    if summary["no_contests"] > 0:
+        record += f" ({summary['no_contests']} NC)"
 
     return (
         str(summary["total_fights"]),
-        f"{summary['wins']}-{summary['losses']}-{summary['draws']}",
+        record,
         f"{summary['finish_rate']:.1f}%",
     )
 
@@ -454,21 +529,71 @@ def update_career_timeline(
     decisions: list[str] | None,
     divisions: list[str] | None,
 ):
-    df_filtered = filter_data(df, fighter, start_date, end_date, decisions, divisions)
+    df_filtered = filter_data(
+        df, fighter, start_date, end_date, decisions, divisions
+    )
 
     if df_filtered.empty:
-        fig = px.strip(title=f"No data for {fighter}")
-    else:
-        fig = px.strip(
-            data_frame=df_filtered,
-            x="event_date",
-            y="total_strikes_landed",
-            color="fighter_result",
-            title=f"{fighter} - Career Timeline",
-            color_discrete_map={"WIN": "green", "LOSS": "red", "DRAW": "gray", "NO_CONTEST": "orange"},
+        fig = go.Figure()
+        fig.update_layout(title=f"No data for {fighter}", height=400)
+        return fig
+
+    fight_timeline = (
+        df_filtered.groupby(["fight_uid", "event_date", "fighter_result"])
+        .agg(
+            {
+                "opponent_strikes_landed": "sum",
+            }
+        )
+        .reset_index()
+        .sort_values("event_date")  # type: ignore
+    )
+
+    color_map = {
+        "WIN": "green",
+        "LOSS": "red",
+        "DRAW": "gray",
+        "NO_CONTEST": "orange",
+    }
+    marker_colors = [
+        color_map.get(result, "gray")
+        for result in fight_timeline["fighter_result"]
+    ]
+
+    fig = go.Figure()
+
+    fig.add_trace(
+        go.Scatter(
+            x=fight_timeline["event_date"],
+            y=fight_timeline["opponent_strikes_landed"],
+            mode="lines+markers",
+            line=dict(color="lightgray", shape="spline", width=2),
+            marker=dict(
+                size=10, color=marker_colors, line=dict(width=1, color="white")
+            ),
+            showlegend=False,
+            hovertemplate="<b>%{x}</b><br>Strikes Absorbed: %{y}<extra></extra>",
+        )
+    )
+
+    for result in fight_timeline["fighter_result"].unique():
+        fig.add_trace(
+            go.Scatter(
+                x=[None],
+                y=[None],
+                mode="markers",
+                marker=dict(size=10, color=color_map.get(result, "gray")),
+                name=result,
+            )
         )
 
-    fig.update_layout(height=400)
+    fig.update_layout(
+        title=f"{fighter} - Career Timeline",
+        xaxis_title="Fight Date",
+        yaxis_title="Strikes Absorbed",
+        height=400,
+    )
+
     return fig
 
 
@@ -489,7 +614,9 @@ def update_win_method_chart(
     decisions: list[str] | None,
     divisions: list[str] | None,
 ):
-    df_filtered = filter_data(df, fighter, start_date, end_date, decisions, divisions)
+    df_filtered = filter_data(
+        df, fighter, start_date, end_date, decisions, divisions
+    )
 
     if df_filtered.empty:
         fig = go.Figure()
@@ -499,10 +626,14 @@ def update_win_method_chart(
     df_wins = df_filtered[df_filtered["fighter_result"] == "WIN"]
     df_losses = df_filtered[df_filtered["fighter_result"] == "LOSS"]
 
-    win_methods = df_wins.groupby("fight_uid").agg({"decision": "first"}).reset_index()
+    win_methods = (
+        df_wins.groupby("fight_uid").agg({"decision": "first"}).reset_index()
+    )
     win_counts = win_methods["decision"].value_counts()
 
-    loss_methods = df_losses.groupby("fight_uid").agg({"decision": "first"}).reset_index()
+    loss_methods = (
+        df_losses.groupby("fight_uid").agg({"decision": "first"}).reset_index()
+    )
     loss_counts = loss_methods["decision"].value_counts()
 
     fig = go.Figure()
@@ -540,7 +671,9 @@ def update_win_method_chart(
         xaxis_title="Number of Fights",
         height=400,
         showlegend=True,
-        legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.02),
+        legend=dict(
+            orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.02
+        ),
     )
 
     return fig
@@ -566,23 +699,27 @@ def update_fight_history(
     decisions: list[str] | None,
     divisions: list[str] | None,
 ):
-    df_filtered = filter_data(df, fighter, start_date, end_date, decisions, divisions)
+    df_filtered = filter_data(
+        df, fighter, start_date, end_date, decisions, divisions
+    )
 
     if df_filtered.empty:
         return [], []
 
     table_df = (
         df_filtered.groupby("fight_uid")
-        .agg({
-            "event_date": "first",
-            "opponent_name": "first",
-            "fighter_result": "first",
-            "decision": "first",
-            "decision_round": "first",
-            "total_strikes_landed": "sum",
-            "total_strikes_attempted": "sum",
-            "takedowns_landed": "sum",
-        })
+        .agg(
+            {
+                "event_date": "first",
+                "opponent_name": "first",
+                "fighter_result": "first",
+                "decision": "first",
+                "decision_round": "first",
+                "total_strikes_landed": "sum",
+                "total_strikes_attempted": "sum",
+                "takedowns_landed": "sum",
+            }
+        )
         .reset_index()
         .sort_values("event_date", ascending=False)
     )
@@ -601,7 +738,9 @@ def update_fight_history(
         }
     )
 
-    columns = [{"name": i, "id": i} for i in table_df.columns if i != "fight_uid"]
+    columns = [
+        {"name": i, "id": i} for i in table_df.columns if i != "fight_uid"
+    ]
     data = table_df.drop(columns=["fight_uid"]).to_dict("records")
 
     return columns, data
@@ -624,24 +763,32 @@ def update_accuracy_trend(
     decisions: list[str] | None,
     divisions: list[str] | None,
 ):
-    df_filtered = filter_data(df, fighter, start_date, end_date, decisions, divisions)
+    df_filtered = filter_data(
+        df, fighter, start_date, end_date, decisions, divisions
+    )
 
     if df_filtered.empty:
         fig = px.line(title=f"No data for {fighter}")
     else:
         fight_accuracy = (
             df_filtered.groupby(["fight_uid", "event_date"])
-            .agg({
-                "total_strikes_landed": "sum",
-                "total_strikes_attempted": "sum",
-            })
+            .agg(
+                {
+                    "total_strikes_landed": "sum",
+                    "total_strikes_attempted": "sum",
+                }
+            )
             .reset_index()
         )
-        fight_accuracy = fight_accuracy[fight_accuracy["total_strikes_attempted"] > 0]
+        fight_accuracy = fight_accuracy[
+            fight_accuracy["total_strikes_attempted"] > 0
+        ]
         fight_accuracy["accuracy"] = (
-            fight_accuracy["total_strikes_landed"] / fight_accuracy["total_strikes_attempted"] * 100
+            fight_accuracy["total_strikes_landed"]
+            / fight_accuracy["total_strikes_attempted"]
+            * 100
         )
-        fight_accuracy = fight_accuracy.sort_values("event_date")
+        fight_accuracy = fight_accuracy.sort_values("event_date")  # type: ignore
 
         fig = px.line(
             fight_accuracy,
@@ -673,23 +820,29 @@ def update_target_distribution(
     decisions: list[str] | None,
     divisions: list[str] | None,
 ):
-    df_filtered = filter_data(df, fighter, start_date, end_date, decisions, divisions)
+    df_filtered = filter_data(
+        df, fighter, start_date, end_date, decisions, divisions
+    )
 
     if df_filtered.empty:
         fig = px.bar(title=f"No data for {fighter}")
     else:
         strike_targets = (
             df_filtered.groupby(["fight_uid", "event_date"])
-            .agg({
-                "sig_strikes_head_landed": "sum",
-                "sig_strikes_body_landed": "sum",
-                "sig_strikes_leg_landed": "sum",
-            })
+            .agg(
+                {
+                    "sig_strikes_head_landed": "sum",
+                    "sig_strikes_body_landed": "sum",
+                    "sig_strikes_leg_landed": "sum",
+                }
+            )
             .reset_index()
-            .sort_values("event_date")
+            .sort_values("event_date")  # type: ignore
         )
 
-        strike_targets["event_date"] = strike_targets["event_date"].dt.strftime("%Y-%m-%d")
+        strike_targets["event_date"] = strike_targets["event_date"].dt.strftime(
+            "%Y-%m-%d"
+        )
 
         fig = go.Figure()
         fig.add_trace(
@@ -742,22 +895,28 @@ def update_strikes_comparison(
     decisions: list[str] | None,
     divisions: list[str] | None,
 ):
-    df_filtered = filter_data(df, fighter, start_date, end_date, decisions, divisions)
+    df_filtered = filter_data(
+        df, fighter, start_date, end_date, decisions, divisions
+    )
 
     if df_filtered.empty:
         fig = px.bar(title=f"No data for {fighter}")
     else:
         comparison = (
             df_filtered.groupby(["fight_uid", "event_date"])
-            .agg({
-                "total_strikes_landed": "sum",
-                "opponent_strikes_landed": "sum",
-            })
+            .agg(
+                {
+                    "total_strikes_landed": "sum",
+                    "opponent_strikes_landed": "sum",
+                }
+            )
             .reset_index()
-            .sort_values("event_date")
+            .sort_values("event_date")  # type: ignore
         )
 
-        comparison["event_date"] = comparison["event_date"].dt.strftime("%Y-%m-%d")
+        comparison["event_date"] = comparison["event_date"].dt.strftime(
+            "%Y-%m-%d"
+        )
 
         fig = go.Figure()
         fig.add_trace(
