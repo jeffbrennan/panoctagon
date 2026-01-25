@@ -27,9 +27,7 @@ app = typer.Typer()
 @app.command(name="bios")
 def bios(force: bool = False) -> int:
     setup = setup_panoctagon(title="Fighter Bio Parser")
-    bio_dir = (
-        Path(__file__).parents[3] / "data" / "raw" / "ufc" / "fighter_bios"
-    )
+    bio_dir = Path(__file__).parents[3] / "data" / "raw" / "ufc" / "fighter_bios"
     headshot_dir = (
         Path(__file__).parents[3] / "data" / "raw" / "ufc" / "fighter_headshots"
     )
@@ -46,11 +44,7 @@ def bios(force: bool = False) -> int:
         print(setup.footer)
         return 0
 
-    print(
-        create_header(
-            80, f"PARSING n={len(fighter_bios)} fighter bios", True, "-"
-        )
-    )
+    print(create_header(80, f"PARSING n={len(fighter_bios)} fighter bios", True, "-"))
     headshot_results = [parse_headshot(bio) for bio in fighter_bios]
 
     headshots_on_disk = list(headshot_dir.glob("*.png"))
@@ -68,9 +62,7 @@ def fighters(force: bool = False) -> int:
     setup = setup_panoctagon(title="Panoctagon UFC Fighter Parser")
     script_dir = Path(__file__).parents[3] / "data/raw/ufc/fighters"
     if not script_dir.exists():
-        raise ValueError(
-            "expecting a directory containing at least one fighter"
-        )
+        raise ValueError("expecting a directory containing at least one fighter")
 
     fighters_to_parse = get_html_files(
         path=script_dir,
@@ -112,9 +104,7 @@ def fights(force: bool = False) -> int:
         print(setup.footer)
         return 0
 
-    print(
-        create_header(80, f"PARSING n={len(fights_to_parse)} fights", True, "-")
-    )
+    print(create_header(80, f"PARSING n={len(fights_to_parse)} fights", True, "-"))
     with ProcessPoolExecutor(max_workers=setup.cpu_count - 1) as executor:
         results = list(executor.map(parse_fight, fights_to_parse))
 

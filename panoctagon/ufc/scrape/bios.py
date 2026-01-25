@@ -65,9 +65,7 @@ def get_fighter_bio(
     prefix = f"[{index:03d} / {total_fighters:03d}]"
     output_message = f"[{prefix}] {result_indicator} {fighter.first_name} {fighter.last_name} ({url_uid})"
     print(
-        create_header(
-            title=output_message, center=False, spacer=" ", header_length=80
-        )
+        create_header(title=output_message, center=False, spacer=" ", header_length=80)
     )
 
     return FighterBioScrapingResult(
@@ -113,7 +111,5 @@ def get_fighters_to_download(
 
     downloaded_fighter_uids = [i.stem for i in base_dir.glob("*.html")]
     return [
-        i
-        for i in unparsed_fighters
-        if i.fighter_uid not in downloaded_fighter_uids
+        i for i in unparsed_fighters if i.fighter_uid not in downloaded_fighter_uids
     ]

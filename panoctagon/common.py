@@ -46,7 +46,7 @@ def get_engine() -> Engine:
         engine_path,
         echo=False,
         poolclass=NullPool,
-        connect_args={"read_only": False}
+        connect_args={"read_only": False},
     )
     return engine
 
@@ -154,7 +154,11 @@ def report_stats(stats: RunStats):
 
 
 def check_write_success(config: ScrapingConfig) -> bool:
-    issue_indicators = ["Internal Server Error", "Too Many Requests", "Search results"]
+    issue_indicators = [
+        "Internal Server Error",
+        "Too Many Requests",
+        "Search results",
+    ]
     with config.path.open() as f:
         contents = "".join(f.readlines())
 
@@ -202,7 +206,9 @@ def get_table_uids(
 
 
 def scrape_page(
-    config: ScrapingConfig, max_attempts: int = 3, sleep_multiplier_increment: int = 10
+    config: ScrapingConfig,
+    max_attempts: int = 3,
+    sleep_multiplier_increment: int = 10,
 ) -> ScrapingWriteResult:
     write_success = False
     attempts = 0
@@ -281,7 +287,7 @@ def write_data_to_db(data: list[SQLModelType]) -> None:
 def get_table_rows(
     soup: bs4.BeautifulSoup, table_num: int = 0
 ) -> bs4.ResultSet[bs4.Tag]:
-    tables = soup.findAll("table")
+    tables = soup.find_all("table")
     table = tables[table_num]
     if table is None:
         raise ValueError("No table found")

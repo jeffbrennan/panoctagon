@@ -43,9 +43,7 @@ def events(force: bool = False) -> int:
     existing_events = get_table_uids(col(UFCEvent.event_uid))
 
     if force and existing_events is not None:
-        delete_existing_records(
-            UFCEvent, col(UFCEvent.event_uid), uids=existing_events
-        )
+        delete_existing_records(UFCEvent, col(UFCEvent.event_uid), uids=existing_events)
         existing_events = None
 
     all_events = existing_events is None or force
@@ -54,9 +52,7 @@ def events(force: bool = False) -> int:
     if existing_events is None:
         new_events = scraped_events
     else:
-        new_events = [
-            i for i in scraped_events if i.event_uid not in existing_events
-        ]
+        new_events = [i for i in scraped_events if i.event_uid not in existing_events]
 
     if len(new_events) == 0:
         print("no new events. exiting early")
@@ -71,9 +67,7 @@ def events(force: bool = False) -> int:
 @app.command()
 def bios(force: bool = False, n: Optional[int] = None) -> int:
     setup = setup_panoctagon(title="Panoctagon Fighter Bio Scraper")
-    output_dir = (
-        Path(__file__).parents[3] / "data" / "raw" / "ufc" / "fighter_bios"
-    )
+    output_dir = Path(__file__).parents[3] / "data" / "raw" / "ufc" / "fighter_bios"
     output_dir.mkdir(exist_ok=True, parents=True)
 
     fighters_to_download = get_unparsed_fighters()
@@ -134,9 +128,7 @@ def fighters() -> int:
     all_fighter_uids = get_all_fighter_uids()
 
     scraped_fighters = [i.stem for i in output_dir.glob("*.html")]
-    unscraped_fighters = [
-        i for i in all_fighter_uids if i not in scraped_fighters
-    ]
+    unscraped_fighters = [i for i in all_fighter_uids if i not in scraped_fighters]
 
     n_fighters = len(unscraped_fighters)
 
@@ -156,9 +148,7 @@ def fighters() -> int:
         return 0
 
     fighters_to_scrape = [
-        FighterToScrape(
-            uid=uid, i=i, n_fighters=n_fighters, base_dir=output_dir
-        )
+        FighterToScrape(uid=uid, i=i, n_fighters=n_fighters, base_dir=output_dir)
         for i, uid in enumerate(unscraped_fighters)
     ]
 
@@ -208,7 +198,7 @@ def fights(force: bool = False) -> int:
     print(start_header)
     start_time = time.time()
 
-    results = [get_fights_from_event(event) for event in events_to_parse]
+    results = [get_fights_from_event(event, force) for event in events_to_parse]
     end_time = time.time()
 
     fights_downloaded = 0
