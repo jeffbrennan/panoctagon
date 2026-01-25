@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Any
 
 import dash_mantine_components as dmc
@@ -7,6 +8,35 @@ import plotly.graph_objects as go
 from dash import Dash, Input, Output, callback, dash_table, dcc, html
 
 from panoctagon.common import get_engine
+
+
+def apply_figure_styling(fig: go.Figure) -> go.Figure:
+    fig.update_layout(
+        plot_bgcolor="rgb(242, 240, 227)",
+        paper_bgcolor="rgb(242, 240, 227)",
+        font=dict(family="JetBrains Mono, monospace", color="#1a1a1a"),
+        title=None,
+        margin=dict(l=10, r=10, t=10, b=10),
+    )
+    fig.update_xaxes(showgrid=False, zeroline=False, showline=True, linewidth=2, linecolor="black", mirror=True)
+    fig.update_yaxes(showgrid=False, zeroline=False, showline=True, linewidth=2, linecolor="black", mirror=True)
+    return fig
+
+
+def create_plot_with_title(title: str, graph_id: str, margin_bottom: bool = False) -> html.Div:
+    return html.Div(
+        [
+            html.Div(
+                title,
+                className="plot-title",
+            ),
+            html.Div(
+                dcc.Graph(id=graph_id, figure={}),
+                className="plot-container-wrapper",
+            ),
+        ],
+        style={"marginBottom": "2rem"} if margin_bottom else {},
+    )
 
 
 def get_main_data() -> pd.DataFrame:
@@ -178,31 +208,34 @@ if not isinstance(initial_fighter, str):
 
 most_recent_event = df["event_date"].max().strftime("%Y-%m-%d")
 
-app = Dash(__name__)
+assets_path = Path(__file__).parent / "assets"
+app = Dash(__name__, assets_folder=str(assets_path))
 server = app.server
 
 app.layout = dmc.MantineProvider(
-    dmc.AppShell(
-        [
-            dmc.AppShellHeader(
-                dmc.Group(
-                    [
-                        dmc.Title("Panoctagon", c="red", size="h2"),
-                        dmc.Badge(
-                            f"Data current as of {most_recent_event}",
-                            color="gray",
-                            variant="light",
-                        ),
-                    ],
-                    justify="space-between",
-                    p="md",
+    html.Div(
+        id="panoctagon-page",
+        children=dmc.AppShell(
+            [
+                dmc.AppShellHeader(
+                    dmc.Group(
+                        [
+                            dmc.Title("Panoctagon", c="red", size="h2"),
+                            dmc.Badge(
+                                f"Data current as of {most_recent_event}",
+                                color="gray",
+                                variant="light",
+                            ),
+                        ],
+                        justify="space-between",
+                        p="md",
+                    ),
+                    h=60,
                 ),
-                h=60,
-            ),
-            dmc.AppShellMain(
-                dmc.Container(
-                    [
-                        dmc.Card(
+                dmc.AppShellMain(
+                    dmc.Container(
+                        [
+                            dmc.Card(
                             dmc.Grid(
                                 [
                                     dmc.GridCol(
@@ -341,12 +374,8 @@ app.layout = dmc.MantineProvider(
                                             spacing="md",
                                             mb="md",
                                         ),
-                                        dcc.Graph(
-                                            id="career-timeline", figure={}
-                                        ),
-                                        dcc.Graph(
-                                            id="win-method-chart", figure={}
-                                        ),
+                                        create_plot_with_title("Career Timeline", "career-timeline", margin_bottom=True),
+                                        create_plot_with_title("Fight Outcome Distribution", "win-method-chart"),
                                     ],
                                     value="profile",
                                     pt="md",
@@ -384,15 +413,9 @@ app.layout = dmc.MantineProvider(
                                 ),
                                 dmc.TabsPanel(
                                     [
-                                        dcc.Graph(
-                                            id="accuracy-trend", figure={}
-                                        ),
-                                        dcc.Graph(
-                                            id="target-distribution", figure={}
-                                        ),
-                                        dcc.Graph(
-                                            id="strikes-comparison", figure={}
-                                        ),
+                                        create_plot_with_title("Striking Accuracy Over Time", "accuracy-trend", margin_bottom=True),
+                                        create_plot_with_title("Strike Target Distribution", "target-distribution", margin_bottom=True),
+                                        create_plot_with_title("Strikes Landed vs Absorbed", "strikes-comparison"),
                                     ],
                                     value="striking",
                                     pt="md",
@@ -406,8 +429,9 @@ app.layout = dmc.MantineProvider(
                     p="md",
                 )
             ),
-        ],
-        header={"height": 60},
+            ],
+            header={"height": 60},
+        ),
     )
 )
 
@@ -564,8 +588,8 @@ def update_career_timeline(
 
     if df_filtered.empty:
         fig = go.Figure()
-        fig.update_layout(title=f"No data for {fighter}", height=400)
-        return fig
+        fig.update_layout(height=400)
+        return apply_figure_styling(fig)
 
     fight_timeline = (
         df_filtered.groupby(
@@ -640,12 +664,11 @@ def update_career_timeline(
         )
 
     fig.update_layout(
-        title=f"{fighter} - Career Timeline",
         yaxis_title="Strikes Absorbed",
         height=400,
     )
 
-    return fig
+    return apply_figure_styling(fig)
 
 
 @callback(
@@ -671,8 +694,8 @@ def update_win_method_chart(
 
     if df_filtered.empty:
         fig = go.Figure()
-        fig.update_layout(title=f"No data for {fighter}", height=400)
-        return fig
+        fig.update_layout(height=400)
+        return apply_figure_styling(fig)
 
     df_wins = df_filtered[df_filtered["fighter_result"] == "WIN"]
     df_losses = df_filtered[df_filtered["fighter_result"] == "LOSS"]
@@ -718,7 +741,6 @@ def update_win_method_chart(
 
     fig.update_layout(
         barmode="stack",
-        title=f"{fighter} - Fight Outcome Distribution",
         height=400,
         showlegend=True,
         legend=dict(
@@ -726,7 +748,7 @@ def update_win_method_chart(
         ),
     )
 
-    return fig
+    return apply_figure_styling(fig)
 
 
 @callback(
@@ -808,7 +830,7 @@ def update_fight_history(
     data = table_df.to_dict("records")
 
     style_conditional = [
-        {"if": {"row_index": "odd"}, "backgroundColor": "#f9f9f9"}
+        {"if": {"row_index": "odd"}, "backgroundColor": "rgba(0,0,0,0.03)"}
     ]
 
     for i, row in enumerate(data):
@@ -857,7 +879,7 @@ def update_accuracy_trend(
     )
 
     if df_filtered.empty:
-        fig = px.line(title=f"No data for {fighter}")
+        fig = px.line()
     else:
         fight_accuracy = (
             df_filtered.groupby(["fight_uid", "event_date"])
@@ -883,13 +905,12 @@ def update_accuracy_trend(
             fight_accuracy,
             x="event_date",
             y="accuracy",
-            title=f"{fighter} - Striking Accuracy Over Time",
             markers=True,
         )
         fig.update_yaxes(title="Accuracy (%)", range=[0, 100])
 
     fig.update_layout(height=400)
-    return fig
+    return apply_figure_styling(fig)
 
 
 @callback(
@@ -914,7 +935,7 @@ def update_target_distribution(
     )
 
     if df_filtered.empty:
-        fig = px.bar(title=f"No data for {fighter}")
+        fig = px.bar()
     else:
         strike_targets = (
             df_filtered.groupby(["fight_uid", "event_date"])
@@ -958,12 +979,11 @@ def update_target_distribution(
 
         fig.update_layout(
             barmode="stack",
-            title=f"{fighter} - Strike Target Distribution",
             yaxis_title="Strikes Landed",
             height=400,
         )
 
-    return fig
+    return apply_figure_styling(fig)
 
 
 @callback(
@@ -988,7 +1008,7 @@ def update_strikes_comparison(
     )
 
     if df_filtered.empty:
-        fig = px.bar(title=f"No data for {fighter}")
+        fig = px.bar()
     else:
         comparison = (
             df_filtered.groupby(["fight_uid", "event_date"])
@@ -1026,12 +1046,11 @@ def update_strikes_comparison(
 
         fig.update_layout(
             barmode="stack",
-            title=f"{fighter} - Strikes Landed vs Absorbed",
             yaxis_title="Strikes Landed",
             height=400,
         )
 
-    return fig
+    return apply_figure_styling(fig)
 
 
 if __name__ == "__main__":
