@@ -2,8 +2,8 @@
 name = "panoctagon"
 version = "0.1.0"
 description = ""
-requires-python = ">=3.12,<3.13"
-readme = "README.md"
+requires-python = ">=3.11"
+readme = "readme.md"
 dependencies = [
     "polars==1.37.1",
     "requests==2.32.5",
