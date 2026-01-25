@@ -52,7 +52,11 @@ def create_plot_with_title(
                 className="plot-title",
             ),
             html.Div(
-                dcc.Graph(id=graph_id, figure={}),
+                dcc.Graph(
+                    id=graph_id,
+                    figure={},
+                    config={"displayModeBar": False},
+                ),
                 className="plot-container-wrapper",
             ),
         ],
@@ -633,9 +637,13 @@ def update_career_timeline(fighter: str):
         .sort_values("event_date")  # type: ignore
     )
 
+    fight_timeline["cumulative_absorbed"] = fight_timeline[
+        "opponent_strikes_landed"
+    ].cumsum()
+
     color_map = {
-        "WIN": "green",
-        "LOSS": "red",
+        "WIN": "#7370ff",
+        "LOSS": "#ff7e70",
         "DRAW": "gray",
         "NO_CONTEST": "orange",
     }
@@ -654,7 +662,7 @@ def update_career_timeline(fighter: str):
     hover_text = [
         f"<b>{row['title']}</b> | {row['event_date'].strftime('%Y-%m-%d')}"
         f"<br>{result_map.get(row['fighter_result'])} <b>{row['opponent_name']}</b>"
-        f"<br>absorbed <b>{row['opponent_strikes_landed']}</b> strikes"
+        f"<br>+{row['opponent_strikes_landed']:,} strikes ({row['cumulative_absorbed']:,} total)"
         for _, row in fight_timeline.iterrows()
     ]
 
@@ -663,12 +671,12 @@ def update_career_timeline(fighter: str):
     fig.add_trace(
         go.Scatter(
             x=fight_timeline["event_date"],
-            y=fight_timeline["opponent_strikes_landed"],
+            y=fight_timeline["cumulative_absorbed"],
             mode="lines+markers",
-            line=dict(color="lightgray", shape="spline", width=2),
-            marker=dict(
-                size=10, color=marker_colors, line=dict(width=1, color="white")
-            ),
+            line=dict(color="#1a1a1a", shape="spline", width=1),
+            fill="tozeroy",
+            fillcolor="rgba(26, 26, 26, 1)",
+            marker=dict(size=18, color=marker_colors),
             showlegend=False,
             hovertext=hover_text,
             hoverinfo="text",
@@ -687,7 +695,7 @@ def update_career_timeline(fighter: str):
         )
 
     fig.update_layout(
-        yaxis_title="Strikes Absorbed",
+        yaxis_title="Cumulative Strikes Absorbed",
         height=400,
     )
 
