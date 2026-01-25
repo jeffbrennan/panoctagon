@@ -1,5 +1,5 @@
 refresh:
-    uv run dg launch --assets ufc_events+
+    uv run dg launch --assets promotions+
 
 dag:
     uv run dg dev
@@ -10,4 +10,5 @@ db:
 check:
     uv run pyright .
     uv run ruff check --fix
+    ruff check --select I --fix .
     uv run ruff format .

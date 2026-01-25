@@ -354,12 +354,16 @@ app.layout = dmc.MantineProvider(
                                                                 "Nickname",
                                                                 size="xs",
                                                                 c="gray",
-                                                                style={"height": "14px"},
+                                                                style={
+                                                                    "height": "14px"
+                                                                },
                                                             ),
                                                             dmc.Text(
                                                                 id="fighter-nickname",
                                                                 size="sm",
-                                                                style={"minHeight": "18px"},
+                                                                style={
+                                                                    "minHeight": "18px"
+                                                                },
                                                             ),
                                                         ]
                                                     ),
@@ -369,12 +373,16 @@ app.layout = dmc.MantineProvider(
                                                                 "Stance",
                                                                 size="xs",
                                                                 c="gray",
-                                                                style={"height": "14px"},
+                                                                style={
+                                                                    "height": "14px"
+                                                                },
                                                             ),
                                                             dmc.Text(
                                                                 id="fighter-stance",
                                                                 size="sm",
-                                                                style={"minHeight": "18px"},
+                                                                style={
+                                                                    "minHeight": "18px"
+                                                                },
                                                             ),
                                                         ]
                                                     ),
@@ -384,12 +392,16 @@ app.layout = dmc.MantineProvider(
                                                                 "Style",
                                                                 size="xs",
                                                                 c="gray",
-                                                                style={"height": "14px"},
+                                                                style={
+                                                                    "height": "14px"
+                                                                },
                                                             ),
                                                             dmc.Text(
                                                                 id="fighter-style",
                                                                 size="sm",
-                                                                style={"minHeight": "18px"},
+                                                                style={
+                                                                    "minHeight": "18px"
+                                                                },
                                                             ),
                                                         ]
                                                     ),
@@ -633,9 +645,7 @@ def get_fighter_summary(df_fighter: pd.DataFrame) -> dict[str, Any]:
         }
 
     fights = (
-        df_fighter.groupby("fight_uid")
-        .agg({"fighter_result": "first"})
-        .reset_index()
+        df_fighter.groupby("fight_uid").agg({"fighter_result": "first"}).reset_index()
     )
 
     total_fights = len(fights)
@@ -759,8 +769,7 @@ def update_career_timeline(fighter: str):
         "NO_CONTEST": "orange",
     }
     marker_colors = [
-        color_map.get(result, "gray")
-        for result in fight_timeline["fighter_result"]
+        color_map.get(result, "gray") for result in fight_timeline["fighter_result"]
     ]
 
     result_map = {
@@ -828,9 +837,7 @@ def update_win_method_chart(fighter: str):
     df_wins = df_filtered[df_filtered["fighter_result"] == "WIN"]
     df_losses = df_filtered[df_filtered["fighter_result"] == "LOSS"]
 
-    win_methods = (
-        df_wins.groupby("fight_uid").agg({"decision": "first"}).reset_index()
-    )
+    win_methods = df_wins.groupby("fight_uid").agg({"decision": "first"}).reset_index()
     win_counts = win_methods["decision"].value_counts()
 
     loss_methods = (
@@ -871,9 +878,7 @@ def update_win_method_chart(fighter: str):
         barmode="stack",
         height=400,
         showlegend=True,
-        legend=dict(
-            orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.02
-        ),
+        legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.02),
     )
 
     return apply_figure_styling(fig)
@@ -991,9 +996,7 @@ def update_accuracy_trend(fighter: str):
             )
             .reset_index()
         )
-        fight_accuracy = fight_accuracy[
-            fight_accuracy["total_strikes_attempted"] > 0
-        ]
+        fight_accuracy = fight_accuracy[fight_accuracy["total_strikes_attempted"] > 0]
         fight_accuracy["accuracy"] = (
             fight_accuracy["total_strikes_landed"]
             / fight_accuracy["total_strikes_attempted"]
@@ -1094,9 +1097,7 @@ def update_strikes_comparison(fighter: str):
             .sort_values("event_date")  # type: ignore
         )
 
-        comparison["event_date"] = comparison["event_date"].dt.strftime(
-            "%Y-%m-%d"
-        )
+        comparison["event_date"] = comparison["event_date"].dt.strftime("%Y-%m-%d")
 
         fig = go.Figure()
         fig.add_trace(

@@ -1,6 +1,7 @@
 import typer
-import panoctagon.ufc.scrape.app as scrape
+
 import panoctagon.ufc.parse.app as parse
+import panoctagon.ufc.scrape.app as scrape
 
 app = typer.Typer()
 app.add_typer(scrape.app, name="scrape")

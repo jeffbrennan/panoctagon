@@ -209,7 +209,7 @@ def get_event_uid(fight_html: bs4.BeautifulSoup) -> str:
 
 def parse_fight_details(
     fight_html: bs4.BeautifulSoup, event_uid: str, fight_uid: str
-) -> FightDetailsParsingResult:
+) -> FightDetailsParsingResult | None:
     tbl = get_table_rows(fight_html)
     parsing_issues: list[str] = []
 
@@ -259,11 +259,15 @@ def parse_fight_details(
             decision = None
 
     f1_uid, f2_uid = [str(i["href"]).split("/")[-1] for i in tbl[0].find_all("a")]
-    f1_result_raw, f2_result_raw = [
+
+    fight_details = [
         i.find_all("i")[0].text.strip()
         for i in fight_html.find_all("div", _class="b-fight-details__person")
     ]
+    if len(fight_details) == 0:
+        return None
 
+    f1_result_raw, f2_result_raw = fight_details
     fight_results: list[Optional[FightResult]] = []
     for result in [f1_result_raw, f2_result_raw]:
         result_clean = (
@@ -424,6 +428,9 @@ def parse_fight(
     fight_parsing_results = parse_fight_details(
         fight_html, event_uid, fight_contents.uid
     )
+    if "00e11b5c8b7bfeeb" in event_uid:
+        print(fight_parsing_results)
+        assert False
     total_stats = parse_round_totals(fight_html, fight_contents.uid)
     sig_stats = parse_sig_stats(fight_html, fight_contents.uid)
 

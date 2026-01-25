@@ -249,6 +249,10 @@ def get_html_files(
     fight_contents_to_parse: list[FileContents] = []
     for i, fpath in enumerate(files_to_parse):
         uid = fpath.stem
+
+        # temp
+        if uid.split("_")[0] != "00e11b5c8b7bfeeb":
+            continue
         modification_time = datetime.datetime.fromtimestamp(os.path.getmtime(fpath))
         with fpath.open() as f:
             fight_contents_to_parse.append(
