@@ -1,6 +1,8 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Optional
 
+import requests
 from pydantic import BaseModel
 from sqlmodel import Session, and_, col, select
 
@@ -22,7 +24,7 @@ class FighterBioScrapingResult(BaseModel):
 
 
 def get_fighter_bio(
-    fighter: UFCFighter, base_dir: Path, index: int, total_fighters: int
+    fighter: UFCFighter, base_dir: Path, index: int, total_fighters: int, session: Optional[requests.Session] = None
 ) -> FighterBioScrapingResult:
     first_name = "-".join(fighter.first_name.split(" ")).lower().replace(".", "").replace(" ", "")
 
@@ -45,17 +47,17 @@ def get_fighter_bio(
     url_uid = url_uid.removesuffix("-")
 
     for orig, replacement in uid_map.items():
-        url_uid.replace(orig, replacement)
+        url_uid = url_uid.replace(orig, replacement)
 
     config = ScrapingConfig(
         base_dir=base_dir,
         uid=url_uid,
         description="fighter_bio",
-        base_url="https://www.ufc.com/athlete/",
+        base_url="https://www.ufc.com/athlete",
         path=base_dir / f"{fighter.fighter_uid}.html",
     )
 
-    write_result = scrape_page(config, max_attempts=1)
+    write_result = scrape_page(config, max_attempts=1, session=session)
     message = ""
     if not write_result.success:
         message = "failed to download"
@@ -68,7 +70,7 @@ def get_fighter_bio(
         result_indicator = Symbols.DELETED.value
 
     prefix = f"{index:03d} / {total_fighters:03d}"
-    output_message = f"[{prefix}] {result_indicator} {fighter.first_name} {fighter.last_name} ({config.base_url}{url_uid})"
+    output_message = f"[{prefix}] {result_indicator} {fighter.first_name} {fighter.last_name} ({config.base_url}/{url_uid})"
     print(create_header(title=output_message, center=False, spacer=" ", header_length=80))
 
     return FighterBioScrapingResult(
@@ -114,3 +116,34 @@ def get_fighters_to_download(
 
     downloaded_fighter_uids = [i.stem for i in base_dir.glob("*.html")]
     return [i for i in unparsed_fighters if i.fighter_uid not in downloaded_fighter_uids]
+
+
+def scrape_fighter_bios_parallel(
+    fighters: list[UFCFighter],
+    base_dir: Path,
+    max_workers: int = 8,
+) -> list[FighterBioScrapingResult]:
+    total_fighters = len(fighters)
+    results = []
+    completed_count = 0
+
+    with requests.Session() as session:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_fighter = {
+                executor.submit(
+                    get_fighter_bio,
+                    fighter,
+                    base_dir,
+                    i,
+                    total_fighters,
+                    session,
+                ): fighter
+                for i, fighter in enumerate(fighters, 1)
+            }
+
+            for future in as_completed(future_to_fighter):
+                completed_count += 1
+                result = future.result()
+                results.append(result)
+
+    return results

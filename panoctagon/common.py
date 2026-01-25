@@ -221,18 +221,18 @@ def get_table_uids(
     return list(results)
 
 
-@timeit
 def scrape_page(
     config: ScrapingConfig,
     max_attempts: int = 3,
     sleep_multiplier_increment: int = 10,
+    session: Optional[requests.Session] = None,
 ) -> ScrapingWriteResult:
     write_success = False
     attempts = 0
     sleep_multiplier = 0
 
     while not write_success and attempts < max_attempts:
-        dump_success = dump_html(config)
+        dump_success = dump_html(config, session=session)
         if dump_success:
             write_success = check_write_success(config)
 
@@ -291,12 +291,16 @@ def get_html_files(
     return fight_contents_to_parse
 
 
-@timeit
-def dump_html(config: ScrapingConfig, log_uid: bool = False) -> bool:
+def dump_html(config: ScrapingConfig, log_uid: bool = False, session: Optional[requests.Session] = None) -> bool:
     if log_uid:
         print(f"saving {config.description}: {config.uid}")
     url = f"{config.base_url}/{config.uid}"
-    response = requests.get(url)
+
+    if session is None:
+        response = requests.get(url)
+    else:
+        response = session.get(url)
+
     if not response.status_code == 200:
         return False
 
