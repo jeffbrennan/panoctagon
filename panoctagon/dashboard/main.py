@@ -25,7 +25,7 @@ def get_last_refresh() -> str:
     )
 
 
-assets_path = Path(__file__).parent / "assets"
+assets_path = Path(__file__).parents[1] / "assets"
 app = Dash(__name__, assets_folder=str(assets_path))
 server = app.server
 

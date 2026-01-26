@@ -66,7 +66,7 @@ PLACEHOLDER_IMAGE = (
 
 
 def get_headshot_base64(fighter_uid: str) -> str:
-    HEADSHOTS_DIR = Path(__file__).parents[3] / "data" / "raw" / "ufc" / "fighter_headshots"
+    HEADSHOTS_DIR = Path(__file__).parents[2] / "data" / "raw" / "ufc" / "fighter_headshots"
     headshot_path = HEADSHOTS_DIR / f"{fighter_uid}_headshot.png"
     if not headshot_path.exists():
         return PLACEHOLDER_IMAGE
