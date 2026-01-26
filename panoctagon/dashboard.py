@@ -722,6 +722,16 @@ def create_network_figure(
             )
             edge_traces.append(arrow_trace)
 
+    opponent_strength = {}
+    for node in G.nodes():
+        beaten_opponents = list(G.predecessors(node))
+        total_opponent_wins = sum(
+            fighter_stats.get(opp, {}).get("wins", 0) for opp in beaten_opponents
+        )
+        opponent_strength[node] = total_opponent_wins
+
+    max_opponent_strength = max(opponent_strength.values()) if opponent_strength.values() else 1
+
     node_x = []
     node_y = []
     node_text = []
@@ -738,7 +748,14 @@ def create_network_figure(
         total = wins + losses
         win_pct = (wins / total * 100) if total > 0 else 0
 
-        hover_lines = [f"<b>{node}</b>", f"Record: {wins}-{losses} ({win_pct:.1f}%)", ""]
+        beaten_opponents = list(G.predecessors(node))
+        beaten_wins = sum(fighter_stats.get(opp, {}).get("wins", 0) for opp in beaten_opponents)
+        beaten_losses = sum(fighter_stats.get(opp, {}).get("losses", 0) for opp in beaten_opponents)
+
+        hover_lines = [f"<b>{node}</b> {wins}W {losses}L ({win_pct:.1f}%)"]
+        if beaten_opponents:
+            hover_lines.append(f"Defeated opponent record: {beaten_wins}W {beaten_losses}L")
+        hover_lines.append("")
 
         if node in opponents_by_year:
             years_sorted = sorted(opponents_by_year[node].keys(), reverse=True)
@@ -770,7 +787,12 @@ def create_network_figure(
             node_size = max(16, min(35, 12 + wins * 2))
 
         node_sizes.append(node_size)
-        node_colors.append(win_pct)
+        opp_strength_normalized = (
+            (opponent_strength[node] / max_opponent_strength * 100)
+            if max_opponent_strength > 0
+            else 0
+        )
+        node_colors.append(opp_strength_normalized)
 
     node_trace = go.Scatter(
         x=node_x,
@@ -787,7 +809,7 @@ def create_network_figure(
             opacity=1.0,
             line=dict(width=1, color="rgb(33,33,33)"),
             colorbar=dict(
-                title="Win %",
+                title="Opposition<br>Strength",
                 thickness=15,
                 len=0.5,
                 x=1.02,
