@@ -3,7 +3,7 @@ name = "panoctagon"
 version = "0.1.0"
 description = ""
 requires-python = ">=3.12,<3.13"
-readme = "README.md"
+readme = "readme.md"
 dependencies = [
     "polars==1.37.1",
     "requests==2.32.5",
@@ -32,6 +32,7 @@ dependencies = [
     "duckdb-engine==0.13.2",
     "dbt-duckdb==1.9.0",
     "dagster-dg-cli>=1.12.12",
+    "networkx==3.4.2",
 ]
 
 [tool.pyright]
