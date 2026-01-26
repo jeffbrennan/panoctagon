@@ -1588,7 +1588,7 @@ def create_matchup_card(
                     html.Div(
                         [
                             dmc.Text(fighter_name, fw=700, size="xl"),
-                            dmc.Text(fighter_record, size="md", c="dimmed"),
+                            dmc.Text(fighter_record, size="md", c="gray"),
                         ]
                     ),
                 ],
@@ -1599,7 +1599,7 @@ def create_matchup_card(
                 [
                     html.Div(
                         [
-                            dmc.Text("Reach", size="xs", c="dimmed"),
+                            dmc.Text("Reach", size="xs", c="gray"),
                             dmc.Text(
                                 f"{fighter_reach or '-'}\"",
                                 size="sm",
@@ -1608,13 +1608,13 @@ def create_matchup_card(
                             dmc.Text(
                                 format_diff(reach_diff, "\""),
                                 size="xs",
-                                c="teal" if reach_diff and reach_diff > 0 else "salmon" if reach_diff and reach_diff < 0 else "dimmed",
+                                c="teal" if reach_diff and reach_diff > 0 else "salmon" if reach_diff and reach_diff < 0 else "gray",
                             ),
                         ]
                     ),
                     html.Div(
                         [
-                            dmc.Text("Height", size="xs", c="dimmed"),
+                            dmc.Text("Height", size="xs", c="gray"),
                             dmc.Text(
                                 f"{fighter_height or '-'}\"",
                                 size="sm",
@@ -1623,24 +1623,24 @@ def create_matchup_card(
                             dmc.Text(
                                 format_diff(height_diff, "\""),
                                 size="xs",
-                                c="teal" if height_diff and height_diff > 0 else "salmon" if height_diff and height_diff < 0 else "dimmed",
+                                c="teal" if height_diff and height_diff > 0 else "salmon" if height_diff and height_diff < 0 else "gray",
                             ),
                         ]
                     ),
                     html.Div(
                         [
-                            dmc.Text("Stance", size="xs", c="dimmed"),
+                            dmc.Text("Stance", size="xs", c="gray"),
                             dmc.Text(fighter_stance or "-", size="sm", fw=500),
                         ]
                     ),
                     html.Div(
                         [
-                            dmc.Text("UFC Fights", size="xs", c="dimmed"),
+                            dmc.Text("UFC Fights", size="xs", c="gray"),
                             dmc.Text(str(fighter_total_fights), size="sm", fw=500),
                             dmc.Text(
                                 format_diff(exp_diff),
                                 size="xs",
-                                c="teal" if exp_diff > 0 else "salmon" if exp_diff < 0 else "dimmed",
+                                c="teal" if exp_diff > 0 else "salmon" if exp_diff < 0 else "gray",
                             ),
                         ]
                     ),
@@ -1650,7 +1650,7 @@ def create_matchup_card(
             dmc.Button(
                 f"View {fighter_name.split()[-1]} Profile",
                 id={"type": "view-fighter-btn", "index": fighter_name},
-                variant="light",
+                variant="default",
                 size="xs",
                 fullWidth=True,
                 mt="md",
@@ -1668,45 +1668,37 @@ def create_matchup_row(fight: dict) -> html.Div:
     fighter2_card = create_matchup_card(fight, 2, 1)
 
     division = fight.get("fight_division") or "Unknown"
-    division_color = DIVISION_COLORS.get(division, "#808080")
+    division_display = division.replace("_", " ").title() if division else "TBD"
     fight_type = fight.get("fight_type") or ""
 
-    fight_type_badge = None
+    badges = [
+        dmc.Badge(
+            division_display,
+            color="gray",
+            variant="light",
+            size="lg",
+        )
+    ]
+
     if fight_type and "title" in fight_type.lower():
-        fight_type_badge = dmc.Badge(
-            "Title Fight",
-            color="yellow",
-            variant="filled",
-            size="sm",
+        badges.append(
+            dmc.Badge(
+                "Title Fight",
+                color="dark",
+                variant="outline",
+                size="sm",
+            )
         )
 
     return dmc.Paper(
         [
-            dmc.Group(
-                [
-                    dmc.Badge(
-                        division.replace("_", " ").title() if division else "TBD",
-                        color=division_color,
-                        variant="light",
-                        size="lg",
-                    ),
-                    fight_type_badge,
-                ],
-                gap="xs",
-                mb="md",
-            ) if fight_type_badge else dmc.Badge(
-                division.replace("_", " ").title() if division else "TBD",
-                color=division_color,
-                variant="light",
-                size="lg",
-                mb="md",
-            ),
+            dmc.Group(badges, gap="xs", mb="md"),
             dmc.Group(
                 [
                     fighter1_card,
                     html.Div(
                         [
-                            dmc.Text("VS", fw=700, size="xl", c="dimmed"),
+                            dmc.Text("VS", fw=700, size="xl", c="gray"),
                         ],
                         style={"textAlign": "center", "minWidth": "50px"},
                     ),
@@ -1761,12 +1753,12 @@ def create_upcoming_fights_content() -> html.Div:
                             [
                                 html.Div(
                                     [
-                                        dmc.Title(event_title, order=2, c="dark"),
+                                        dmc.Title(event_title, order=2),
                                         dmc.Group(
                                             [
                                                 dmc.Text(event_date_str, size="sm", fw=500),
-                                                dmc.Text("-", size="sm", c="dimmed"),
-                                                dmc.Text(event_location, size="sm", c="dimmed"),
+                                                dmc.Text("-", size="sm", c="gray"),
+                                                dmc.Text(event_location, size="sm", c="gray"),
                                             ],
                                             gap="xs",
                                         ),
@@ -1775,7 +1767,7 @@ def create_upcoming_fights_content() -> html.Div:
                                 dmc.Badge(
                                     f"{len(fights_list)} {'fight' if len(fights_list) == 1 else 'fights'}",
                                     color="gray",
-                                    variant="filled",
+                                    variant="light",
                                     size="lg",
                                 ),
                             ],
@@ -1799,7 +1791,7 @@ def create_upcoming_fights_content() -> html.Div:
         [
             dmc.Text(
                 "Upcoming UFC events with scheduled matchups. View fighter profiles for detailed analysis.",
-                c="dimmed",
+                c="gray",
                 size="sm",
                 mb="lg",
             ),
