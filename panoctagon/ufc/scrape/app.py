@@ -78,7 +78,9 @@ def bios(force: bool = False, n: Optional[int] = None, max_workers: int = 8) -> 
 
     n_fighters_to_download = len(fighters_to_download)
 
-    start_header = create_header(80, f"SCRAPING n={n_fighters_to_download} Fighter Bios (workers={max_workers})", True, "-")
+    start_header = create_header(
+        80, f"SCRAPING n={n_fighters_to_download} Fighter Bios (workers={max_workers})", True, "-"
+    )
     print(start_header)
     start_time = time.time()
 
@@ -194,7 +196,9 @@ def fights(force: bool = False, max_workers: int = 8) -> int:
         for i, uid in enumerate(event_uids)
     ]
 
-    start_header = create_header(80, f"SCRAPING n={len(events_to_parse)} UFC EVENTS (workers={max_workers})", True, "-")
+    start_header = create_header(
+        80, f"SCRAPING n={len(events_to_parse)} UFC EVENTS (workers={max_workers})", True, "-"
+    )
     print(start_header)
     start_time = time.time()
 

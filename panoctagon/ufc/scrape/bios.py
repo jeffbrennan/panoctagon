@@ -149,6 +149,7 @@ def get_fighter_bio(
         "steve-kennedy": "steven-kennedy",
         "sean-daugherty": "sean-daughtery",
         "zhang-tiequan": "tiequan-zhang",
+        "khalil-rountree": "khalil-rountree-jr",
     }
 
     last_name = (

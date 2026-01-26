@@ -43,19 +43,15 @@ def parse_headshot(bio: FileContents) -> HeadshotParsingResult:
     bio_html = bs4.BeautifulSoup(bio.contents, features="lxml")
     fighter = get_fighter(bio.uid)
 
-    fighter_name = fighter.first_name + "_" + fighter.last_name
-    fighter_name_last_first = fighter.last_name + "_" + fighter.first_name
-
     images = [i for i in bio_html.find_all("img") if all(x in i.attrs for x in ["src", "class"])]
-
     fighter_image_urls = set(
         [
             i["src"]
             for i in images
-            if fighter_name.lower() in str(i["src"]).lower()
-            or fighter_name.upper() in str(i["src"]).upper()
-            or fighter_name_last_first.lower() in str(i["src"]).lower()
-            or fighter_name_last_first.upper() in str(i["src"]).upper()
+            if (
+                fighter.last_name.lower() in str(i["src"]).lower()
+                or fighter.first_name.lower() in str(i["src"]).lower()
+            )
             and (
                 "headshot" in "".join(i["class"]).lower()
                 or "profile" in "".join(i["class"]).lower()
@@ -91,14 +87,17 @@ def write_headshot_results_to_db(
     headshots: list[HeadshotParsingResult],
 ) -> None:
     engine = get_engine()
-
+    headshot_dir = Path(__file__).parents[3] / "data" / "raw" / "ufc" / "fighter_headshots"
+    headshots_on_disk = list(headshot_dir.glob("*.png"))
+    headshot_uids_on_disk = [i.stem.split("_")[0] for i in headshots_on_disk]
     print(f"[n={len(headshots):5,d}] updating records in `UFCFighter`")
     with Session(engine) as session:
         for headshot in headshots:
+            has_headshot = headshot.uid in headshot_uids_on_disk
             record = session.exec(
                 select(UFCFighter).where(col(UFCFighter.fighter_uid) == headshot.uid)
             ).one()
-            record.has_headshot = True
+            record.has_headshot = has_headshot
             record.bio_downloaded_ts = headshot.bio_downloaded_ts
             session.add(record)
         session.commit()
