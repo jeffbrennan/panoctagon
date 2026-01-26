@@ -7,7 +7,7 @@ import networkx as nx
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from dash import ALL, Dash, Input, Output, State, callback, ctx, dash_table, dcc, html
+from dash import ALL, Dash, Input, Output, callback, ctx, dash_table, dcc, html
 
 from panoctagon.common import get_engine
 
@@ -217,11 +217,16 @@ def get_network_data() -> pd.DataFrame:
             a.fighter2_uid,
             f1.first_name || ' ' || f1.last_name as fighter1_name,
             f2.first_name || ' ' || f2.last_name as fighter2_name,
-            count(*) as fight_count
+            a.fighter1_result,
+            a.fighter2_result,
+            a.fight_division,
+            e.event_date,
+            strftime(cast(e.event_date as date), '%Y') as fight_year
         from ufc_fights a
         inner join ufc_fighters f1 on a.fighter1_uid = f1.fighter_uid
         inner join ufc_fighters f2 on a.fighter2_uid = f2.fighter_uid
-        group by a.fighter1_uid, a.fighter2_uid, fighter1_name, fighter2_name
+        inner join ufc_events e on a.event_uid = e.event_uid
+        where a.fight_division is not null
         """,
         get_engine(),
     )
@@ -563,17 +568,68 @@ DIVISION_COLORS = {
 
 def build_fighter_graph(
     network_df: pd.DataFrame, fighter_divisions: dict[str, str]
-) -> nx.Graph:
-    G = nx.Graph()
+) -> tuple[nx.DiGraph, dict[str, dict[str, dict[str, list[str]]]], dict[str, dict[str, int]]]:
+    G = nx.DiGraph()
+    fighter_opponents_by_year: dict[str, dict[str, list[str]]] = {}
+    fighter_stats: dict[str, dict[str, int]] = {}
+
     for _, row in network_df.iterrows():
         f1_name = row["fighter1_name"]
         f2_name = row["fighter2_name"]
+        f1_result = row["fighter1_result"]
+        f2_result = row["fighter2_result"]
+        fight_year = row["fight_year"]
+
         if f1_name not in G:
             G.add_node(f1_name, division=fighter_divisions.get(f1_name, "Unknown"))
+            fighter_stats[f1_name] = {"wins": 0, "losses": 0}
         if f2_name not in G:
             G.add_node(f2_name, division=fighter_divisions.get(f2_name, "Unknown"))
-        G.add_edge(f1_name, f2_name, weight=row["fight_count"])
-    return G
+            fighter_stats[f2_name] = {"wins": 0, "losses": 0}
+
+        if f1_result == "WIN":
+            winner = f1_name
+            loser = f2_name
+            fighter_stats[f1_name]["wins"] += 1
+            fighter_stats[f2_name]["losses"] += 1
+        elif f2_result == "WIN":
+            winner = f2_name
+            loser = f1_name
+            fighter_stats[f2_name]["wins"] += 1
+            fighter_stats[f1_name]["losses"] += 1
+        else:
+            continue
+
+        if G.has_edge(loser, winner):
+            G[loser][winner]["weight"] += 1
+        else:
+            G.add_edge(loser, winner, weight=1)
+
+        if f1_name not in fighter_opponents_by_year:
+            fighter_opponents_by_year[f1_name] = {}
+        if fight_year not in fighter_opponents_by_year[f1_name]:
+            fighter_opponents_by_year[f1_name][fight_year] = {"wins": [], "losses": [], "draws": []}
+
+        if f1_result == "WIN":
+            fighter_opponents_by_year[f1_name][fight_year]["wins"].append(f2_name)
+        elif f2_result == "WIN":
+            fighter_opponents_by_year[f1_name][fight_year]["losses"].append(f2_name)
+        else:
+            fighter_opponents_by_year[f1_name][fight_year]["draws"].append(f2_name)
+
+        if f2_name not in fighter_opponents_by_year:
+            fighter_opponents_by_year[f2_name] = {}
+        if fight_year not in fighter_opponents_by_year[f2_name]:
+            fighter_opponents_by_year[f2_name][fight_year] = {"wins": [], "losses": [], "draws": []}
+
+        if f2_result == "WIN":
+            fighter_opponents_by_year[f2_name][fight_year]["wins"].append(f1_name)
+        elif f1_result == "WIN":
+            fighter_opponents_by_year[f2_name][fight_year]["losses"].append(f1_name)
+        else:
+            fighter_opponents_by_year[f2_name][fight_year]["draws"].append(f1_name)
+
+    return G, fighter_opponents_by_year, fighter_stats
 
 
 def get_subgraph_for_fighter(G: nx.Graph, fighter_name: str, depth: int = 2) -> nx.Graph:
@@ -594,7 +650,9 @@ def get_subgraph_for_fighter(G: nx.Graph, fighter_name: str, depth: int = 2) -> 
 
 
 def create_network_figure(
-    G: nx.Graph,
+    G: nx.DiGraph,
+    opponents_by_year: dict[str, dict[str, dict[str, list[str]]]],
+    fighter_stats: dict[str, dict[str, int]],
     search_fighter: str | None = None,
     highlight_path: list[str] | None = None,
     show_labels: bool = False,
@@ -616,152 +674,143 @@ def create_network_figure(
         )
         return apply_figure_styling(fig)
 
-    pos = nx.spring_layout(G, k=2, iterations=50, seed=42)
+    if len(G.nodes()) > 300:
+        pos = nx.kamada_kawai_layout(G)
+    else:
+        pos = nx.spring_layout(G.to_undirected(), k=0.5, iterations=100, seed=42)
 
-    edge_x = []
-    edge_y = []
-    for edge in G.edges():
-        x0, y0 = pos[edge[0]]
-        x1, y1 = pos[edge[1]]
-        edge_x.extend([x0, x1, None])
-        edge_y.extend([y0, y1, None])
+    edge_traces = []
+    for loser, winner in G.edges():
+        x0, y0 = pos[loser]
+        x1, y1 = pos[winner]
+        weight = G[loser][winner]["weight"]
 
-    edge_trace = go.Scatter(
-        x=edge_x,
-        y=edge_y,
-        line=dict(width=0.5, color="#cccccc"),
-        hoverinfo="none",
-        mode="lines",
-        showlegend=False,
-    )
+        edge_trace = go.Scatter(
+            x=[x0, x1],
+            y=[y0, y1],
+            mode="lines",
+            line=dict(width=max(0.5, weight * 0.5), color="rgba(100, 100, 100, 0.4)"),
+            hoverinfo="none",
+            showlegend=False,
+        )
+        edge_traces.append(edge_trace)
 
-    highlight_edge_x = []
-    highlight_edge_y = []
-    if highlight_path and len(highlight_path) > 1:
-        for i in range(len(highlight_path) - 1):
-            if highlight_path[i] in pos and highlight_path[i + 1] in pos:
-                x0, y0 = pos[highlight_path[i]]
-                x1, y1 = pos[highlight_path[i + 1]]
-                highlight_edge_x.extend([x0, x1, None])
-                highlight_edge_y.extend([y0, y1, None])
+        dx = x1 - x0
+        dy = y1 - y0
+        length = (dx**2 + dy**2) ** 0.5
+        if length > 0:
+            arrow_x = x1 - 0.05 * dx / length
+            arrow_y = y1 - 0.05 * dy / length
 
-    highlight_edge_trace = go.Scatter(
-        x=highlight_edge_x,
-        y=highlight_edge_y,
-        line=dict(width=4, color="#ff4444"),
-        hoverinfo="none",
-        mode="lines",
-        showlegend=False,
-    )
+            import math
 
-    path_set = set(highlight_path) if highlight_path else set()
+            angle = math.degrees(math.atan2(dy, dx)) - 90
 
-    division_nodes: dict[str, dict[str, list]] = {}
-    for node in G.nodes():
-        division = G.nodes[node].get("division", "Unknown")
-        if division not in division_nodes:
-            division_nodes[division] = {"x": [], "y": [], "text": [], "sizes": []}
-
-        x, y = pos[node]
-        degree = G.degree(node)
-        size = max(8, min(30, 6 + degree))
-
-        if node == search_fighter or node in path_set:
-            size = max(20, size + 10)
-
-        division_nodes[division]["x"].append(x)
-        division_nodes[division]["y"].append(y)
-        division_nodes[division]["text"].append(node)
-        division_nodes[division]["sizes"].append(size)
-
-    fig = go.Figure()
-    fig.add_trace(edge_trace)
-    fig.add_trace(highlight_edge_trace)
-
-    division_order = [
-        "Strawweight",
-        "Women's Strawweight",
-        "Flyweight",
-        "Women's Flyweight",
-        "Bantamweight",
-        "Women's Bantamweight",
-        "Featherweight",
-        "Women's Featherweight",
-        "Lightweight",
-        "Welterweight",
-        "Middleweight",
-        "Light Heavyweight",
-        "Heavyweight",
-        "Super Heavyweight",
-        "Catch Weight",
-        "Open Weight",
-        "Unknown",
-    ]
-
-    for division in division_order:
-        if division not in division_nodes:
-            continue
-        data = division_nodes[division]
-        color = DIVISION_COLORS.get(division, "#888888")
-
-        show_text = show_labels or (search_fighter and search_fighter in data["text"])
-        text_display = data["text"] if show_text else [""] * len(data["text"])
-
-        fig.add_trace(
-            go.Scatter(
-                x=data["x"],
-                y=data["y"],
-                mode="markers+text" if show_labels else "markers",
-                hoverinfo="text",
-                hovertext=data["text"],
-                text=text_display,
-                textposition="top center",
-                textfont=dict(size=8),
+            arrow_trace = go.Scatter(
+                x=[arrow_x],
+                y=[arrow_y],
+                mode="markers",
                 marker=dict(
-                    size=data["sizes"],
-                    color=color,
-                    line=dict(width=1, color="white"),
+                    size=10,
+                    color="rgba(80, 80, 80, 0.7)",
+                    symbol="arrow",
+                    angleref="previous",
+                    angle=angle,
                 ),
-                name=division,
-                legendgroup=division,
+                hoverinfo="none",
+                showlegend=False,
             )
-        )
+            edge_traces.append(arrow_trace)
 
-    if search_fighter and search_fighter in pos:
-        x, y = pos[search_fighter]
-        fig.add_annotation(
-            x=x,
-            y=y,
-            text=search_fighter,
-            showarrow=True,
-            arrowhead=2,
-            arrowsize=1,
-            arrowwidth=2,
-            arrowcolor="#ff4444",
-            font=dict(size=12, color="#ff4444"),
-            bgcolor="white",
-            bordercolor="#ff4444",
-            borderwidth=1,
-        )
+    node_x = []
+    node_y = []
+    node_text = []
+    node_sizes = []
+    node_colors = []
+
+    for node in G.nodes():
+        x, y = pos[node]
+        node_x.append(x)
+        node_y.append(y)
+
+        wins = fighter_stats.get(node, {}).get("wins", 0)
+        losses = fighter_stats.get(node, {}).get("losses", 0)
+        total = wins + losses
+        win_pct = (wins / total * 100) if total > 0 else 0
+
+        hover_lines = [f"<b>{node}</b>", f"Record: {wins}-{losses} ({win_pct:.1f}%)", ""]
+
+        if node in opponents_by_year:
+            years_sorted = sorted(opponents_by_year[node].keys(), reverse=True)
+            for year in years_sorted:
+                year_fights = opponents_by_year[node][year]
+                year_lines = [f"<b>{year}</b>"]
+
+                if year_fights["wins"]:
+                    wins_text = ", ".join(sorted(year_fights["wins"]))
+                    year_lines.append(f"  W: {wins_text}")
+
+                if year_fights["losses"]:
+                    losses_text = ", ".join(sorted(year_fights["losses"]))
+                    year_lines.append(f"  L: {losses_text}")
+
+                if year_fights["draws"]:
+                    draws_text = ", ".join(sorted(year_fights["draws"]))
+                    year_lines.append(f"  D: {draws_text}")
+
+                hover_lines.extend(year_lines)
+
+        node_text.append("<br>".join(hover_lines))
+
+        if total == 1:
+            node_size = 8
+        elif total == 2:
+            node_size = 12
+        else:
+            node_size = max(16, min(35, 12 + wins * 2))
+
+        node_sizes.append(node_size)
+        node_colors.append(win_pct)
+
+    node_trace = go.Scatter(
+        x=node_x,
+        y=node_y,
+        mode="markers",
+        hoverinfo="text",
+        text=node_text,
+        marker=dict(
+            size=node_sizes,
+            color=node_colors,
+            colorscale=[[0, "#f3776b"], [0.5, "#b4dcd1"], [1, "#049464"]],
+            cmin=0,
+            cmax=100,
+            opacity=1.0,
+            line=dict(width=1, color="rgb(33,33,33)"),
+            colorbar=dict(
+                title="Win %",
+                thickness=15,
+                len=0.5,
+                x=1.02,
+            ),
+        ),
+        showlegend=False,
+    )
+
+    fig = go.Figure(data=[*edge_traces, node_trace])
 
     fig.update_layout(
-        showlegend=True,
-        legend=dict(
-            orientation="v",
-            yanchor="top",
-            y=1,
-            xanchor="left",
-            x=1.02,
-            font=dict(size=10),
-        ),
+        showlegend=False,
         hovermode="closest",
-        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False, showline=False),
-        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False, showline=False),
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
         height=700,
-        margin=dict(l=20, r=150, t=20, b=20),
+        margin=dict(l=20, r=80, t=20, b=20),
+        plot_bgcolor="rgb(242, 240, 227)",
+        paper_bgcolor="rgb(242, 240, 227)",
+        font=dict(family="JetBrains Mono, monospace", color="#1a1a1a"),
     )
 
-    return apply_figure_styling(fig)
+    return fig
 
 
 def create_fighter_clustering_figure(
@@ -824,7 +873,9 @@ def create_fighter_clustering_figure(
 
     fig.add_annotation(x=max_val * 0.85, y=max_val * 0.15, text="Precise Strikers", showarrow=False)
     fig.add_annotation(x=max_val * 0.85, y=max_val * 0.85, text="High Volume", showarrow=False)
-    fig.add_annotation(x=max_val * 0.15, y=max_val * 0.85, text="Defensive/Grapplers", showarrow=False)
+    fig.add_annotation(
+        x=max_val * 0.15, y=max_val * 0.85, text="Defensive/Grapplers", showarrow=False
+    )
     fig.add_annotation(x=max_val * 0.15, y=max_val * 0.15, text="Low Output", showarrow=False)
 
     fig.update_layout(
@@ -966,7 +1017,16 @@ def create_matchup_discrepancy_figure(matchup_df: pd.DataFrame) -> go.Figure:
     fig = go.Figure()
 
     age_bins = [-20, -10, -5, -2, 0, 2, 5, 10, 20]
-    age_labels = ["-20 to -10", "-10 to -5", "-5 to -2", "-2 to 0", "0 to 2", "2 to 5", "5 to 10", "10 to 20"]
+    age_labels = [
+        "-20 to -10",
+        "-10 to -5",
+        "-5 to -2",
+        "-2 to 0",
+        "0 to 2",
+        "2 to 5",
+        "5 to 10",
+        "10 to 20",
+    ]
     results_df["age_bin"] = pd.cut(results_df["age_diff"], bins=age_bins, labels=age_labels)
     age_win_rates = results_df.groupby("age_bin", observed=True).agg(
         win_rate=("won", "mean"), count=("won", "count")
@@ -982,7 +1042,16 @@ def create_matchup_discrepancy_figure(matchup_df: pd.DataFrame) -> go.Figure:
     reach_win_rates = reach_win_rates[reach_win_rates["count"] >= 20]
 
     exp_bins = [-50, -10, -5, -2, 0, 2, 5, 10, 50]
-    exp_labels = ["-10+ fights", "-5 to -10", "-2 to -5", "-2 to 0", "0 to 2", "2 to 5", "5 to 10", "10+ fights"]
+    exp_labels = [
+        "-10+ fights",
+        "-5 to -10",
+        "-2 to -5",
+        "-2 to 0",
+        "0 to 2",
+        "2 to 5",
+        "5 to 10",
+        "10+ fights",
+    ]
     results_df["exp_bin"] = pd.cut(results_df["exp_diff"], bins=exp_bins, labels=exp_labels)
     exp_win_rates = results_df.groupby("exp_bin", observed=True).agg(
         win_rate=("won", "mean"), count=("won", "count")
@@ -1118,7 +1187,10 @@ try:
     df = get_main_data()
     network_df = get_network_data()
     fighter_divisions = get_fighter_divisions()
-    fighter_graph = build_fighter_graph(network_df, fighter_divisions)
+    initial_network_df = network_df[network_df["fight_division"] == "HEAVYWEIGHT"]
+    fighter_graph, fighter_opponents_by_year, fighter_stats = build_fighter_graph(
+        initial_network_df, fighter_divisions
+    )
     roster_df = get_roster_stats()
     matchup_df = get_matchup_data()
     fighter_options = get_fighter_list(df)
@@ -1126,7 +1198,9 @@ except Exception:
     df = pd.DataFrame()
     network_df = pd.DataFrame()
     fighter_divisions = {}
-    fighter_graph = nx.Graph()
+    fighter_graph = nx.DiGraph()
+    fighter_opponents_by_year = {}
+    fighter_stats = {}
     roster_df = pd.DataFrame()
     matchup_df = pd.DataFrame()
     fighter_options = []
@@ -1412,40 +1486,56 @@ fighter_analysis_content = html.Div(
 
 fighter_network_content = html.Div(
     [
-        dmc.Group(
+        html.Div(
             [
-                dmc.Select(
-                    label="Search Fighter",
-                    placeholder="Search for a fighter",
-                    id="network-fighter-select",
-                    data=fighter_options,
-                    searchable=True,
-                    clearable=True,
-                    style={"width": "250px"},
+                html.Div(
+                    [
+                        dmc.Text("Division", size="sm", fw=500, mb="xs", c="#1a1a1a"),
+                        dmc.Select(
+                            id="network-division-dropdown",
+                            data=[
+                                {"value": "HEAVYWEIGHT", "label": "Heavyweight"},
+                                {"value": "LIGHT_HEAVYWEIGHT", "label": "Light Heavyweight"},
+                                {"value": "MIDDLEWEIGHT", "label": "Middleweight"},
+                                {"value": "WELTERWEIGHT", "label": "Welterweight"},
+                                {"value": "LIGHTWEIGHT", "label": "Lightweight"},
+                                {"value": "FEATHERWEIGHT", "label": "Featherweight"},
+                                {"value": "BANTAMWEIGHT", "label": "Bantamweight"},
+                                {"value": "FLYWEIGHT", "label": "Flyweight"},
+                                {"value": "WOMENS_FEATHERWEIGHT", "label": "Women's Featherweight"},
+                                {"value": "WOMENS_BANTAMWEIGHT", "label": "Women's Bantamweight"},
+                                {"value": "WOMENS_FLYWEIGHT", "label": "Women's Flyweight"},
+                                {"value": "WOMENS_STRAWWEIGHT", "label": "Women's Strawweight"},
+                            ],
+                            value="HEAVYWEIGHT",
+                            searchable=True,
+                            clearable=False,
+                        ),
+                    ],
+                    style={"width": "25%", "paddingRight": "1rem"},
                 ),
-                dmc.Select(
-                    label="Find Path To",
-                    placeholder="Select second fighter",
-                    id="network-fighter-target",
-                    data=fighter_options,
-                    searchable=True,
-                    clearable=True,
-                    style={"width": "250px"},
-                ),
-                dmc.Switch(
-                    label="Show Labels",
-                    id="network-show-labels",
-                    checked=False,
-                    style={"marginTop": "24px"},
+                html.Div(
+                    [
+                        dmc.Text("Year Range", size="sm", fw=500, mb="xs", c="#1a1a1a"),
+                        dcc.RangeSlider(
+                            id="network-year-slider",
+                            min=1997,
+                            max=2026,
+                            value=[2021, 2026],
+                            marks={year: str(year) for year in range(1997, 2027, 3)},
+                            step=1,
+                            tooltip={"placement": "bottom", "always_visible": True},
+                        ),
+                    ],
+                    style={"width": "50%", "paddingLeft": "1rem"},
                 ),
             ],
-            align="flex-end",
-            gap="md",
-            mb="md",
-        ),
-        html.Div(
-            id="network-path-info",
-            style={"marginBottom": "1rem"},
+            style={
+                "display": "flex",
+                "marginBottom": "2rem",
+                "paddingLeft": "1rem",
+                "paddingRight": "1rem",
+            },
         ),
         html.Div(
             dcc.Graph(
@@ -1534,6 +1624,7 @@ roster_analysis_content = html.Div(
     ]
 )
 
+
 def create_matchup_card(
     fight: dict,
     fighter_num: int,
@@ -1601,14 +1692,18 @@ def create_matchup_card(
                         [
                             dmc.Text("Reach", size="xs", c="gray"),
                             dmc.Text(
-                                f"{fighter_reach or '-'}\"",
+                                f'{fighter_reach or "-"}"',
                                 size="sm",
                                 fw=500,
                             ),
                             dmc.Text(
-                                format_diff(reach_diff, "\""),
+                                format_diff(reach_diff, '"'),
                                 size="xs",
-                                c="teal" if reach_diff and reach_diff > 0 else "salmon" if reach_diff and reach_diff < 0 else "gray",
+                                c="teal"
+                                if reach_diff and reach_diff > 0
+                                else "salmon"
+                                if reach_diff and reach_diff < 0
+                                else "gray",
                             ),
                         ]
                     ),
@@ -1616,14 +1711,18 @@ def create_matchup_card(
                         [
                             dmc.Text("Height", size="xs", c="gray"),
                             dmc.Text(
-                                f"{fighter_height or '-'}\"",
+                                f'{fighter_height or "-"}"',
                                 size="sm",
                                 fw=500,
                             ),
                             dmc.Text(
-                                format_diff(height_diff, "\""),
+                                format_diff(height_diff, '"'),
                                 size="xs",
-                                c="teal" if height_diff and height_diff > 0 else "salmon" if height_diff and height_diff < 0 else "gray",
+                                c="teal"
+                                if height_diff and height_diff > 0
+                                else "salmon"
+                                if height_diff and height_diff < 0
+                                else "gray",
                             ),
                         ]
                     ),
@@ -2378,58 +2477,51 @@ def update_strikes_comparison(fighter: str):
 
 
 @callback(
+    Output("fighter-network-graph", "figure"),
     [
-        Output("fighter-network-graph", "figure"),
-        Output("network-path-info", "children"),
-    ],
-    [
-        Input("network-fighter-select", "value"),
-        Input("network-fighter-target", "value"),
-        Input("network-show-labels", "checked"),
+        Input("top-level-tabs", "value"),
+        Input("network-division-dropdown", "value"),
+        Input("network-year-slider", "value"),
     ],
 )
-def update_network_graph(
-    search_fighter: str | None, target_fighter: str | None, show_labels: bool
-):
-    highlight_path = None
-    path_info = ""
+def update_network_graph(tab: str, division: str, year_range: list[int]):
+    if tab != "network":
+        return go.Figure()
 
-    if search_fighter and target_fighter and search_fighter != target_fighter:
-        if search_fighter in fighter_graph and target_fighter in fighter_graph:
-            try:
-                path = nx.shortest_path(fighter_graph, search_fighter, target_fighter)
-                highlight_path = path
-                path_length = len(path) - 1
-                path_str = " -> ".join(path)
-                path_info = dmc.Alert(
-                    [
-                        dmc.Text(f"Shortest path ({path_length} fights): ", fw=700, span=True),
-                        dmc.Text(path_str, span=True),
-                    ],
-                    color="blue",
-                    variant="light",
-                )
-            except nx.NetworkXNoPath:
-                path_info = dmc.Alert(
-                    f"No path found between {search_fighter} and {target_fighter}",
-                    color="red",
-                    variant="light",
-                )
-        elif search_fighter not in fighter_graph:
-            path_info = dmc.Alert(
-                f"{search_fighter} not found in the network",
-                color="orange",
-                variant="light",
-            )
-        elif target_fighter not in fighter_graph:
-            path_info = dmc.Alert(
-                f"{target_fighter} not found in the network",
-                color="orange",
-                variant="light",
-            )
+    min_year, max_year = year_range
+    filtered_network_df = network_df[
+        (network_df["fight_division"] == division)
+        & (network_df["fight_year"].astype(int) >= min_year)
+        & (network_df["fight_year"].astype(int) <= max_year)
+    ]
 
-    fig = create_network_figure(fighter_graph, search_fighter, highlight_path, show_labels)
-    return fig, path_info
+    if filtered_network_df.empty:
+        fig = go.Figure()
+        fig.update_layout(
+            annotations=[
+                dict(
+                    text="No fights in selected division/year range",
+                    xref="paper",
+                    yref="paper",
+                    x=0.5,
+                    y=0.5,
+                    showarrow=False,
+                    font=dict(size=20),
+                )
+            ],
+            plot_bgcolor="rgb(242, 240, 227)",
+            paper_bgcolor="rgb(242, 240, 227)",
+        )
+        return fig
+
+    filtered_graph, filtered_opponents_by_year, filtered_stats = build_fighter_graph(
+        filtered_network_df, fighter_divisions
+    )
+
+    fig = create_network_figure(
+        filtered_graph, filtered_opponents_by_year, filtered_stats, None, None, False
+    )
+    return fig
 
 
 @callback(

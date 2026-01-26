@@ -283,3 +283,47 @@ svg.main-svg {
     font-weight: 600 !important;
     color: #1a1a1a !important;
 }
+
+.rc-slider {
+    font-family: "JetBrains Mono", monospace !important;
+}
+
+.rc-slider-rail {
+    background-color: #1a1a1a !important;
+    height: 6px !important;
+}
+
+.rc-slider-track {
+    background-color: #1a1a1a !important;
+    height: 6px !important;
+}
+
+.rc-slider-handle {
+    border: 2px solid #1a1a1a !important;
+    background-color: rgb(242, 240, 227) !important;
+    width: 16px !important;
+    height: 16px !important;
+    margin-top: -5px !important;
+}
+
+.rc-slider-handle:hover,
+.rc-slider-handle:active,
+.rc-slider-handle:focus {
+    border-color: #1a1a1a !important;
+    box-shadow: 0 0 0 3px rgba(26, 26, 26, 0.12) !important;
+}
+
+.rc-slider-mark-text {
+    font-family: "JetBrains Mono", monospace !important;
+    font-size: 12px !important;
+    color: #1a1a1a !important;
+}
+
+.rc-slider-dot {
+    border-color: #1a1a1a !important;
+    background-color: rgb(242, 240, 227) !important;
+}
+
+.rc-slider-dot-active {
+    border-color: #1a1a1a !important;
+}
