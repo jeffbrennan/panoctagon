@@ -568,10 +568,16 @@ DIVISION_COLORS = {
 
 def build_fighter_graph(
     network_df: pd.DataFrame, fighter_divisions: dict[str, str]
-) -> tuple[nx.DiGraph, dict[str, dict[str, dict[str, list[str]]]], dict[str, dict[str, int]]]:
+) -> tuple[
+    nx.DiGraph,
+    dict[str, dict[str, dict[str, list[str]]]],
+    dict[str, dict[str, int]],
+    dict[tuple[str, str], int],
+]:
     G = nx.DiGraph()
     fighter_opponents_by_year: dict[str, dict[str, list[str]]] = {}
     fighter_stats: dict[str, dict[str, int]] = {}
+    fighter_matchups: dict[tuple[str, str], int] = {}
 
     for _, row in network_df.iterrows():
         f1_name = row["fighter1_name"]
@@ -605,6 +611,9 @@ def build_fighter_graph(
         else:
             G.add_edge(loser, winner, weight=1)
 
+        matchup_key = tuple(sorted([f1_name, f2_name]))
+        fighter_matchups[matchup_key] = fighter_matchups.get(matchup_key, 0) + 1
+
         if f1_name not in fighter_opponents_by_year:
             fighter_opponents_by_year[f1_name] = {}
         if fight_year not in fighter_opponents_by_year[f1_name]:
@@ -629,7 +638,7 @@ def build_fighter_graph(
         else:
             fighter_opponents_by_year[f2_name][fight_year]["draws"].append(f1_name)
 
-    return G, fighter_opponents_by_year, fighter_stats
+    return G, fighter_opponents_by_year, fighter_stats, fighter_matchups
 
 
 def get_subgraph_for_fighter(G: nx.Graph, fighter_name: str, depth: int = 2) -> nx.Graph:
@@ -653,6 +662,7 @@ def create_network_figure(
     G: nx.DiGraph,
     opponents_by_year: dict[str, dict[str, dict[str, list[str]]]],
     fighter_stats: dict[str, dict[str, int]],
+    fighter_matchups: dict[tuple[str, str], int],
     search_fighter: str | None = None,
     highlight_path: list[str] | None = None,
     show_labels: bool = False,
@@ -683,13 +693,15 @@ def create_network_figure(
     for loser, winner in G.edges():
         x0, y0 = pos[loser]
         x1, y1 = pos[winner]
-        weight = G[loser][winner]["weight"]
+
+        matchup_key = tuple(sorted([loser, winner]))
+        total_fights = fighter_matchups.get(matchup_key, 1)
 
         edge_trace = go.Scatter(
             x=[x0, x1],
             y=[y0, y1],
             mode="lines",
-            line=dict(width=max(0.5, weight * 0.5), color="rgba(100, 100, 100, 0.4)"),
+            line=dict(width=max(0.5, total_fights), color="rgba(33, 33, 33, 0.5)"),
             hoverinfo="none",
             showlegend=False,
         )
@@ -1210,7 +1222,7 @@ try:
     network_df = get_network_data()
     fighter_divisions = get_fighter_divisions()
     initial_network_df = network_df[network_df["fight_division"] == "HEAVYWEIGHT"]
-    fighter_graph, fighter_opponents_by_year, fighter_stats = build_fighter_graph(
+    fighter_graph, fighter_opponents_by_year, fighter_stats, fighter_matchups = build_fighter_graph(
         initial_network_df, fighter_divisions
     )
     roster_df = get_roster_stats()
@@ -1223,6 +1235,7 @@ except Exception:
     fighter_graph = nx.DiGraph()
     fighter_opponents_by_year = {}
     fighter_stats = {}
+    fighter_matchups = {}
     roster_df = pd.DataFrame()
     matchup_df = pd.DataFrame()
     fighter_options = []
@@ -2536,12 +2549,18 @@ def update_network_graph(tab: str, division: str, year_range: list[int]):
         )
         return fig
 
-    filtered_graph, filtered_opponents_by_year, filtered_stats = build_fighter_graph(
-        filtered_network_df, fighter_divisions
+    filtered_graph, filtered_opponents_by_year, filtered_stats, filtered_matchups = (
+        build_fighter_graph(filtered_network_df, fighter_divisions)
     )
 
     fig = create_network_figure(
-        filtered_graph, filtered_opponents_by_year, filtered_stats, None, None, False
+        filtered_graph,
+        filtered_opponents_by_year,
+        filtered_stats,
+        filtered_matchups,
+        None,
+        None,
+        False,
     )
     return fig
 
