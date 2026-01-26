@@ -18,20 +18,20 @@ from panoctagon.common import (
 from panoctagon.models import RunStats
 from panoctagon.tables import UFCEvent
 from panoctagon.ufc.scrape.bios import (
-    get_fighter_bio,
     get_fighters_to_download,
     get_unparsed_fighters,
+    scrape_fighter_bios_parallel,
 )
 from panoctagon.ufc.scrape.events import get_events
 from panoctagon.ufc.scrape.fighters import (
     FighterToScrape,
     get_all_fighter_uids,
-    scrape_fighter,
+    scrape_fighters_parallel,
 )
 from panoctagon.ufc.scrape.fights import (
     EventToParse,
-    get_fights_from_event,
     read_event_uids,
+    scrape_fights_parallel,
 )
 
 app = typer.Typer()
@@ -65,7 +65,7 @@ def events(force: bool = False) -> int:
 
 
 @app.command()
-def bios(force: bool = False, n: Optional[int] = None) -> int:
+def bios(force: bool = False, n: Optional[int] = None, max_workers: int = 8) -> int:
     setup = setup_panoctagon(title="Panoctagon Fighter Bio Scraper")
     output_dir = Path(__file__).parents[3] / "data" / "raw" / "ufc" / "fighter_bios"
     output_dir.mkdir(exist_ok=True, parents=True)
@@ -78,25 +78,29 @@ def bios(force: bool = False, n: Optional[int] = None) -> int:
 
     n_fighters_to_download = len(fighters_to_download)
 
-    start_header = create_header(80, f"SCRAPING n={n_fighters_to_download} Fighter Bios", True, "-")
+    start_header = create_header(
+        80, f"SCRAPING n={n_fighters_to_download} Fighter Bios (workers={max_workers})", True, "-"
+    )
     print(start_header)
     start_time = time.time()
-    results = [
-        get_fighter_bio(fighter, output_dir, i, len(fighters_to_download))
-        for i, fighter in enumerate(fighters_to_download, 1)
-    ]
+
+    results = scrape_fighter_bios_parallel(fighters_to_download, output_dir, max_workers)
 
     end_time = time.time()
     bios_downloaded = 0
-    bios_deleted = 0
+    bios_not_found = 0
+    bios_failed = 0
+
     for result in results:
         if result.write is None:
             continue
         for write in result.write:
             if write.success:
                 bios_downloaded += 1
+            elif write.error_type == "page_not_found":
+                bios_not_found += 1
             else:
-                bios_deleted += 1
+                bios_failed += 1
 
     report_stats(
         RunStats(
@@ -105,15 +109,19 @@ def bios(force: bool = False, n: Optional[int] = None) -> int:
             n_ops=n_fighters_to_download,
             op_name="fighter bio",
             successes=bios_downloaded,
-            failures=bios_deleted,
+            failures=bios_failed,
         )
     )
+
+    if bios_not_found > 0:
+        print(f"- {bios_not_found} fighters have no UFC athlete page (skipped)")
+
     print(setup.footer)
     return bios_downloaded
 
 
 @app.command()
-def fighters() -> int:
+def fighters(max_workers: int = 8) -> int:
     setup = setup_panoctagon(
         "Panoctagon UFC Fighter Scraper",
     )
@@ -148,8 +156,8 @@ def fighters() -> int:
         for i, uid in enumerate(unscraped_fighters)
     ]
 
-    print(create_header(80, f"SCRAPING n={n_fighters} fighters", True, "-"))
-    results = [scrape_fighter(i) for i in fighters_to_scrape]
+    print(create_header(80, f"SCRAPING n={n_fighters} fighters (workers={max_workers})", True, "-"))
+    results = scrape_fighters_parallel(fighters_to_scrape, max_workers)
 
     successes = [i for i in results if i.success]
     n_successes = len(successes)
@@ -170,7 +178,7 @@ def fighters() -> int:
 
 
 @app.command()
-def fights(force: bool = False) -> int:
+def fights(force: bool = False, max_workers: int = 8) -> int:
     setup = setup_panoctagon(title="Panoctagon UFC Fight Scraper")
 
     output_dir = Path(__file__).parents[3] / "data" / "raw" / "ufc" / "fights"
@@ -188,11 +196,13 @@ def fights(force: bool = False) -> int:
         for i, uid in enumerate(event_uids)
     ]
 
-    start_header = create_header(80, f"SCRAPING n={len(events_to_parse)} UFC EVENTS", True, "-")
+    start_header = create_header(
+        80, f"SCRAPING n={len(events_to_parse)} UFC EVENTS (workers={max_workers})", True, "-"
+    )
     print(start_header)
     start_time = time.time()
 
-    results = [get_fights_from_event(event, force) for event in events_to_parse]
+    results = scrape_fights_parallel(events_to_parse, force, max_workers)
     end_time = time.time()
 
     fights_downloaded = 0

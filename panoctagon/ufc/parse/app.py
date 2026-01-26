@@ -1,3 +1,4 @@
+import random
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
@@ -25,10 +26,9 @@ app = typer.Typer()
 
 
 @app.command(name="bios")
-def bios(force: bool = False) -> int:
+def bios(force: bool = False, n: int | None = None) -> int:
     setup = setup_panoctagon(title="Fighter Bio Parser")
     bio_dir = Path(__file__).parents[3] / "data" / "raw" / "ufc" / "fighter_bios"
-    headshot_dir = Path(__file__).parents[3] / "data" / "raw" / "ufc" / "fighter_headshots"
 
     fighter_bios = get_html_files(
         path=bio_dir,
@@ -42,15 +42,15 @@ def bios(force: bool = False) -> int:
         print(setup.footer)
         return 0
 
+    if n is not None and n < len(fighter_bios):
+        random.shuffle(fighter_bios)
+        fighter_bios = fighter_bios[0:n]
+
     print(create_header(80, f"PARSING n={len(fighter_bios)} fighter bios", True, "-"))
     headshot_results = [parse_headshot(bio) for bio in fighter_bios]
 
-    headshots_on_disk = list(headshot_dir.glob("*.png"))
-    headshot_uids_on_disk = [i.stem.split("_")[0] for i in headshots_on_disk]
-
-    headshots_validated = [i for i in headshot_results if i.uid in headshot_uids_on_disk]
-    write_headshot_results_to_db(headshots_validated)
-    return len(headshots_validated)
+    write_headshot_results_to_db(headshot_results)
+    return len(headshot_results)
 
 
 @app.command(name="fighters")

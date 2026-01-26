@@ -1,5 +1,6 @@
 import datetime
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -77,7 +78,7 @@ class FightUidResult:
     message: Optional[str]
 
 
-def get_fight_uids(event: EventToParse) -> FightUidResult:
+def get_fight_uids(event: EventToParse, session: Optional[requests.Session] = None) -> FightUidResult:
     url = f"http://www.ufcstats.com/event-details/{event.uid}"
     success = False
     event_attempts = 0
@@ -85,7 +86,10 @@ def get_fight_uids(event: EventToParse) -> FightUidResult:
 
     response = None
     while not success and event_attempts < max_attempts:
-        response = requests.get(url)
+        if session is None:
+            response = requests.get(url)
+        else:
+            response = session.get(url)
         success = response.status_code == 200
         time.sleep(1)
 
@@ -102,7 +106,7 @@ def get_fight_uids(event: EventToParse) -> FightUidResult:
     return FightUidResult(success=True, uids=fight_uids, message=None)
 
 
-def get_fights_from_event(event: EventToParse, force: bool) -> FightScrapingResult:
+def get_fights_from_event(event: EventToParse, force: bool, session: Optional[requests.Session] = None) -> FightScrapingResult:
     header_title = f"[{event.i:03d}/{event.n_events:03d}] {event.uid}"
     downloads = [i.stem for i in event.base_dir.glob("*.html")]
     downloaded_events = sorted(set([i.split("_")[0] for i in downloads]))
@@ -116,7 +120,7 @@ def get_fights_from_event(event: EventToParse, force: bool) -> FightScrapingResu
             message="event already downloaded",
         )
 
-    fight_uid_result = get_fight_uids(event)
+    fight_uid_result = get_fight_uids(event, session)
     if not fight_uid_result.success or fight_uid_result.uids is None:
         return FightScrapingResult(
             event=event,
@@ -151,7 +155,7 @@ def get_fights_from_event(event: EventToParse, force: bool) -> FightScrapingResu
             message="no files to download",
         )
 
-    write_results = [scrape_page(config) for config in configs]
+    write_results = [scrape_page(config, session=session) for config in configs]
     bad_writes = [i for i in write_results if not i.success]
 
     fights_deleted = len(bad_writes)
@@ -178,3 +182,22 @@ def get_fights_from_event(event: EventToParse, force: bool) -> FightScrapingResu
         success=success,
         message=message,
     )
+
+
+def scrape_fights_parallel(
+    events_to_parse: list[EventToParse], force: bool, max_workers: int = 8
+) -> list[FightScrapingResult]:
+    results = []
+
+    with requests.Session() as session:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_event = {
+                executor.submit(get_fights_from_event, event, force, session): event
+                for event in events_to_parse
+            }
+
+            for future in as_completed(future_to_event):
+                result = future.result()
+                results.append(result)
+
+    return results
