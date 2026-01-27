@@ -290,16 +290,14 @@ def create_fighter_clustering_figure(
         line=dict(color="gray", width=1, dash="dash"),
     )
 
-    fig.add_annotation(x=max_val * 0.85, y=max_val * 0.15, text="Precise Strikers", showarrow=False)
-    fig.add_annotation(x=max_val * 0.85, y=max_val * 0.85, text="High Volume", showarrow=False)
-    fig.add_annotation(
-        x=max_val * 0.15, y=max_val * 0.85, text="Defensive/Grapplers", showarrow=False
-    )
-    fig.add_annotation(x=max_val * 0.15, y=max_val * 0.15, text="Low Output", showarrow=False)
+    fig.add_annotation(x=max_val * 0.95, y=max_val * 0.01, text="Slick Strikers", showarrow=False)
+    fig.add_annotation(x=max_val * 0.95, y=max_val * 0.99, text="Brawlers", showarrow=False)
+    fig.add_annotation(x=max_val * 0.1, y=max_val * 0.99, text="Punching Bags", showarrow=False)
+    fig.add_annotation(x=max_val * 0.1, y=max_val * 0.01, text="Cautious Strikers", showarrow=False)
 
     fig.update_layout(
-        xaxis_title="Avg Strikes Landed Per Fight",
-        yaxis_title="Avg Strikes Absorbed Per Fight",
+        xaxis_title="Median Strikes Landed Per Round",
+        yaxis_title="Median Strikes Absorbed Per Round",
         height=600,
         legend=dict(
             orientation="v",
@@ -544,7 +542,7 @@ roster_analysis_content = html.Div(
                     className="plot-title",
                 ),
                 dmc.Text(
-                    "Fighters grouped by striking output vs absorption. "
+                    "Fighters grouped by median strikes landed vs absorbed per round. "
                     "Size indicates number of fights. Fighters with 5+ fights shown.",
                     size="sm",
                     c="gray",
