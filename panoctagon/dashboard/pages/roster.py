@@ -104,7 +104,8 @@ def get_roster_stats() -> pd.DataFrame:
                     sum(fs.total_strikes_attempted) as strikes_attempted,
                     sum(fs.sig_strikes_head_landed) as head_strikes,
                     sum(fs.sig_strikes_body_landed) as body_strikes,
-                    sum(fs.sig_strikes_leg_landed) as leg_strikes
+                    sum(fs.sig_strikes_leg_landed) as leg_strikes,
+                    count(distinct fs.round_num) as rounds_fought
                 from ufc_fight_stats fs
                 inner join fighter_details fd on fs.fighter_uid = fd.fighter_uid
                 inner join fight_results_long fr
@@ -131,6 +132,7 @@ def get_roster_stats() -> pd.DataFrame:
                     fs.head_strikes,
                     fs.body_strikes,
                     fs.leg_strikes,
+                    fs.rounds_fought,
                     os.opponent_strikes_landed
                 from fighter_stats fs
                 inner join opponent_stats os
@@ -142,15 +144,15 @@ def get_roster_stats() -> pd.DataFrame:
             fighter_name,
             count(distinct fight_uid) as total_fights,
             sum(case when fighter_result = 'WIN' then 1 else 0 end) as wins,
-            avg(strikes_landed) as avg_strikes_landed,
-            avg(opponent_strikes_landed) as avg_strikes_absorbed,
+            sum(strikes_landed)::float / nullif(sum(rounds_fought), 0) as avg_strikes_landed,
+            sum(opponent_strikes_landed)::float / nullif(sum(rounds_fought), 0) as avg_strikes_absorbed,
             sum(head_strikes) as total_head_strikes,
             sum(body_strikes) as total_body_strikes,
             sum(leg_strikes) as total_leg_strikes,
             sum(head_strikes + body_strikes + leg_strikes) as total_sig_strikes
         from combined
         group by fighter_uid, fighter_name
-        having count(distinct fight_uid) >= 3
+        having count(distinct fight_uid) >= 5
         """,
         get_engine(),
     )
@@ -207,6 +209,28 @@ def update_strikes_comparison(fighter: str):
     return apply_figure_styling(fig)
 
 
+def normalize_division(db_division: str) -> str:
+    mapping = {
+        "LIGHTWEIGHT": "Lightweight",
+        "WELTERWEIGHT": "Welterweight",
+        "MIDDLEWEIGHT": "Middleweight",
+        "LIGHT_HEAVYWEIGHT": "Light Heavyweight",
+        "HEAVYWEIGHT": "Heavyweight",
+        "FLYWEIGHT": "Flyweight",
+        "BANTAMWEIGHT": "Bantamweight",
+        "FEATHERWEIGHT": "Featherweight",
+        "STRAWWEIGHT": "Strawweight",
+        "WOMENS_STRAWWEIGHT": "Women's Strawweight",
+        "WOMENS_FLYWEIGHT": "Women's Flyweight",
+        "WOMENS_BANTAMWEIGHT": "Women's Bantamweight",
+        "WOMENS_FEATHERWEIGHT": "Women's Featherweight",
+        "CATCH_WEIGHT": "Catch Weight",
+        "OPEN_WEIGHT": "Open Weight",
+        "SUPER_HEAVYWEIGHT": "Super Heavyweight",
+    }
+    return mapping.get(db_division, "Unknown")
+
+
 def create_fighter_clustering_figure(
     roster_df: pd.DataFrame, fighter_divisions: dict[str, str]
 ) -> go.Figure:
@@ -216,7 +240,9 @@ def create_fighter_clustering_figure(
         return apply_figure_styling(fig)
 
     roster_df = roster_df.copy()
-    roster_df["division"] = roster_df["fighter_name"].map(fighter_divisions).fillna("Unknown")
+    roster_df["division"] = (
+        roster_df["fighter_name"].map(fighter_divisions).apply(normalize_division).fillna("Unknown")
+    )
     roster_df["win_pct"] = roster_df["wins"] / roster_df["total_fights"] * 100
 
     fig = go.Figure()
@@ -237,11 +263,11 @@ def create_fighter_clustering_figure(
 
         fig.add_trace(
             go.Scatter(
-                x=div_data["avg_strikes_landed"],
-                y=div_data["avg_strikes_absorbed"],
+                x=div_data["avg_strikes_landed"].tolist(),
+                y=div_data["avg_strikes_absorbed"].tolist(),
                 mode="markers",
                 marker=dict(
-                    size=div_data["total_fights"].clip(upper=30) + 5,
+                    size=(div_data["total_fights"].clip(upper=30) + 5).tolist(),
                     color=DIVISION_COLORS[division],
                     line=dict(width=1, color="white"),
                     opacity=0.7,
@@ -520,7 +546,7 @@ roster_analysis_content = html.Div(
                 ),
                 dmc.Text(
                     "Fighters grouped by striking output vs absorption. "
-                    "Size indicates number of fights. Fighters with 3+ fights shown.",
+                    "Size indicates number of fights. Fighters with 5+ fights shown.",
                     size="sm",
                     c="gray",
                     mb="sm",
