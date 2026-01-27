@@ -1,4 +1,3 @@
-import dash_mantine_components as dmc
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -94,63 +93,64 @@ def get_roster_stats() -> pd.DataFrame:
                     fighter2_result as fighter_result
                 from ufc_fights
             ),
-            fighter_stats as (
+            round_stats as (
                 select
                     fs.fighter_uid,
                     fd.fighter_name,
                     fs.fight_uid,
+                    fs.round_num,
                     fr.fighter_result,
-                    sum(fs.total_strikes_landed) as strikes_landed,
-                    sum(fs.total_strikes_attempted) as strikes_attempted,
-                    sum(fs.sig_strikes_head_landed) as head_strikes,
-                    sum(fs.sig_strikes_body_landed) as body_strikes,
-                    sum(fs.sig_strikes_leg_landed) as leg_strikes
+                    fs.total_strikes_landed,
+                    sum(fs.total_strikes_landed) over (partition by fs.fighter_uid, fs.fight_uid) as fight_strikes_landed,
+                    sum(fs.sig_strikes_head_landed) over (partition by fs.fighter_uid, fs.fight_uid) as fight_head_strikes,
+                    sum(fs.sig_strikes_body_landed) over (partition by fs.fighter_uid, fs.fight_uid) as fight_body_strikes,
+                    sum(fs.sig_strikes_leg_landed) over (partition by fs.fighter_uid, fs.fight_uid) as fight_leg_strikes
                 from ufc_fight_stats fs
                 inner join fighter_details fd on fs.fighter_uid = fd.fighter_uid
                 inner join fight_results_long fr
                     on fs.fight_uid = fr.fight_uid
                     and fs.fighter_uid = fr.fighter_uid
-                group by fs.fighter_uid, fd.fighter_name, fs.fight_uid, fr.fighter_result
             ),
-            opponent_stats as (
+            opponent_round_stats as (
                 select
                     fs.fight_uid,
                     fs.fighter_uid as opponent_uid,
-                    sum(fs.total_strikes_landed) as opponent_strikes_landed
+                    fs.round_num,
+                    fs.total_strikes_landed as opponent_strikes_landed
                 from ufc_fight_stats fs
-                group by fs.fight_uid, fs.fighter_uid
             ),
-            combined as (
+            combined_rounds as (
                 select
-                    fs.fighter_uid,
-                    fs.fighter_name,
-                    fs.fight_uid,
-                    fs.fighter_result,
-                    fs.strikes_landed,
-                    fs.strikes_attempted,
-                    fs.head_strikes,
-                    fs.body_strikes,
-                    fs.leg_strikes,
-                    os.opponent_strikes_landed
-                from fighter_stats fs
-                inner join opponent_stats os
-                    on fs.fight_uid = os.fight_uid
-                    and fs.fighter_uid != os.opponent_uid
+                    rs.fighter_uid,
+                    rs.fighter_name,
+                    rs.fight_uid,
+                    rs.fighter_result,
+                    rs.total_strikes_landed,
+                    ors.opponent_strikes_landed,
+                    rs.fight_strikes_landed,
+                    rs.fight_head_strikes,
+                    rs.fight_body_strikes,
+                    rs.fight_leg_strikes
+                from round_stats rs
+                inner join opponent_round_stats ors
+                    on rs.fight_uid = ors.fight_uid
+                    and rs.round_num = ors.round_num
+                    and rs.fighter_uid != ors.opponent_uid
             )
         select
             fighter_uid,
             fighter_name,
             count(distinct fight_uid) as total_fights,
-            sum(case when fighter_result = 'WIN' then 1 else 0 end) as wins,
-            avg(strikes_landed) as avg_strikes_landed,
-            avg(opponent_strikes_landed) as avg_strikes_absorbed,
-            sum(head_strikes) as total_head_strikes,
-            sum(body_strikes) as total_body_strikes,
-            sum(leg_strikes) as total_leg_strikes,
-            sum(head_strikes + body_strikes + leg_strikes) as total_sig_strikes
-        from combined
+            count(distinct case when fighter_result = 'WIN' then fight_uid end) as wins,
+            percentile_cont(0.5) within group (order by total_strikes_landed) as avg_strikes_landed,
+            percentile_cont(0.5) within group (order by opponent_strikes_landed) as avg_strikes_absorbed,
+            sum(fight_head_strikes) as total_head_strikes,
+            sum(fight_body_strikes) as total_body_strikes,
+            sum(fight_leg_strikes) as total_leg_strikes,
+            sum(fight_head_strikes + fight_body_strikes + fight_leg_strikes) as total_sig_strikes
+        from combined_rounds
         group by fighter_uid, fighter_name
-        having count(distinct fight_uid) >= 3
+        having count(distinct fight_uid) >= 5
         """,
         get_engine(),
     )
@@ -207,6 +207,28 @@ def update_strikes_comparison(fighter: str):
     return apply_figure_styling(fig)
 
 
+def normalize_division(db_division: str) -> str:
+    mapping = {
+        "LIGHTWEIGHT": "Lightweight",
+        "WELTERWEIGHT": "Welterweight",
+        "MIDDLEWEIGHT": "Middleweight",
+        "LIGHT_HEAVYWEIGHT": "Light Heavyweight",
+        "HEAVYWEIGHT": "Heavyweight",
+        "FLYWEIGHT": "Flyweight",
+        "BANTAMWEIGHT": "Bantamweight",
+        "FEATHERWEIGHT": "Featherweight",
+        "STRAWWEIGHT": "Strawweight",
+        "WOMENS_STRAWWEIGHT": "Women's Strawweight",
+        "WOMENS_FLYWEIGHT": "Women's Flyweight",
+        "WOMENS_BANTAMWEIGHT": "Women's Bantamweight",
+        "WOMENS_FEATHERWEIGHT": "Women's Featherweight",
+        "CATCH_WEIGHT": "Catch Weight",
+        "OPEN_WEIGHT": "Open Weight",
+        "SUPER_HEAVYWEIGHT": "Super Heavyweight",
+    }
+    return mapping.get(db_division, "Unknown")
+
+
 def create_fighter_clustering_figure(
     roster_df: pd.DataFrame, fighter_divisions: dict[str, str]
 ) -> go.Figure:
@@ -216,7 +238,9 @@ def create_fighter_clustering_figure(
         return apply_figure_styling(fig)
 
     roster_df = roster_df.copy()
-    roster_df["division"] = roster_df["fighter_name"].map(fighter_divisions).fillna("Unknown")
+    roster_df["division"] = (
+        roster_df["fighter_name"].map(fighter_divisions).apply(normalize_division).fillna("Unknown")
+    )
     roster_df["win_pct"] = roster_df["wins"] / roster_df["total_fights"] * 100
 
     fig = go.Figure()
@@ -230,18 +254,18 @@ def create_fighter_clustering_figure(
             f"<b>{row['fighter_name']}</b><br>"
             f"Fights: {row['total_fights']}<br>"
             f"Win%: {row['win_pct']:.1f}%<br>"
-            f"Avg Landed: {row['avg_strikes_landed']:.1f}<br>"
-            f"Avg Absorbed: {row['avg_strikes_absorbed']:.1f}"
+            f"Median Landed: {row['avg_strikes_landed']:.1f}<br>"
+            f"Median Absorbed: {row['avg_strikes_absorbed']:.1f}"
             for _, row in div_data.iterrows()
         ]
 
         fig.add_trace(
             go.Scatter(
-                x=div_data["avg_strikes_landed"],
-                y=div_data["avg_strikes_absorbed"],
+                x=div_data["avg_strikes_landed"].tolist(),
+                y=div_data["avg_strikes_absorbed"].tolist(),
                 mode="markers",
                 marker=dict(
-                    size=div_data["total_fights"].clip(upper=30) + 5,
+                    size=(div_data["total_fights"].clip(upper=30) + 5).tolist(),
                     color=DIVISION_COLORS[division],
                     line=dict(width=1, color="white"),
                     opacity=0.7,
@@ -265,16 +289,14 @@ def create_fighter_clustering_figure(
         line=dict(color="gray", width=1, dash="dash"),
     )
 
-    fig.add_annotation(x=max_val * 0.85, y=max_val * 0.15, text="Precise Strikers", showarrow=False)
-    fig.add_annotation(x=max_val * 0.85, y=max_val * 0.85, text="High Volume", showarrow=False)
-    fig.add_annotation(
-        x=max_val * 0.15, y=max_val * 0.85, text="Defensive/Grapplers", showarrow=False
-    )
-    fig.add_annotation(x=max_val * 0.15, y=max_val * 0.15, text="Low Output", showarrow=False)
+    fig.add_annotation(x=max_val * 0.95, y=max_val * 0.01, text="Slick Strikers", showarrow=False)
+    fig.add_annotation(x=max_val * 0.95, y=max_val * 0.99, text="Brawlers", showarrow=False)
+    fig.add_annotation(x=max_val * 0.1, y=max_val * 0.99, text="Punching Bags", showarrow=False)
+    fig.add_annotation(x=max_val * 0.1, y=max_val * 0.01, text="Cautious Strikers", showarrow=False)
 
     fig.update_layout(
-        xaxis_title="Avg Strikes Landed Per Fight",
-        yaxis_title="Avg Strikes Absorbed Per Fight",
+        xaxis_title="Median Strikes Landed Per Round",
+        yaxis_title="Median Strikes Absorbed Per Round",
         height=600,
         legend=dict(
             orientation="v",
@@ -514,17 +536,7 @@ roster_analysis_content = html.Div(
     [
         html.Div(
             [
-                html.Div(
-                    "Fighter Type Clustering",
-                    className="plot-title",
-                ),
-                dmc.Text(
-                    "Fighters grouped by striking output vs absorption. "
-                    "Size indicates number of fights. Fighters with 3+ fights shown.",
-                    size="sm",
-                    c="gray",
-                    mb="sm",
-                ),
+                html.Div("Striking Type", className="plot-title"),
                 html.Div(
                     dcc.Graph(
                         id="fighter-clustering",
@@ -542,13 +554,6 @@ roster_analysis_content = html.Div(
                     "Striking Target vs Win Rate",
                     className="plot-title",
                 ),
-                dmc.Text(
-                    "How does targeting different areas correlate with winning? "
-                    "Grouped by % of significant strikes to each target.",
-                    size="sm",
-                    c="gray",
-                    mb="sm",
-                ),
                 html.Div(
                     dcc.Graph(
                         id="striking-target-winrate",
@@ -562,17 +567,7 @@ roster_analysis_content = html.Div(
         ),
         html.Div(
             [
-                html.Div(
-                    "Matchup Discrepancy Analysis",
-                    className="plot-title",
-                ),
-                dmc.Text(
-                    "Win rate based on age, reach, and experience advantages. "
-                    "Click legend to toggle metrics. 50% line = no advantage.",
-                    size="sm",
-                    c="gray",
-                    mb="sm",
-                ),
+                html.Div("Matchup Discrepancy", className="plot-title"),
                 html.Div(
                     dcc.Graph(
                         id="matchup-discrepancy",
