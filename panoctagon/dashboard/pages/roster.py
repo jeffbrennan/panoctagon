@@ -94,63 +94,62 @@ def get_roster_stats() -> pd.DataFrame:
                     fighter2_result as fighter_result
                 from ufc_fights
             ),
-            fighter_stats as (
+            round_stats as (
                 select
                     fs.fighter_uid,
                     fd.fighter_name,
                     fs.fight_uid,
+                    fs.round_num,
                     fr.fighter_result,
-                    sum(fs.total_strikes_landed) as strikes_landed,
-                    sum(fs.total_strikes_attempted) as strikes_attempted,
-                    sum(fs.sig_strikes_head_landed) as head_strikes,
-                    sum(fs.sig_strikes_body_landed) as body_strikes,
-                    sum(fs.sig_strikes_leg_landed) as leg_strikes,
-                    count(distinct fs.round_num) as rounds_fought
+                    fs.total_strikes_landed,
+                    sum(fs.total_strikes_landed) over (partition by fs.fighter_uid, fs.fight_uid) as fight_strikes_landed,
+                    sum(fs.sig_strikes_head_landed) over (partition by fs.fighter_uid, fs.fight_uid) as fight_head_strikes,
+                    sum(fs.sig_strikes_body_landed) over (partition by fs.fighter_uid, fs.fight_uid) as fight_body_strikes,
+                    sum(fs.sig_strikes_leg_landed) over (partition by fs.fighter_uid, fs.fight_uid) as fight_leg_strikes
                 from ufc_fight_stats fs
                 inner join fighter_details fd on fs.fighter_uid = fd.fighter_uid
                 inner join fight_results_long fr
                     on fs.fight_uid = fr.fight_uid
                     and fs.fighter_uid = fr.fighter_uid
-                group by fs.fighter_uid, fd.fighter_name, fs.fight_uid, fr.fighter_result
             ),
-            opponent_stats as (
+            opponent_round_stats as (
                 select
                     fs.fight_uid,
                     fs.fighter_uid as opponent_uid,
-                    sum(fs.total_strikes_landed) as opponent_strikes_landed
+                    fs.round_num,
+                    fs.total_strikes_landed as opponent_strikes_landed
                 from ufc_fight_stats fs
-                group by fs.fight_uid, fs.fighter_uid
             ),
-            combined as (
+            combined_rounds as (
                 select
-                    fs.fighter_uid,
-                    fs.fighter_name,
-                    fs.fight_uid,
-                    fs.fighter_result,
-                    fs.strikes_landed,
-                    fs.strikes_attempted,
-                    fs.head_strikes,
-                    fs.body_strikes,
-                    fs.leg_strikes,
-                    fs.rounds_fought,
-                    os.opponent_strikes_landed
-                from fighter_stats fs
-                inner join opponent_stats os
-                    on fs.fight_uid = os.fight_uid
-                    and fs.fighter_uid != os.opponent_uid
+                    rs.fighter_uid,
+                    rs.fighter_name,
+                    rs.fight_uid,
+                    rs.fighter_result,
+                    rs.total_strikes_landed,
+                    ors.opponent_strikes_landed,
+                    rs.fight_strikes_landed,
+                    rs.fight_head_strikes,
+                    rs.fight_body_strikes,
+                    rs.fight_leg_strikes
+                from round_stats rs
+                inner join opponent_round_stats ors
+                    on rs.fight_uid = ors.fight_uid
+                    and rs.round_num = ors.round_num
+                    and rs.fighter_uid != ors.opponent_uid
             )
         select
             fighter_uid,
             fighter_name,
             count(distinct fight_uid) as total_fights,
-            sum(case when fighter_result = 'WIN' then 1 else 0 end) as wins,
-            sum(strikes_landed)::float / nullif(sum(rounds_fought), 0) as avg_strikes_landed,
-            sum(opponent_strikes_landed)::float / nullif(sum(rounds_fought), 0) as avg_strikes_absorbed,
-            sum(head_strikes) as total_head_strikes,
-            sum(body_strikes) as total_body_strikes,
-            sum(leg_strikes) as total_leg_strikes,
-            sum(head_strikes + body_strikes + leg_strikes) as total_sig_strikes
-        from combined
+            count(distinct case when fighter_result = 'WIN' then fight_uid end) as wins,
+            percentile_cont(0.5) within group (order by total_strikes_landed) as avg_strikes_landed,
+            percentile_cont(0.5) within group (order by opponent_strikes_landed) as avg_strikes_absorbed,
+            sum(fight_head_strikes) as total_head_strikes,
+            sum(fight_body_strikes) as total_body_strikes,
+            sum(fight_leg_strikes) as total_leg_strikes,
+            sum(fight_head_strikes + fight_body_strikes + fight_leg_strikes) as total_sig_strikes
+        from combined_rounds
         group by fighter_uid, fighter_name
         having count(distinct fight_uid) >= 5
         """,
@@ -256,8 +255,8 @@ def create_fighter_clustering_figure(
             f"<b>{row['fighter_name']}</b><br>"
             f"Fights: {row['total_fights']}<br>"
             f"Win%: {row['win_pct']:.1f}%<br>"
-            f"Avg Landed: {row['avg_strikes_landed']:.1f}<br>"
-            f"Avg Absorbed: {row['avg_strikes_absorbed']:.1f}"
+            f"Median Landed: {row['avg_strikes_landed']:.1f}<br>"
+            f"Median Absorbed: {row['avg_strikes_absorbed']:.1f}"
             for _, row in div_data.iterrows()
         ]
 
