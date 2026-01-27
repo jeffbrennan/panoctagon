@@ -1,4 +1,3 @@
-import dash_mantine_components as dmc
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -537,17 +536,7 @@ roster_analysis_content = html.Div(
     [
         html.Div(
             [
-                html.Div(
-                    "Fighter Type Clustering",
-                    className="plot-title",
-                ),
-                dmc.Text(
-                    "Fighters grouped by median strikes landed vs absorbed per round. "
-                    "Size indicates number of fights. Fighters with 5+ fights shown.",
-                    size="sm",
-                    c="gray",
-                    mb="sm",
-                ),
+                html.Div("Striking Type", className="plot-title"),
                 html.Div(
                     dcc.Graph(
                         id="fighter-clustering",
@@ -565,13 +554,6 @@ roster_analysis_content = html.Div(
                     "Striking Target vs Win Rate",
                     className="plot-title",
                 ),
-                dmc.Text(
-                    "How does targeting different areas correlate with winning? "
-                    "Grouped by % of significant strikes to each target.",
-                    size="sm",
-                    c="gray",
-                    mb="sm",
-                ),
                 html.Div(
                     dcc.Graph(
                         id="striking-target-winrate",
@@ -585,17 +567,7 @@ roster_analysis_content = html.Div(
         ),
         html.Div(
             [
-                html.Div(
-                    "Matchup Discrepancy Analysis",
-                    className="plot-title",
-                ),
-                dmc.Text(
-                    "Win rate based on age, reach, and experience advantages. "
-                    "Click legend to toggle metrics. 50% line = no advantage.",
-                    size="sm",
-                    c="gray",
-                    mb="sm",
-                ),
+                html.Div("Matchup Discrepancy", className="plot-title"),
                 html.Div(
                     dcc.Graph(
                         id="matchup-discrepancy",
