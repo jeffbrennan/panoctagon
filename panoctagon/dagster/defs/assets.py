@@ -46,7 +46,7 @@ def dagster_parse_fights(context: AssetExecutionContext) -> tuple[None, None]:
 
 @asset(compute_kind="python", key=["scrape_fighters"], deps=["ufc_fights"])
 def dagster_scrape_fighters(context: AssetExecutionContext) -> None:
-    n_new_fighters = scrape.fights()
+    n_new_fighters = scrape.fighters()
     context.add_output_metadata({"n_records": n_new_fighters})
 
 
