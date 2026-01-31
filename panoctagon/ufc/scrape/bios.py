@@ -1,7 +1,8 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Optional
-
+import time
+import random
 import requests
 from pydantic import BaseModel
 from sqlmodel import Session, and_, col, select
@@ -255,24 +256,28 @@ def get_fighters_to_download(
 def scrape_fighter_bios_parallel(
     fighters: list[UFCFighter],
     base_dir: Path,
-    max_workers: int = 8,
+    max_workers: int = 3,
 ) -> list[FighterBioScrapingResult]:
+
+
     total_fighters = len(fighters)
     results = []
     completed_count = 0
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_fighter = {
-            executor.submit(
+        future_to_fighter = {}
+
+        for i, fighter in enumerate(fighters, 1):
+            time.sleep(random.uniform(0.5, 1.5))
+            future = executor.submit(
                 get_fighter_bio,
                 fighter,
                 base_dir,
                 i,
                 total_fighters,
                 None,
-            ): fighter
-            for i, fighter in enumerate(fighters, 1)
-        }
+            )
+            future_to_fighter[future] = fighter
 
         for future in as_completed(future_to_fighter):
             completed_count += 1

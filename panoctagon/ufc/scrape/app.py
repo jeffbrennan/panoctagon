@@ -65,7 +65,7 @@ def events(force: bool = False) -> int:
 
 
 @app.command()
-def bios(force: bool = False, n: Optional[int] = None, max_workers: int = 8) -> int:
+def bios(force: bool = False, n: Optional[int] = None, max_workers: int = 3) -> int:
     setup = setup_panoctagon(title="Panoctagon Fighter Bio Scraper")
     output_dir = Path(__file__).parents[3] / "data" / "raw" / "ufc" / "fighter_bios"
     output_dir.mkdir(exist_ok=True, parents=True)
