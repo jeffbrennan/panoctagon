@@ -67,12 +67,27 @@ PLACEHOLDER_IMAGE = (
 
 def get_headshot_base64(fighter_uid: str) -> str:
     HEADSHOTS_DIR = Path(__file__).parents[2] / "data" / "raw" / "ufc" / "fighter_headshots"
-    headshot_path = HEADSHOTS_DIR / f"{fighter_uid}_headshot.png"
-    if not headshot_path.exists():
+
+    image_extensions = [".png", ".jpg", ".jpeg", ".webp"]
+    headshot_path = None
+    mime_type = "image/png"
+
+    for ext in image_extensions:
+        candidate_path = HEADSHOTS_DIR / f"{fighter_uid}_headshot{ext}"
+        if candidate_path.exists():
+            headshot_path = candidate_path
+            if ext in [".jpg", ".jpeg"]:
+                mime_type = "image/jpeg"
+            elif ext == ".webp":
+                mime_type = "image/webp"
+            break
+
+    if headshot_path is None:
         return PLACEHOLDER_IMAGE
+
     with open(headshot_path, "rb") as f:
         encoded = base64.b64encode(f.read()).decode("utf-8")
-    return f"data:image/png;base64,{encoded}"
+    return f"data:{mime_type};base64,{encoded}"
 
 
 def get_main_data() -> pd.DataFrame:
