@@ -8,7 +8,7 @@ from dagster import AssetExecutionContext, AssetSpec, asset, multi_asset
 from panoctagon.divisions import setup_divisions
 from panoctagon.promotions import setup_promotions
 
-from .project import panoctagon_project
+from panoctagon.dagster.project import panoctagon_project
 
 db_path = panoctagon_project.project_dir.joinpath("data/panoctagon_orm.duckdb")
 
