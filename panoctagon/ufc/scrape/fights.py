@@ -172,7 +172,8 @@ def get_fights_from_event(event: EventToParse, force: bool, session: Optional[re
             if bad_write.config is None or bad_write.path is None:
                 continue
             print(f"deleting {bad_write.config.uid}")
-            bad_write.path.unlink()
+            if bad_write.path.exists():
+                bad_write.path.unlink()
 
     success = len(write_results) == len(configs) and len(bad_writes) == 0
     return FightScrapingResult(
