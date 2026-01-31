@@ -1,8 +1,13 @@
-refresh:
-    uv run dg launch --job refresh
+setup:
+    uv run python -m panoctagon.utils.setup_db
+    uv run dbt deps
+    uv run dbt compile
+
+refresh: setup
+    DAGSTER_HOME="{{justfile_directory()}}/data/dagster" uv run dg launch --job refresh
 
 dag:
-    uv run dg dev
+    DAGSTER_HOME="{{justfile_directory()}}/data/dagster" uv run dg dev
 
 db:
     duckdb -readonly data/panoctagon_orm.duckdb
