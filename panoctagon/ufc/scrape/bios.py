@@ -261,23 +261,22 @@ def scrape_fighter_bios_parallel(
     results = []
     completed_count = 0
 
-    with requests.Session() as session:
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_fighter = {
-                executor.submit(
-                    get_fighter_bio,
-                    fighter,
-                    base_dir,
-                    i,
-                    total_fighters,
-                    session,
-                ): fighter
-                for i, fighter in enumerate(fighters, 1)
-            }
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_fighter = {
+            executor.submit(
+                get_fighter_bio,
+                fighter,
+                base_dir,
+                i,
+                total_fighters,
+                None,
+            ): fighter
+            for i, fighter in enumerate(fighters, 1)
+        }
 
-            for future in as_completed(future_to_fighter):
-                completed_count += 1
-                result = future.result()
-                results.append(result)
+        for future in as_completed(future_to_fighter):
+            completed_count += 1
+            result = future.result()
+            results.append(result)
 
     return results
