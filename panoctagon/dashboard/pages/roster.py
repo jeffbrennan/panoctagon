@@ -520,31 +520,22 @@ def create_striking_target_winrate_figure(roster_df: pl.DataFrame) -> go.Figure:
         ]
     )
 
-    bins = [0, 40, 50, 60, 70, 80, 100]
-    labels = ["0-40%", "40-50%", "50-60%", "60-70%", "70-80%", "80-100%"]
-
     target_data = []
     for target, col in [("Head", "head_pct"), ("Body", "body_pct"), ("Leg", "leg_pct")]:
-        temp_df = roster_df.with_columns(
-            pl.col(col).cut(breaks=bins).alias("bin_cat")
-        ).with_columns(pl.col("bin_cat").cast(pl.String).alias("bin"))
+        bins_labels = [
+            (0, 40, "0-40%"),
+            (40, 50, "40-50%"),
+            (50, 60, "50-60%"),
+            (60, 70, "60-70%"),
+            (70, 80, "70-80%"),
+            (80, 100, "80-100%"),
+        ]
 
-        bin_mapping = {
-            "(-inf, 0.0]": None,
-            "(0.0, 40.0]": "0-40%",
-            "(40.0, 50.0]": "40-50%",
-            "(50.0, 60.0]": "50-60%",
-            "(60.0, 70.0]": "60-70%",
-            "(70.0, 80.0]": "70-80%",
-            "(80.0, 100.0]": "80-100%",
-            "(100.0, inf]": None,
-        }
-
-        for bin_str, label in bin_mapping.items():
-            if label is None:
-                continue
-            bin_data = temp_df.filter(pl.col("bin") == bin_str)
-            if bin_data.height >= 5:
+        for lower, upper, label in bins_labels:
+            bin_data = roster_df.filter(
+                (pl.col(col) > lower) & (pl.col(col) <= upper)
+            )
+            if bin_data.height >= 1:
                 target_data.append(
                     {
                         "target": target,
