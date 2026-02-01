@@ -78,6 +78,7 @@ class UFCFight(SQLModel, table=True):
     decision_round: Optional[int] = None
     decision_time_seconds: Optional[int] = None
     referee: Optional[str] = None
+    fight_order: Optional[int] = None
 
 
 class UFCFightStats(SQLModel, table=True):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+from enum import StrEnum, auto
 from pathlib import Path
 from typing import Any, Optional, TypeVar
 
@@ -25,6 +26,7 @@ class FileContents(BaseModel):
     contents: str
     file_num: int
     n_files: int
+    fight_order: Optional[int] = None
 
 
 class ScrapingWriteResult(BaseModel):
@@ -106,12 +108,19 @@ class SigStatsParsingResult(ParsingResult):
     result: list[RoundSigStats]
 
 
+class FightParsingType(StrEnum):
+    upcoming = auto()
+    previous = auto()
+    unknown = auto()
+
+
 class FightParsingResult(BaseModel):
     fight_uid: str
     fight_result: Optional[FightDetailsParsingResult]
     total_stats: Optional[TotalStatsParsingResult]
     sig_stats: Optional[SigStatsParsingResult]
     file_issues: list[str]
+    fight_parsing_type: FightParsingType
 
 
 ParsingResultType = TypeVar("ParsingResultType", bound=ParsingResult)

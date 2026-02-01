@@ -1,9 +1,9 @@
 from typing import Any
 
 import dash_mantine_components as dmc
-import polars as pl
 import plotly.express as px
 import plotly.graph_objects as go
+import polars as pl
 from dash import ALL, Input, Output, callback, ctx, dash_table, html
 
 from panoctagon.dashboard.common import (
@@ -47,9 +47,7 @@ def get_fighter_summary(df_fighter: pl.DataFrame) -> dict[str, Any]:
 
     finish_decisions = ["KO", "TKO", "SUB", "Submission"]
     finishes = (
-        df_fighter.filter(pl.col("decision").is_in(finish_decisions))
-        .select("fight_uid")
-        .n_unique()
+        df_fighter.filter(pl.col("decision").is_in(finish_decisions)).select("fight_uid").n_unique()
     )
     finish_rate = (finishes / total_fights * 100) if total_fights > 0 else 0
 
@@ -646,12 +644,12 @@ fighter_analysis_content = html.Div(
                 dmc.TabsList(
                     [
                         dmc.TabsTab(
-                            "Fighter Profile",
+                            "Profile",
                             value="profile",
                         ),
-                        dmc.TabsTab("Fight History", value="history"),
+                        dmc.TabsTab("History", value="history"),
                         dmc.TabsTab(
-                            "Striking Analytics",
+                            "Striking",
                             value="striking",
                         ),
                     ]

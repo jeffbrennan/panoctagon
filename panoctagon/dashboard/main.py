@@ -18,8 +18,8 @@ from panoctagon.dashboard.pages.upcoming import create_upcoming_fights_content
 def get_last_refresh() -> str:
     return (
         pd.read_sql_query(
-            "select max(event_date::DATE) AS event_date FROM ufc_events", get_engine()
-        )["event_date"]
+            "select max(downloaded_ts::DATE) AS downloaded FROM ufc_events", get_engine()
+        )["downloaded"]
         .iloc[0]
         .strftime("%Y-%m-%d")
     )
@@ -57,10 +57,10 @@ app.layout = dmc.MantineProvider(
                             [
                                 dmc.TabsList(
                                     [
-                                        dmc.TabsTab("Upcoming Fights", value="upcoming"),
-                                        dmc.TabsTab("Fighter Analysis", value="analysis"),
-                                        dmc.TabsTab("Fighter Network", value="network"),
-                                        dmc.TabsTab("Roster Analysis", value="roster"),
+                                        dmc.TabsTab("Upcoming", value="upcoming"),
+                                        dmc.TabsTab("Fighters", value="analysis"),
+                                        dmc.TabsTab("Network", value="network"),
+                                        dmc.TabsTab("Roster", value="roster"),
                                     ]
                                 ),
                                 dmc.TabsPanel(

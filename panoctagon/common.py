@@ -314,7 +314,9 @@ def get_html_files(
     return fight_contents_to_parse
 
 
-def dump_html(config: ScrapingConfig, log_uid: bool = False, session: Optional[requests.Session] = None) -> tuple[bool, int]:
+def dump_html(
+    config: ScrapingConfig, log_uid: bool = False, session: Optional[requests.Session] = None
+) -> tuple[bool, int]:
     if log_uid:
         print(f"saving {config.description}: {config.uid}")
     url = f"{config.base_url}/{config.uid}"
@@ -336,32 +338,45 @@ def dump_html(config: ScrapingConfig, log_uid: bool = False, session: Optional[r
             f.write(str(soup))
 
         return True, status_code
-    except (requests.exceptions.SSLError, requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+    except (
+        requests.exceptions.SSLError,
+        requests.exceptions.ConnectionError,
+        requests.exceptions.Timeout,
+    ):
         return False, 0
 
 
 def write_data_to_db(data: list[SQLModelType]) -> None:
+    if not data:
+        return
+
     engine = get_engine()
     print(f"[n={len(data):5,d}] writing records")
+
     with Session(engine) as session:
-        session.bulk_save_objects(data)
+        for item in data:
+            session.merge(item)
         session.commit()
 
 
-def get_table_rows(soup: bs4.BeautifulSoup, table_num: int = 0) -> bs4.ResultSet[bs4.Tag]:
+def get_table_rows(soup: bs4.BeautifulSoup) -> list[bs4.ResultSet[bs4.Tag]]:
     tables = soup.find_all("table")
-    table = tables[table_num]
-    if table is None:
-        raise ValueError("No table found")
+    all_results = []
+    for table in tables:
+        if table is None:
+            raise ValueError("No table found")
 
-    table_body = table.find("tbody")
-    if not isinstance(table_body, bs4.Tag):
-        raise TypeError(f"expected bs4.Tag, got {type(table_body)}")
+        table_body = table.find("tbody")
+        if not isinstance(table_body, bs4.Tag):
+            raise TypeError(f"expected bs4.Tag, got {type(table_body)}")
 
-    rows = table_body.find_all("tr")
-    if rows is None:
-        raise ValueError()
-    return rows
+        rows = table_body.find_all("tr")
+        if rows is None:
+            raise ValueError()
+
+        all_results.append(rows)
+
+    return all_results
 
 
 def setup_panoctagon(title: str) -> PanoctagonSetup:

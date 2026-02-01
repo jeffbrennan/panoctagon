@@ -1,13 +1,12 @@
-import datetime
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
 import bs4
 import requests
-from sqlmodel import Session, and_, col, select
+from sqlmodel import Session, col, select
 
 from panoctagon.common import (
     create_header,
@@ -38,13 +37,10 @@ class FightScrapingResult:
 
 
 def read_event_uids(force_run: bool) -> list[str]:
-    now = datetime.datetime.now().strftime("%Y-%m-%d")
     if force_run:
-        cmd = select(UFCEvent.event_uid).where(col(UFCEvent.event_date) < now)
+        cmd = select(UFCEvent.event_uid)
     else:
-        cmd = select(UFCEvent.event_uid).where(
-            and_(col(UFCEvent.downloaded_ts).is_(None), UFCEvent.event_date < now)
-        )
+        cmd = select(UFCEvent.event_uid).where(col(UFCEvent.downloaded_ts).is_(None))
 
     engine = get_engine()
     with Session(engine) as session:
@@ -53,21 +49,32 @@ def read_event_uids(force_run: bool) -> list[str]:
 
 
 def get_list_of_fights(soup: bs4.BeautifulSoup) -> list[str]:
-    rows = get_table_rows(soup)
+    table_rows = get_table_rows(soup)
     fight_uids: list[str] = []
 
-    for row in rows:
-        if row.a is None:
-            continue
+    for table in table_rows:
+        for row in table:
+            if not hasattr(row, "a"):
+                continue
 
-        row_href = row.a["href"]
+            if row.a is None:
+                continue
 
-        if not isinstance(row_href, str):
-            continue
+            row_link = row.a.get("href")
+            if row_link is None:
+                row_link = row.a.get("data-link")
 
-        fight_uid = row_href.split("/")[-1]
-        fight_uids.append(fight_uid)
+            if row_link is None:
+                continue
 
+            if not isinstance(row_link, str):
+                continue
+
+            if "fight-details" not in row_link:
+                continue
+
+            fight_uid = row_link.split("/")[-1]
+            fight_uids.append(fight_uid)
     return fight_uids
 
 
@@ -78,7 +85,9 @@ class FightUidResult:
     message: Optional[str]
 
 
-def get_fight_uids(event: EventToParse, session: Optional[requests.Session] = None) -> FightUidResult:
+def get_fight_uids(
+    event: EventToParse, session: Optional[requests.Session] = None
+) -> FightUidResult:
     url = f"http://www.ufcstats.com/event-details/{event.uid}"
     success = False
     event_attempts = 0
@@ -106,7 +115,9 @@ def get_fight_uids(event: EventToParse, session: Optional[requests.Session] = No
     return FightUidResult(success=True, uids=fight_uids, message=None)
 
 
-def get_fights_from_event(event: EventToParse, force: bool, session: Optional[requests.Session] = None) -> FightScrapingResult:
+def get_fights_from_event(
+    event: EventToParse, force: bool, session: Optional[requests.Session] = None
+) -> FightScrapingResult:
     header_title = f"[{event.i:03d}/{event.n_events:03d}] {event.uid}"
     downloads = [i.stem for i in event.base_dir.glob("*.html")]
     downloaded_events = sorted(set([i.split("_")[0] for i in downloads]))
@@ -130,16 +141,16 @@ def get_fights_from_event(event: EventToParse, force: bool, session: Optional[re
             message=fight_uid_result.message,
         )
 
-    downloaded_fights = sorted(set([i.split("_")[1] for i in downloads]))
+    downloaded_fights = sorted(set([i.split("_")[-1].replace(".html", "") for i in downloads]))
     configs = [
         ScrapingConfig(
             uid=fight_uid,
             description="fight",
             base_url="http://www.ufcstats.com/fight-details",
             base_dir=event.base_dir,
-            path=event.base_dir / f"{event.uid}_{fight_uid}.html",
+            path=event.base_dir / f"{event.uid}_{idx:02d}_{fight_uid}.html",
         )
-        for fight_uid in fight_uid_result.uids
+        for idx, fight_uid in enumerate(fight_uid_result.uids, start=1)
         if fight_uid not in downloaded_fights
     ]
 
@@ -189,9 +200,8 @@ def scrape_fights_parallel(
     events_to_parse: list[EventToParse], force: bool, max_workers: int = 8
 ) -> list[FightScrapingResult]:
     results = []
-
     with requests.Session() as session:
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
             future_to_event = {
                 executor.submit(get_fights_from_event, event, force, session): event
                 for event in events_to_parse
