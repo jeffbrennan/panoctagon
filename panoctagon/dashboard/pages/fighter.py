@@ -308,8 +308,8 @@ def update_win_method_chart(fighter: str):
         "SUB": PLOT_COLORS["tertiary"],
         "Submission": PLOT_COLORS["tertiary"],
         "UNANIMOUS_DECISION": PLOT_COLORS["quaternary"],
-        "SPLIT_DECISION": "#b8b8b8",
-        "MAJORITY_DECISION": "#c8c8c8",
+        "SPLIT_DECISION": PLOT_COLORS["quinary"],
+        "MAJORITY_DECISION": PLOT_COLORS["senary"],
         "DQ": PLOT_COLORS["neutral"],
         "DOC": PLOT_COLORS["neutral"],
     }
@@ -434,8 +434,8 @@ def update_fight_history(fighter: str):
             style_conditional.append(
                 {
                     "if": {"row_index": i, "column_id": ""},
-                    "backgroundColor": "#d4edda",
-                    "color": "darkgreen",
+                    "backgroundColor": "rgba(45, 90, 39, 0.2)",
+                    "color": PLOT_COLORS["win"],
                     "fontWeight": "bold",
                 }
             )
@@ -443,8 +443,8 @@ def update_fight_history(fighter: str):
             style_conditional.append(
                 {
                     "if": {"row_index": i, "column_id": ""},
-                    "backgroundColor": "#f8d7da",
-                    "color": "darkred",
+                    "backgroundColor": "rgba(139, 58, 58, 0.2)",
+                    "color": PLOT_COLORS["loss"],
                     "fontWeight": "bold",
                 }
             )
@@ -801,7 +801,8 @@ fighter_analysis_content = html.Div(
                         ],
                         style_data_conditional=[],
                         style_header={
-                            "backgroundColor": "#e9ecef",
+                            "backgroundColor": "#1a1a1a",
+                            "color": "rgb(242, 240, 227)",
                             "fontWeight": "bold",
                             "border": "none",
                         },

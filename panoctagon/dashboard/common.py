@@ -303,14 +303,27 @@ DIVISION_COLORS = {
 
 PLOT_COLORS = {
     "primary": "#1a1a1a",
-    "secondary": "#4a4a4a",
-    "tertiary": "#7a7a7a",
-    "quaternary": "#a0a0a0",
+    "secondary": "#3a3a3a",
+    "tertiary": "#5c5c5c",
+    "quaternary": "#7a7a7a",
+    "quinary": "#9a9a9a",
+    "senary": "#b8b8b8",
+    "septenary": "#d0d0d0",
     "win": "#2d5a27",
     "loss": "#8b3a3a",
     "draw": "#5c5c5c",
     "neutral": "#5c5c5c",
     "head": "#1a1a1a",
     "body": "#5c5c5c",
-    "leg": "#a0a0a0",
+    "leg": "#9a9a9a",
 }
+
+PLOT_COLOR_SEQUENCE = [
+    "#1a1a1a",
+    "#3a3a3a",
+    "#5c5c5c",
+    "#7a7a7a",
+    "#9a9a9a",
+    "#b8b8b8",
+    "#d0d0d0",
+]

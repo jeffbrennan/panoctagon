@@ -254,7 +254,7 @@ def create_network_figure(
         marker=dict(
             size=node_sizes,
             color=node_colors,
-            colorscale=[[0, "#f3776b"], [0.5, "#b4dcd1"], [1, "#049464"]],
+            colorscale=[[0, "#c8c8c8"], [0.5, "#7a7a7a"], [1, "#1a1a1a"]],
             cmin=0,
             cmax=100,
             opacity=1.0,
@@ -371,7 +371,7 @@ fighter_network_content = html.Div(
             [
                 html.Div(
                     [
-                        dmc.Text("Division", size="sm", mb="xs", style={"color": " #1a1a1a"}),
+                        dmc.Text("Division", size="sm", mb="xs", style={"color": "#1a1a1a"}),
                         dmc.Select(
                             id="network-division-dropdown",
                             data=[  # pyright: ignore[reportArgumentType]
@@ -397,7 +397,7 @@ fighter_network_content = html.Div(
                 ),
                 html.Div(
                     [
-                        dmc.Text("Year Range", size="sm", mb="xs", style={"color:": "#1a1a1a"}),
+                        dmc.Text("Year Range", size="sm", mb="xs", style={"color": "#1a1a1a"}),
                         dcc.RangeSlider(
                             id="network-year-slider",
                             min=1997,
