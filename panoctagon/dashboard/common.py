@@ -14,7 +14,7 @@ def apply_figure_styling(fig: go.Figure) -> go.Figure:
         paper_bgcolor="rgb(242, 240, 227)",
         font=dict(family="JetBrains Mono, monospace", color="#1a1a1a"),
         title=None,
-        margin=dict(l=10, r=10, t=0, b=10),
+        margin=dict(l=68, r=10, t=0, b=10),
     )
     fig.update_xaxes(
         showgrid=False,
