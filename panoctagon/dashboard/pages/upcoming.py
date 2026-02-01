@@ -1,3 +1,5 @@
+from typing import Any
+
 import dash_mantine_components as dmc
 import pandas as pd
 from dash import html
@@ -76,6 +78,18 @@ def get_upcoming_fights() -> pd.DataFrame:
     )
 
 
+def colorize_condition(value: Any | None, threshold: int | float, gt: bool = True) -> str:
+    salmon = "#F48473"
+    teal = "#0b7b8c"
+    if value is None:
+        return "rgb(60,60,60)"
+
+    if gt:
+        return teal if value > threshold else salmon
+
+    return teal if value < threshold else salmon
+
+
 def create_matchup_card(
     fight: dict,
     fighter_num: int,
@@ -129,7 +143,7 @@ def create_matchup_card(
                     ),
                     html.Div(
                         [
-                            dmc.Text(fighter_name, fw=700, size="xl"),
+                            dmc.Text(fighter_name, fw="bold", size="xl"),
                             dmc.Text(fighter_record, size="md", c="gray"),
                         ]
                     ),
@@ -145,16 +159,13 @@ def create_matchup_card(
                             dmc.Text(
                                 f'{fighter_reach or "-"}"',
                                 size="sm",
-                                fw=500,
                             ),
                             dmc.Text(
                                 format_diff(reach_diff, '"'),
                                 size="xs",
-                                c="teal"
-                                if reach_diff and reach_diff > 0
-                                else "salmon"
-                                if reach_diff and reach_diff < 0
-                                else "gray",
+                                style={
+                                    "color": colorize_condition(reach_diff, 0),
+                                },
                             ),
                         ]
                     ),
@@ -164,33 +175,33 @@ def create_matchup_card(
                             dmc.Text(
                                 f'{fighter_height or "-"}"',
                                 size="sm",
-                                fw=500,
+                                fw="normal",
                             ),
                             dmc.Text(
                                 format_diff(height_diff, '"'),
                                 size="xs",
-                                c="teal"
-                                if height_diff and height_diff > 0
-                                else "salmon"
-                                if height_diff and height_diff < 0
-                                else "gray",
+                                style={
+                                    "color": colorize_condition(height_diff, 0),
+                                },
                             ),
                         ]
                     ),
                     html.Div(
                         [
                             dmc.Text("Stance", size="xs", c="gray"),
-                            dmc.Text(fighter_stance or "-", size="sm", fw=500),
+                            dmc.Text(fighter_stance or "-", size="sm"),
                         ]
                     ),
                     html.Div(
                         [
                             dmc.Text("UFC Fights", size="xs", c="gray"),
-                            dmc.Text(str(fighter_total_fights), size="sm", fw=500),
+                            dmc.Text(str(fighter_total_fights), size="sm"),
                             dmc.Text(
                                 format_diff(exp_diff),
                                 size="xs",
-                                c="teal" if exp_diff > 0 else "salmon" if exp_diff < 0 else "gray",
+                                style={
+                                    "color": colorize_condition(exp_diff, exp_diff > 0),
+                                },
                             ),
                         ]
                     ),
@@ -248,7 +259,7 @@ def create_matchup_row(fight: dict) -> html.Div:
                     fighter1_card,
                     html.Div(
                         [
-                            dmc.Text("VS", fw=700, size="xl", c="gray"),
+                            dmc.Text("VS", fw="bold", size="xl", c="gray"),
                         ],
                         style={"textAlign": "center", "minWidth": "50px"},
                     ),
@@ -306,7 +317,7 @@ def create_upcoming_fights_content() -> html.Div:
                                         dmc.Title(event_title, order=2),
                                         dmc.Group(
                                             [
-                                                dmc.Text(event_date_str, size="sm", fw=500),
+                                                dmc.Text(event_date_str, size="sm", fw="normal"),
                                                 dmc.Text("-", size="sm", c="gray"),
                                                 dmc.Text(event_location, size="sm", c="gray"),
                                             ],
