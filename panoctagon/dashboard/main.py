@@ -57,10 +57,10 @@ app.layout = dmc.MantineProvider(
                             [
                                 dmc.TabsList(
                                     [
-                                        dmc.TabsTab("Upcoming Fights", value="upcoming"),
-                                        dmc.TabsTab("Fighter Analysis", value="analysis"),
-                                        dmc.TabsTab("Fighter Network", value="network"),
-                                        dmc.TabsTab("Roster Analysis", value="roster"),
+                                        dmc.TabsTab("Upcoming", value="upcoming"),
+                                        dmc.TabsTab("Fighters", value="analysis"),
+                                        dmc.TabsTab("Network", value="network"),
+                                        dmc.TabsTab("Roster", value="roster"),
                                     ]
                                 ),
                                 dmc.TabsPanel(

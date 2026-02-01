@@ -345,7 +345,9 @@ def create_upcoming_fights_content() -> html.Div:
                                         dmc.Title(event_title, order=2, c="dark"),
                                         dmc.Group(
                                             [
-                                                dmc.Text(event_date_str, size="sm", fw="normal", c="dark"),
+                                                dmc.Text(
+                                                    event_date_str, size="sm", fw="normal", c="dark"
+                                                ),
                                                 dmc.Text("-", size="sm", c="gray"),
                                                 dmc.Text(event_location, size="sm", c="gray"),
                                             ],
@@ -382,12 +384,6 @@ def create_upcoming_fights_content() -> html.Div:
 
     return html.Div(
         [
-            dmc.Text(
-                "Upcoming UFC events with scheduled matchups. View fighter profiles for detailed analysis.",
-                c="gray",
-                size="sm",
-                mb="lg",
-            ),
             html.Div(event_sections),
         ]
     )
