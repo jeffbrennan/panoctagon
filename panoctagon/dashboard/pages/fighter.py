@@ -1,7 +1,7 @@
 from typing import Any
 
 import dash_mantine_components as dmc
-import pandas as pd
+import polars as pl
 import plotly.express as px
 import plotly.graph_objects as go
 from dash import ALL, Input, Output, callback, ctx, dash_table, html
@@ -16,18 +16,18 @@ from panoctagon.dashboard.common import (
 )
 
 
-def get_fighter_uid_map(df: pd.DataFrame) -> dict[str, str]:
-    return (
-        df.groupby("fighter_name")
-        .agg({"fighter_uid": "first"})
-        .reset_index()
-        .set_index("fighter_name")["fighter_uid"]
-        .to_dict()
+def get_fighter_uid_map(df: pl.DataFrame) -> dict[str, str]:
+    result = (
+        df.group_by("fighter_name")
+        .agg(pl.col("fighter_uid").first())
+        .select(["fighter_name", "fighter_uid"])
+        .to_dict(as_series=False)
     )
+    return dict(zip(result["fighter_name"], result["fighter_uid"]))
 
 
-def get_fighter_summary(df_fighter: pd.DataFrame) -> dict[str, Any]:
-    if df_fighter.empty:
+def get_fighter_summary(df_fighter: pl.DataFrame) -> dict[str, Any]:
+    if df_fighter.height == 0:
         return {
             "total_fights": 0,
             "wins": 0,
@@ -37,7 +37,7 @@ def get_fighter_summary(df_fighter: pd.DataFrame) -> dict[str, Any]:
             "finish_rate": 0,
         }
 
-    fights = df_fighter.groupby("fight_uid").agg({"fighter_result": "first"}).reset_index()
+    fights = df_fighter.group_by("fight_uid").agg(pl.col("fighter_result").first())
 
     total_fights = len(fights)
     wins = (fights["fighter_result"] == "WIN").sum()
@@ -47,7 +47,9 @@ def get_fighter_summary(df_fighter: pd.DataFrame) -> dict[str, Any]:
 
     finish_decisions = ["KO", "TKO", "SUB", "Submission"]
     finishes = (
-        df_fighter[df_fighter["decision"].isin(finish_decisions)].groupby("fight_uid").ngroups
+        df_fighter.filter(pl.col("decision").is_in(finish_decisions))
+        .select("fight_uid")
+        .n_unique()
     )
     finish_rate = (finishes / total_fights * 100) if total_fights > 0 else 0
 
@@ -61,46 +63,44 @@ def get_fighter_summary(df_fighter: pd.DataFrame) -> dict[str, Any]:
     }
 
 
-def get_fighter_list(df: pd.DataFrame) -> list[str]:
+def get_fighter_list(df: pl.DataFrame) -> list[str]:
     fighter_counts = (
-        df.groupby("fighter_name")
-        .agg({"fight_uid": "nunique"})
-        .reset_index()
-        .rename(columns={"fight_uid": "fight_count"})
-        .sort_values("fight_count", ascending=False)
+        df.group_by("fighter_name")
+        .agg(pl.col("fight_uid").n_unique().alias("fight_count"))
+        .sort("fight_count", descending=True)
     )
 
-    return [str(row["fighter_name"]) for _, row in fighter_counts.iterrows()]
+    return fighter_counts["fighter_name"].to_list()
 
 
-def get_fighter_nickname_map(df: pd.DataFrame) -> dict[str, str | None]:
-    return (
-        df.groupby("fighter_name")
-        .agg({"nickname": "first"})
-        .reset_index()
-        .set_index("fighter_name")["nickname"]
-        .to_dict()
+def get_fighter_nickname_map(df: pl.DataFrame) -> dict[str, str | None]:
+    result = (
+        df.group_by("fighter_name")
+        .agg(pl.col("nickname").first())
+        .select(["fighter_name", "nickname"])
+        .to_dict(as_series=False)
     )
+    return dict(zip(result["fighter_name"], result["nickname"]))
 
 
-def get_fighter_stance_map(df: pd.DataFrame) -> dict[str, str | None]:
-    return (
-        df.groupby("fighter_name")
-        .agg({"stance": "first"})
-        .reset_index()
-        .set_index("fighter_name")["stance"]
-        .to_dict()
+def get_fighter_stance_map(df: pl.DataFrame) -> dict[str, str | None]:
+    result = (
+        df.group_by("fighter_name")
+        .agg(pl.col("stance").first())
+        .select(["fighter_name", "stance"])
+        .to_dict(as_series=False)
     )
+    return dict(zip(result["fighter_name"], result["stance"]))
 
 
-def get_fighter_style_map(df: pd.DataFrame) -> dict[str, str | None]:
-    return (
-        df.groupby("fighter_name")
-        .agg({"style": "first"})
-        .reset_index()
-        .set_index("fighter_name")["style"]
-        .to_dict()
+def get_fighter_style_map(df: pl.DataFrame) -> dict[str, str | None]:
+    result = (
+        df.group_by("fighter_name")
+        .agg(pl.col("style").first())
+        .select(["fighter_name", "style"])
+        .to_dict(as_series=False)
     )
+    return dict(zip(result["fighter_name"], result["style"]))
 
 
 @callback(
@@ -170,13 +170,13 @@ def update_summary_cards(fighter: str):
 def update_career_timeline(fighter: str):
     df_filtered = filter_data(df, fighter)
 
-    if df_filtered.empty:
+    if df_filtered.height == 0:
         fig = go.Figure()
         fig.update_layout(height=400)
         return apply_figure_styling(fig)
 
     fight_timeline = (
-        df_filtered.groupby(
+        df_filtered.group_by(
             [
                 "fight_uid",
                 "event_date",
@@ -185,16 +185,13 @@ def update_career_timeline(fighter: str):
                 "opponent_name",
             ]
         )
-        .agg(
-            {
-                "opponent_strikes_landed": "sum",
-            }
-        )
-        .reset_index()
-        .sort_values("event_date")  # type: ignore
+        .agg(pl.col("opponent_strikes_landed").sum())
+        .sort("event_date")
     )
 
-    fight_timeline["cumulative_absorbed"] = fight_timeline["opponent_strikes_landed"].cumsum()
+    fight_timeline = fight_timeline.with_columns(
+        pl.col("opponent_strikes_landed").cum_sum().alias("cumulative_absorbed")
+    )
 
     color_map = {
         "WIN": "#7370ff",
@@ -202,7 +199,9 @@ def update_career_timeline(fighter: str):
         "DRAW": "gray",
         "NO_CONTEST": "orange",
     }
-    marker_colors = [color_map.get(result, "gray") for result in fight_timeline["fighter_result"]]
+    marker_colors = [
+        color_map.get(result, "gray") for result in fight_timeline["fighter_result"].to_list()
+    ]
 
     result_map = {
         "WIN": "Beat",
@@ -212,18 +211,18 @@ def update_career_timeline(fighter: str):
     }
 
     hover_text = [
-        f"<b>{row['title']}</b> | {row['event_date'].strftime('%Y-%m-%d')}"
+        f"<b>{row['title']}</b> | {row['event_date']}"
         f"<br>{result_map.get(row['fighter_result'])} <b>{row['opponent_name']}</b>"
         f"<br>+{row['opponent_strikes_landed']:,} strikes ({row['cumulative_absorbed']:,} total)"
-        for _, row in fight_timeline.iterrows()
+        for row in fight_timeline.iter_rows(named=True)
     ]
 
     fig = go.Figure()
 
     fig.add_trace(
         go.Scatter(
-            x=fight_timeline["event_date"],
-            y=fight_timeline["cumulative_absorbed"],
+            x=fight_timeline["event_date"].to_list(),
+            y=fight_timeline["cumulative_absorbed"].to_list(),
             mode="lines+markers",
             line=dict(color="#1a1a1a", shape="spline", width=1),
             fill="tozeroy",
@@ -235,7 +234,7 @@ def update_career_timeline(fighter: str):
         )
     )
 
-    for result in fight_timeline["fighter_result"].unique():
+    for result in fight_timeline["fighter_result"].unique().to_list():
         fig.add_trace(
             go.Scatter(
                 x=[None],
@@ -288,46 +287,51 @@ def format_result(result: str) -> str:
 def update_win_method_chart(fighter: str):
     df_filtered = filter_data(df, fighter)
 
-    if df_filtered.empty:
+    if df_filtered.height == 0:
         fig = go.Figure()
         fig.update_layout(height=400)
         return apply_figure_styling(fig)
 
-    df_wins = df_filtered[df_filtered["fighter_result"] == "WIN"]
-    df_losses = df_filtered[df_filtered["fighter_result"] == "LOSS"]
+    df_wins = df_filtered.filter(pl.col("fighter_result") == "WIN")
+    df_losses = df_filtered.filter(pl.col("fighter_result") == "LOSS")
 
-    win_methods = df_wins.groupby("fight_uid").agg({"decision": "first"}).reset_index()
-    win_counts = win_methods["decision"].value_counts()
+    win_methods = df_wins.group_by("fight_uid").agg(pl.col("decision").first())
+    win_counts = win_methods.group_by("decision").len().sort("len", descending=True)
 
-    loss_methods = df_losses.groupby("fight_uid").agg({"decision": "first"}).reset_index()
-    loss_counts = loss_methods["decision"].value_counts()
+    loss_methods = df_losses.group_by("fight_uid").agg(pl.col("decision").first())
+    loss_counts = loss_methods.group_by("decision").len().sort("len", descending=True)
 
     fig = go.Figure()
 
-    if not win_counts.empty:
-        for method in win_counts.index:
+    if win_counts.height > 0:
+        for row in win_counts.iter_rows(named=True):
+            method = row["decision"]
+            count = row["len"]
             fig.add_trace(
                 go.Bar(
                     y=["Wins"],
-                    x=[win_counts[method]],
+                    x=[count],
                     name=method,
                     orientation="h",
-                    text=f"{method} ({win_counts[method]})",
+                    text=f"{method} ({count})",
                     textposition="inside",
                 )
             )
 
-    if not loss_counts.empty:
-        for method in loss_counts.index:
+    if loss_counts.height > 0:
+        win_methods_set = set(win_counts["decision"].to_list())
+        for row in loss_counts.iter_rows(named=True):
+            method = row["decision"]
+            count = row["len"]
             fig.add_trace(
                 go.Bar(
                     y=["Losses"],
-                    x=[loss_counts[method]],
+                    x=[count],
                     name=method,
                     orientation="h",
-                    text=f"{method} ({loss_counts[method]})",
+                    text=f"{method} ({count})",
                     textposition="inside",
-                    showlegend=method not in win_counts.index,
+                    showlegend=method not in win_methods_set,
                 )
             )
 
@@ -352,32 +356,36 @@ def update_win_method_chart(fighter: str):
 def update_fight_history(fighter: str):
     df_filtered = filter_data(df, fighter)
 
-    if df_filtered.empty:
+    if df_filtered.height == 0:
         return [], [], []
 
     table_df = (
-        df_filtered.groupby("fight_uid")
+        df_filtered.group_by("fight_uid")
         .agg(
-            {
-                "event_date": "first",
-                "opponent_name": "first",
-                "fighter_result": "first",
-                "decision": "first",
-                "decision_round": "first",
-                "total_strikes_landed": "sum",
-                "total_strikes_attempted": "sum",
-                "takedowns_landed": "sum",
-            }
+            [
+                pl.col("event_date").first(),
+                pl.col("opponent_name").first(),
+                pl.col("fighter_result").first(),
+                pl.col("decision").first(),
+                pl.col("decision_round").first(),
+                pl.col("total_strikes_landed").sum(),
+                pl.col("total_strikes_attempted").sum(),
+                pl.col("takedowns_landed").sum(),
+            ]
         )
-        .reset_index()
-        .sort_values("event_date", ascending=False)
+        .sort("event_date", descending=True)
     )
 
-    table_df["event_date"] = table_df["event_date"].dt.strftime("%Y-%m-%d")
-    table_df["decision"] = table_df["decision"].apply(format_decision)
-    table_df["fighter_result"] = table_df["fighter_result"].apply(format_result)
+    table_df = table_df.with_columns(
+        [
+            pl.col("event_date").dt.to_string("%Y-%m-%d"),
+            pl.col("decision").map_elements(format_decision, return_dtype=pl.String),
+            pl.col("fighter_result").map_elements(format_result, return_dtype=pl.String),
+        ]
+    )
+
     table_df = table_df.rename(
-        columns={
+        {
             "event_date": "Date",
             "opponent_name": "Opponent",
             "fighter_result": "",
@@ -399,11 +407,11 @@ def update_fight_history(fighter: str):
         "Strikes Attempted",
         "Takedowns",
     ]
-    table_df = table_df[column_order]
+    table_df = table_df.select(column_order)
 
     columns = [{"name": col, "id": col} for col in column_order]
 
-    data = table_df.to_dict("records")
+    data = table_df.to_dicts()
 
     style_conditional = [{"if": {"row_index": "odd"}, "backgroundColor": "rgba(0,0,0,0.03)"}]
 
@@ -438,27 +446,28 @@ def update_fight_history(fighter: str):
 def update_accuracy_trend(fighter: str):
     df_filtered = filter_data(df, fighter)
 
-    if df_filtered.empty:
+    if df_filtered.height == 0:
         fig = px.line()
     else:
         fight_accuracy = (
-            df_filtered.groupby(["fight_uid", "event_date"])
+            df_filtered.group_by(["fight_uid", "event_date"])
             .agg(
-                {
-                    "total_strikes_landed": "sum",
-                    "total_strikes_attempted": "sum",
-                }
+                [
+                    pl.col("total_strikes_landed").sum(),
+                    pl.col("total_strikes_attempted").sum(),
+                ]
             )
-            .reset_index()
+            .filter(pl.col("total_strikes_attempted") > 0)
+            .with_columns(
+                (pl.col("total_strikes_landed") / pl.col("total_strikes_attempted") * 100).alias(
+                    "accuracy"
+                )
+            )
+            .sort("event_date")
         )
-        fight_accuracy = fight_accuracy[fight_accuracy["total_strikes_attempted"] > 0]
-        fight_accuracy["accuracy"] = (
-            fight_accuracy["total_strikes_landed"] / fight_accuracy["total_strikes_attempted"] * 100
-        )
-        fight_accuracy = fight_accuracy.sort_values("event_date")  # type: ignore
 
         fig = px.line(
-            fight_accuracy,
+            fight_accuracy.to_pandas(),
             x="event_date",
             y="accuracy",
             markers=True,
@@ -476,43 +485,41 @@ def update_accuracy_trend(fighter: str):
 def update_target_distribution(fighter: str):
     df_filtered = filter_data(df, fighter)
 
-    if df_filtered.empty:
+    if df_filtered.height == 0:
         fig = px.bar()
     else:
         strike_targets = (
-            df_filtered.groupby(["fight_uid", "event_date"])
+            df_filtered.group_by(["fight_uid", "event_date"])
             .agg(
-                {
-                    "sig_strikes_head_landed": "sum",
-                    "sig_strikes_body_landed": "sum",
-                    "sig_strikes_leg_landed": "sum",
-                }
+                [
+                    pl.col("sig_strikes_head_landed").sum(),
+                    pl.col("sig_strikes_body_landed").sum(),
+                    pl.col("sig_strikes_leg_landed").sum(),
+                ]
             )
-            .reset_index()
-            .sort_values("event_date")  # type: ignore
+            .sort("event_date")
+            .with_columns(pl.col("event_date").dt.to_string("%Y-%m-%d"))
         )
-
-        strike_targets["event_date"] = strike_targets["event_date"].dt.strftime("%Y-%m-%d")
 
         fig = go.Figure()
         fig.add_trace(
             go.Bar(
-                x=strike_targets["event_date"],
-                y=strike_targets["sig_strikes_head_landed"],
+                x=strike_targets["event_date"].to_list(),
+                y=strike_targets["sig_strikes_head_landed"].to_list(),
                 name="Head",
             )
         )
         fig.add_trace(
             go.Bar(
-                x=strike_targets["event_date"],
-                y=strike_targets["sig_strikes_body_landed"],
+                x=strike_targets["event_date"].to_list(),
+                y=strike_targets["sig_strikes_body_landed"].to_list(),
                 name="Body",
             )
         )
         fig.add_trace(
             go.Bar(
-                x=strike_targets["event_date"],
-                y=strike_targets["sig_strikes_leg_landed"],
+                x=strike_targets["event_date"].to_list(),
+                y=strike_targets["sig_strikes_leg_landed"].to_list(),
                 name="Leg",
             )
         )
@@ -765,7 +772,7 @@ fighter_analysis_content = html.Div(
                         style_data={
                             "border": "none",
                         },
-                        style_cell_conditional=[
+                        style_cell_conditional=[  # type: ignore[arg-type]
                             {
                                 "if": {"column_id": ""},
                                 "width": "40px",
