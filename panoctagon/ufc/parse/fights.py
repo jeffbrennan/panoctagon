@@ -77,7 +77,7 @@ def parse_sig_stats(fight_html: bs4.BeautifulSoup, fight_uid: str) -> SigStatsPa
     if sig_stats_cols != expected_cols:
         raise ValueError()
 
-    sig_stats_per_round = get_table_rows(fight_html, 3)
+    sig_stats_per_round = get_table_rows(fight_html)[3]
     sig_stats: list[RoundSigStats] = []
     issues: list[str] = []
     for round_num, round_data in enumerate(sig_stats_per_round, 1):
@@ -149,7 +149,7 @@ def parse_round_totals(fight_html: bs4.BeautifulSoup, fight_uid: str) -> TotalSt
     if totals_cols != expected_cols:
         raise ValueError()
 
-    totals_per_round = get_table_rows(fight_html, 1)
+    totals_per_round = get_table_rows(fight_html)[1]
     totals: list[RoundTotalStats] = []
     issues: list[str] = []
     for round_num, round_data in enumerate(totals_per_round, 1):
@@ -195,7 +195,7 @@ def get_event_uid(fight_html: bs4.BeautifulSoup) -> str:
 def parse_fight_details(
     fight_html: bs4.BeautifulSoup, event_uid: str, fight_uid: str
 ) -> FightDetailsParsingResult | None:
-    tbl = get_table_rows(fight_html)
+    tbl = get_table_rows(fight_html)[0]
     parsing_issues: list[str] = []
 
     detail_headers = [

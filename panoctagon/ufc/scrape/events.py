@@ -15,7 +15,7 @@ def get_events(all_events: bool, page_num: int = 1) -> list[UFCEvent]:
     soup = bs4.BeautifulSoup(requests.get(url).content, "html.parser")
 
     data: list[UFCEvent] = []
-    rows = get_table_rows(soup)
+    rows = get_table_rows(soup)[0]
     unparsed_events: list[str] = []
     for row in rows:
         cols = row.find_all("td")
