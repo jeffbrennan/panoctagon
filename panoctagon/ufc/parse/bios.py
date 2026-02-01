@@ -20,11 +20,17 @@ def get_fighter(uid: str) -> UFCFighter:
     return results
 
 
-def save_image_from_url(url: str, fpath: Path):
-    page = requests.get(url)
+def save_image_from_url(url: str, fpath: Path) -> bool:
+    try:
+        page = requests.get(url, timeout=30)
+        if page.status_code != 200:
+            return False
 
-    with fpath.open(mode="wb") as f:
-        f.write(page.content)
+        with fpath.open(mode="wb") as f:
+            f.write(page.content)
+        return True
+    except (requests.exceptions.RequestException, OSError):
+        return False
 
 
 class HeadshotParsingResult(ParsingResult):
@@ -37,6 +43,7 @@ def parse_headshot(bio: FileContents) -> HeadshotParsingResult:
         print(create_header(80, title, False, "."))
 
     headshot_dir = Path(__file__).parents[3] / "data" / "raw" / "ufc" / "fighter_headshots"
+    headshot_dir.mkdir(exist_ok=True, parents=True)
 
     bio_downloaded_ts = bio.modified_ts.isoformat()
 
@@ -88,7 +95,13 @@ def write_headshot_results_to_db(
 ) -> None:
     engine = get_engine()
     headshot_dir = Path(__file__).parents[3] / "data" / "raw" / "ufc" / "fighter_headshots"
-    headshots_on_disk = list(headshot_dir.glob("*.png"))
+    headshot_dir.mkdir(exist_ok=True, parents=True)
+
+    image_extensions = ["*.png", "*.jpg", "*.jpeg", "*.webp"]
+    headshots_on_disk = []
+    for ext in image_extensions:
+        headshots_on_disk.extend(list(headshot_dir.glob(ext)))
+
     headshot_uids_on_disk = [i.stem.split("_")[0] for i in headshots_on_disk]
     print(f"[n={len(headshots):5,d}] updating records in `UFCFighter`")
     with Session(engine) as session:

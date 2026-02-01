@@ -233,7 +233,7 @@ def scrape_page(
 ) -> ScrapingWriteResult:
     write_success = False
     attempts = 0
-    sleep_multiplier = 0
+    sleep_multiplier = 1
     last_status_code = None
     error_type = None
 
@@ -255,12 +255,16 @@ def scrape_page(
 
         if attempts == max_attempts:
             if not write_success and status_code != 200 and error_type is None:
-                error_type = "http_error"
+                if status_code == 0:
+                    error_type = "connection_error"
+                else:
+                    error_type = "http_error"
             break
 
-        ms_to_sleep = random.randint(100 * sleep_multiplier, 200 * sleep_multiplier)
-        time.sleep(ms_to_sleep / 1000)
-        sleep_multiplier += sleep_multiplier_increment
+        if not write_success:
+            ms_to_sleep = random.randint(500 * sleep_multiplier, 1000 * sleep_multiplier)
+            time.sleep(ms_to_sleep / 1000)
+            sleep_multiplier += sleep_multiplier_increment
 
     return ScrapingWriteResult(
         config=config,
@@ -315,22 +319,25 @@ def dump_html(config: ScrapingConfig, log_uid: bool = False, session: Optional[r
         print(f"saving {config.description}: {config.uid}")
     url = f"{config.base_url}/{config.uid}"
 
-    if session is None:
-        response = requests.get(url)
-    else:
-        response = session.get(url)
+    try:
+        if session is None:
+            response = requests.get(url, timeout=30)
+        else:
+            response = session.get(url, timeout=30)
 
-    status_code = response.status_code
+        status_code = response.status_code
 
-    if status_code != 200:
-        return False, status_code
+        if status_code != 200:
+            return False, status_code
 
-    soup = bs4.BeautifulSoup(response.text, "html.parser")
+        soup = bs4.BeautifulSoup(response.text, "html.parser")
 
-    with config.path.open("w") as f:
-        f.write(str(soup))
+        with config.path.open("w") as f:
+            f.write(str(soup))
 
-    return True, status_code
+        return True, status_code
+    except (requests.exceptions.SSLError, requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+        return False, 0
 
 
 def write_data_to_db(data: list[SQLModelType]) -> None:

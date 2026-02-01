@@ -8,7 +8,7 @@ from dagster import AssetExecutionContext, AssetSpec, asset, multi_asset
 from panoctagon.divisions import setup_divisions
 from panoctagon.promotions import setup_promotions
 
-from .project import panoctagon_project
+from panoctagon.dagster.project import panoctagon_project
 
 db_path = panoctagon_project.project_dir.joinpath("data/panoctagon_orm.duckdb")
 
@@ -46,7 +46,7 @@ def dagster_parse_fights(context: AssetExecutionContext) -> tuple[None, None]:
 
 @asset(compute_kind="python", key=["scrape_fighters"], deps=["ufc_fights"])
 def dagster_scrape_fighters(context: AssetExecutionContext) -> None:
-    n_new_fighters = scrape.fights()
+    n_new_fighters = scrape.fighters()
     context.add_output_metadata({"n_records": n_new_fighters})
 
 
