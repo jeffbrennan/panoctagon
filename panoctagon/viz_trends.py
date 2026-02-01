@@ -2,31 +2,32 @@
 viz playground for app inclusion
 """
 
-import pandas as pd
+import polars as pl
 import plotly.express as px
 
 from panoctagon.common import get_engine
 
 
 def main():
-    df = pd.read_sql_query(
-        """
-        select 
-            event_year,
-            fight_division,
-            weight_lbs,
-            metric,
-            target,
-            target_order,
-            strikes,
-            target_strike_pct,
-            last_refresh_timestamp 
-        from mart_striking_stats 
-        order by weight_lbs, event_year, target_order desc
-        """,
-        get_engine(),
-        parse_dates=["event_year", "last_refresh_timestamp"],
-    )
+    engine = get_engine()
+    with engine.connect() as conn:
+        df = pl.read_database(
+            """
+            select
+                event_year,
+                fight_division,
+                weight_lbs,
+                metric,
+                target,
+                target_order,
+                strikes,
+                target_strike_pct,
+                last_refresh_timestamp
+            from mart_striking_stats
+            order by weight_lbs, event_year, target_order desc
+            """,
+            connection=conn,
+        )
 
     last_refresh = df["last_refresh_timestamp"].to_list()[0].isoformat()
 
@@ -37,7 +38,7 @@ def main():
     print(df.head(10))
     fig = (
         px.area(
-            data_frame=df,
+            data_frame=df.to_pandas(),
             x="event_year",
             color="target",
             y="target_strike_pct",

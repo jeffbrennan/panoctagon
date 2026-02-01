@@ -1,81 +1,83 @@
 from typing import Any
 
 import dash_mantine_components as dmc
-import pandas as pd
+import polars as pl
 from dash import html
 
 from panoctagon.common import get_engine
 from panoctagon.dashboard.common import get_headshot_base64
 
 
-def get_upcoming_fights() -> pd.DataFrame:
-    return pd.read_sql_query(
-        """
-        with fighter_info as (
-            select
-                fighter_uid,
-                first_name || ' ' || last_name as fighter_name,
-                dob,
-                reach_inches,
-                height_inches,
-                stance
-            from ufc_fighters
-        ),
-        fighter_records as (
-            select
-                fighter_uid,
-                count(*) as total_fights,
-                sum(case when result = 'WIN' then 1 else 0 end) as wins,
-                sum(case when result = 'LOSS' then 1 else 0 end) as losses,
-                sum(case when result = 'DRAW' then 1 else 0 end) as draws
-            from (
-                select fighter1_uid as fighter_uid, fighter1_result as result
-                from ufc_fights where fighter1_result is not null
-                union all
-                select fighter2_uid as fighter_uid, fighter2_result as result
-                from ufc_fights where fighter2_result is not null
+def get_upcoming_fights() -> pl.DataFrame:
+    engine = get_engine()
+    with engine.connect() as conn:
+        return pl.read_database(
+            """
+            with fighter_info as (
+                select
+                    fighter_uid,
+                    first_name || ' ' || last_name as fighter_name,
+                    dob,
+                    reach_inches,
+                    height_inches,
+                    stance
+                from ufc_fighters
+            ),
+            fighter_records as (
+                select
+                    fighter_uid,
+                    count(*) as total_fights,
+                    sum(case when result = 'WIN' then 1 else 0 end) as wins,
+                    sum(case when result = 'LOSS' then 1 else 0 end) as losses,
+                    sum(case when result = 'DRAW' then 1 else 0 end) as draws
+                from (
+                    select fighter1_uid as fighter_uid, fighter1_result as result
+                    from ufc_fights where fighter1_result is not null
+                    union all
+                    select fighter2_uid as fighter_uid, fighter2_result as result
+                    from ufc_fights where fighter2_result is not null
+                )
+                group by fighter_uid
             )
-            group by fighter_uid
+            select
+                f.fight_uid,
+                f.event_uid,
+                e.title as event_title,
+                e.event_date,
+                e.event_location,
+                f.fight_division,
+                f.fight_type,
+                f.fighter1_uid,
+                f1.fighter_name as fighter1_name,
+                f1.dob as fighter1_dob,
+                f1.reach_inches as fighter1_reach,
+                f1.height_inches as fighter1_height,
+                f1.stance as fighter1_stance,
+                coalesce(fr1.total_fights, 0) as fighter1_total_fights,
+                coalesce(fr1.wins, 0) as fighter1_wins,
+                coalesce(fr1.losses, 0) as fighter1_losses,
+                coalesce(fr1.draws, 0) as fighter1_draws,
+                f.fighter2_uid,
+                f2.fighter_name as fighter2_name,
+                f2.dob as fighter2_dob,
+                f2.reach_inches as fighter2_reach,
+                f2.height_inches as fighter2_height,
+                f2.stance as fighter2_stance,
+                coalesce(fr2.total_fights, 0) as fighter2_total_fights,
+                coalesce(fr2.wins, 0) as fighter2_wins,
+                coalesce(fr2.losses, 0) as fighter2_losses,
+                coalesce(fr2.draws, 0) as fighter2_draws
+            from ufc_fights f
+            inner join ufc_events e on f.event_uid = e.event_uid
+            inner join fighter_info f1 on f.fighter1_uid = f1.fighter_uid
+            inner join fighter_info f2 on f.fighter2_uid = f2.fighter_uid
+            left join fighter_records fr1 on f.fighter1_uid = fr1.fighter_uid
+            left join fighter_records fr2 on f.fighter2_uid = fr2.fighter_uid
+            where f.fighter1_result is null
+            order by e.event_date asc
+            """,
+            connection=conn,
         )
-        select
-            f.fight_uid,
-            f.event_uid,
-            e.title as event_title,
-            e.event_date,
-            e.event_location,
-            f.fight_division,
-            f.fight_type,
-            f.fighter1_uid,
-            f1.fighter_name as fighter1_name,
-            f1.dob as fighter1_dob,
-            f1.reach_inches as fighter1_reach,
-            f1.height_inches as fighter1_height,
-            f1.stance as fighter1_stance,
-            coalesce(fr1.total_fights, 0) as fighter1_total_fights,
-            coalesce(fr1.wins, 0) as fighter1_wins,
-            coalesce(fr1.losses, 0) as fighter1_losses,
-            coalesce(fr1.draws, 0) as fighter1_draws,
-            f.fighter2_uid,
-            f2.fighter_name as fighter2_name,
-            f2.dob as fighter2_dob,
-            f2.reach_inches as fighter2_reach,
-            f2.height_inches as fighter2_height,
-            f2.stance as fighter2_stance,
-            coalesce(fr2.total_fights, 0) as fighter2_total_fights,
-            coalesce(fr2.wins, 0) as fighter2_wins,
-            coalesce(fr2.losses, 0) as fighter2_losses,
-            coalesce(fr2.draws, 0) as fighter2_draws
-        from ufc_fights f
-        inner join ufc_events e on f.event_uid = e.event_uid
-        inner join fighter_info f1 on f.fighter1_uid = f1.fighter_uid
-        inner join fighter_info f2 on f.fighter2_uid = f2.fighter_uid
-        left join fighter_records fr1 on f.fighter1_uid = fr1.fighter_uid
-        left join fighter_records fr2 on f.fighter2_uid = fr2.fighter_uid
-        where f.fighter1_result is null
-        order by e.event_date asc
-        """,
-        get_engine(),
-    )
 
 
 def colorize_condition(value: Any | None, threshold: int | float, gt: bool = True) -> str:
@@ -283,9 +285,9 @@ def create_upcoming_fights_content() -> html.Div:
     try:
         upcoming_df = get_upcoming_fights()
     except Exception:
-        upcoming_df = pd.DataFrame()
+        upcoming_df = pl.DataFrame()
 
-    if upcoming_df.empty:
+    if upcoming_df.height == 0:
         return html.Div(
             [
                 dmc.Alert(
@@ -296,13 +298,25 @@ def create_upcoming_fights_content() -> html.Div:
             ]
         )
 
-    upcoming_df["event_date"] = pd.to_datetime(upcoming_df["event_date"])
-    events = upcoming_df.groupby(["event_uid", "event_title", "event_date", "event_location"])
+    if upcoming_df["event_date"].dtype == pl.String:
+        upcoming_df = upcoming_df.with_columns(
+            pl.col("event_date").str.strptime(pl.Date, "%Y-%m-%d")
+        )
+
+    unique_events = upcoming_df.select(
+        ["event_uid", "event_title", "event_date", "event_location"]
+    ).unique()
 
     event_sections = []
-    for (event_uid, event_title, event_date, event_location), fights in events:
+    for event_row in unique_events.iter_rows(named=True):
+        event_uid = event_row["event_uid"]
+        event_title = event_row["event_title"]
+        event_date = event_row["event_date"]
+        event_location = event_row["event_location"]
         event_date_str = event_date.strftime("%B %d, %Y")
-        fights_list = fights.to_dict("records")
+
+        fights = upcoming_df.filter(pl.col("event_uid") == event_uid)
+        fights_list = fights.to_dicts()
 
         matchup_rows = [create_matchup_row(fight) for fight in fights_list]
 

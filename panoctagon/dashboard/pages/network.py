@@ -1,7 +1,7 @@
 import dash_mantine_components as dmc
 import networkx as nx
-import pandas as pd
 import plotly.graph_objects as go
+import polars as pl
 from dash import Input, Output, callback, dcc, html
 
 from panoctagon.common import get_engine
@@ -9,7 +9,7 @@ from panoctagon.dashboard.common import apply_figure_styling, get_fighter_divisi
 
 
 def build_fighter_graph(
-    network_df: pd.DataFrame, fighter_divisions: dict[str, str]
+    network_df: pl.DataFrame, fighter_divisions: dict[str, str]
 ) -> tuple[
     nx.DiGraph,
     dict[str, dict[str, dict[str, list[str]]]],
@@ -21,7 +21,7 @@ def build_fighter_graph(
     fighter_stats: dict[str, dict[str, int]] = {}
     fighter_matchups: dict[tuple[str, str], int] = {}
 
-    for _, row in network_df.iterrows():
+    for row in network_df.iter_rows(named=True):
         f1_name = row["fighter1_name"]
         f2_name = row["fighter2_name"]
         f1_result = row["fighter1_result"]
@@ -286,27 +286,29 @@ def create_network_figure(
     return fig
 
 
-def get_network_data() -> pd.DataFrame:
-    return pd.read_sql_query(
-        """
-        select
-            a.fighter1_uid,
-            a.fighter2_uid,
-            f1.first_name || ' ' || f1.last_name as fighter1_name,
-            f2.first_name || ' ' || f2.last_name as fighter2_name,
-            a.fighter1_result,
-            a.fighter2_result,
-            a.fight_division,
-            e.event_date,
-            strftime(cast(e.event_date as date), '%Y') as fight_year
-        from ufc_fights a
-        inner join ufc_fighters f1 on a.fighter1_uid = f1.fighter_uid
-        inner join ufc_fighters f2 on a.fighter2_uid = f2.fighter_uid
-        inner join ufc_events e on a.event_uid = e.event_uid
-        where a.fight_division is not null
-        """,
-        get_engine(),
-    )
+def get_network_data() -> pl.DataFrame:
+    engine = get_engine()
+    with engine.connect() as conn:
+        return pl.read_database(
+            """
+            select
+                a.fighter1_uid,
+                a.fighter2_uid,
+                f1.first_name || ' ' || f1.last_name as fighter1_name,
+                f2.first_name || ' ' || f2.last_name as fighter2_name,
+                a.fighter1_result,
+                a.fighter2_result,
+                a.fight_division,
+                e.event_date,
+                strftime(cast(e.event_date as date), '%Y') as fight_year
+            from ufc_fights a
+            inner join ufc_fighters f1 on a.fighter1_uid = f1.fighter_uid
+            inner join ufc_fighters f2 on a.fighter2_uid = f2.fighter_uid
+            inner join ufc_events e on a.event_uid = e.event_uid
+            where a.fight_division is not null
+            """,
+            connection=conn,
+        )
 
 
 @callback(
@@ -322,13 +324,13 @@ def update_network_graph(tab: str, division: str, year_range: list[int]):
         return go.Figure()
 
     min_year, max_year = year_range
-    filtered_network_df = network_df[
-        (network_df["fight_division"] == division)
-        & (network_df["fight_year"].astype(int) >= min_year)
-        & (network_df["fight_year"].astype(int) <= max_year)
-    ]
+    filtered_network_df = network_df.filter(
+        (pl.col("fight_division") == division)
+        & (pl.col("fight_year").cast(pl.Int64) >= min_year)
+        & (pl.col("fight_year").cast(pl.Int64) <= max_year)
+    )
 
-    if filtered_network_df.empty:
+    if filtered_network_df.height == 0:
         fig = go.Figure()
         fig.update_layout(
             annotations=[
@@ -358,7 +360,7 @@ def update_network_graph(tab: str, division: str, year_range: list[int]):
 
 
 network_df = get_network_data()
-initial_network_df = network_df[network_df["fight_division"] == "HEAVYWEIGHT"]
+initial_network_df = network_df.filter(pl.col("fight_division") == "HEAVYWEIGHT")
 fighter_divisions = get_fighter_divisions()
 fighter_graph, fighter_opponents_by_year, fighter_stats, fighter_matchups = build_fighter_graph(
     initial_network_df, fighter_divisions

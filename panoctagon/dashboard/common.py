@@ -1,8 +1,8 @@
 import base64
 from pathlib import Path
 
-import pandas as pd
 import plotly.graph_objects as go
+import polars as pl
 from dash import dcc, html
 
 from panoctagon.common import get_engine
@@ -90,191 +90,196 @@ def get_headshot_base64(fighter_uid: str) -> str:
     return f"data:{mime_type};base64,{encoded}"
 
 
-def get_main_data() -> pd.DataFrame:
-    df = pd.read_sql_query(
-        """
-        with
-            event_details      as (
-                select
-                    title,
-                    event_date,
-                    fight_uid
-                from ufc_events a
-                inner join ufc_fights b
-                    on a.event_uid = b.event_uid
-            ),
-            fight_metadata as (
-                select
-                    fight_uid,
-                    fight_division,
-                    fight_type,
-                    decision,
-                    decision_round
-                from ufc_fights
-            ),
-            fighter_details    as (
-                select
-                    fighter_uid,
-                    first_name,
-                    last_name,
-                    nickname,
-                    stance,
-                    style,
-                    height_inches,
-                    reach_inches
-                from ufc_fighters
-            ),
-            fight_results_long as (
-                select
-                    fight_uid,
-                    fighter1_uid    as fighter_uid,
-                    fighter1_result as fighter_result
-                from ufc_fights
-                union
-                select
-                    fight_uid,
-                    fighter2_uid    as fighter_uid,
-                    fighter2_result as fighter_result
-                from ufc_fights
-            ),
-            fs                 as (
-                select
-                    a.fight_uid,
-                    a.round_num,
-                    a.fighter_uid,
-                    c.fighter_result,
-                    b.first_name || ' ' || b.last_name as fighter_name,
-                    b.nickname,
-                    b.stance,
-                    b.style,
-                    b.reach_inches,
-                    b.height_inches,
-                    total_strikes_landed,
-                    total_strikes_attempted,
-                    takedowns_landed,
-                    takedowns_attempted,
-                    sig_strikes_head_landed,
-                    sig_strikes_head_attempted,
-                    sig_strikes_body_landed,
-                    sig_strikes_body_attempted,
-                    sig_strikes_leg_landed,
-                    sig_strikes_leg_attempted
-                from ufc_fight_stats a
-                inner join fighter_details b
-                    on a.fighter_uid = b.fighter_uid
-                inner join fight_results_long c
-                    on a.fight_uid = c.fight_uid
-                    and a.fighter_uid = c.fighter_uid
-            ),
-            opp_fs             as (
-                select
-                    a.fight_uid,
-                    a.round_num,
-                    a.fighter_uid                      as opponent_uid,
-                    c.fighter_result                   as opponent_result,
-                    b.first_name || ' ' || b.last_name as opponent_name,
-                    b.reach_inches                     as opponent_reach_inches,
-                    b.height_inches                    as opponent_height_inches,
-                    total_strikes_landed               as opponent_strikes_landed,
-                    total_strikes_attempted            as opponent_strikes_attempted,
-                    takedowns_landed                   as opponent_takedowns_landed,
-                    takedowns_attempted                as opponent_takedowns_attempted
-                from ufc_fight_stats a
-                inner join fighter_details b
-                    on a.fighter_uid = b.fighter_uid
-                inner join fight_results_long c
-                    on a.fight_uid = c.fight_uid
-                    and a.fighter_uid = c.fighter_uid
+def get_main_data() -> pl.DataFrame:
+    engine = get_engine()
+    with engine.connect() as conn:
+        df = pl.read_database(
+            """
+            with
+                event_details      as (
+                    select
+                        title,
+                        event_date,
+                        fight_uid
+                    from ufc_events a
+                    inner join ufc_fights b
+                        on a.event_uid = b.event_uid
+                ),
+                fight_metadata as (
+                    select
+                        fight_uid,
+                        fight_division,
+                        fight_type,
+                        decision,
+                        decision_round
+                    from ufc_fights
+                ),
+                fighter_details    as (
+                    select
+                        fighter_uid,
+                        first_name,
+                        last_name,
+                        nickname,
+                        stance,
+                        style,
+                        height_inches,
+                        reach_inches
+                    from ufc_fighters
+                ),
+                fight_results_long as (
+                    select
+                        fight_uid,
+                        fighter1_uid    as fighter_uid,
+                        fighter1_result as fighter_result
+                    from ufc_fights
+                    union
+                    select
+                        fight_uid,
+                        fighter2_uid    as fighter_uid,
+                        fighter2_result as fighter_result
+                    from ufc_fights
+                ),
+                fs                 as (
+                    select
+                        a.fight_uid,
+                        a.round_num,
+                        a.fighter_uid,
+                        c.fighter_result,
+                        b.first_name || ' ' || b.last_name as fighter_name,
+                        b.nickname,
+                        b.stance,
+                        b.style,
+                        b.reach_inches,
+                        b.height_inches,
+                        total_strikes_landed,
+                        total_strikes_attempted,
+                        takedowns_landed,
+                        takedowns_attempted,
+                        sig_strikes_head_landed,
+                        sig_strikes_head_attempted,
+                        sig_strikes_body_landed,
+                        sig_strikes_body_attempted,
+                        sig_strikes_leg_landed,
+                        sig_strikes_leg_attempted
+                    from ufc_fight_stats a
+                    inner join fighter_details b
+                        on a.fighter_uid = b.fighter_uid
+                    inner join fight_results_long c
+                        on a.fight_uid = c.fight_uid
+                        and a.fighter_uid = c.fighter_uid
+                ),
+                opp_fs             as (
+                    select
+                        a.fight_uid,
+                        a.round_num,
+                        a.fighter_uid                      as opponent_uid,
+                        c.fighter_result                   as opponent_result,
+                        b.first_name || ' ' || b.last_name as opponent_name,
+                        b.reach_inches                     as opponent_reach_inches,
+                        b.height_inches                    as opponent_height_inches,
+                        total_strikes_landed               as opponent_strikes_landed,
+                        total_strikes_attempted            as opponent_strikes_attempted,
+                        takedowns_landed                   as opponent_takedowns_landed,
+                        takedowns_attempted                as opponent_takedowns_attempted
+                    from ufc_fight_stats a
+                    inner join fighter_details b
+                        on a.fighter_uid = b.fighter_uid
+                    inner join fight_results_long c
+                        on a.fight_uid = c.fight_uid
+                        and a.fighter_uid = c.fighter_uid
 
-            )
-        select
-            event_details.title,
-            event_details.event_date,
-            fm.fight_division,
-            fm.fight_type,
-            fm.decision,
-            fm.decision_round,
-            fs.fight_uid,
-            fs.round_num,
-            fs.fighter_uid,
-            fighter_name,
-            fs.nickname,
-            fs.stance,
-            fs.style,
-            fighter_result,
-            height_inches,
-            reach_inches,
-            total_strikes_landed,
-            total_strikes_attempted,
-            takedowns_landed,
-            takedowns_attempted,
-            sig_strikes_head_landed,
-            sig_strikes_head_attempted,
-            sig_strikes_body_landed,
-            sig_strikes_body_attempted,
-            sig_strikes_leg_landed,
-            sig_strikes_leg_attempted,
-            opponent_name,
-            opponent_result,
-            opponent_reach_inches,
-            opponent_height_inches,
-            opponent_strikes_attempted,
-            opponent_strikes_landed,
-            opponent_takedowns_attempted,
-            opponent_takedowns_landed
-        from fs
-        inner join event_details
-            on fs.fight_uid = event_details.fight_uid
-        inner join fight_metadata fm
-            on fs.fight_uid = fm.fight_uid
-        inner join opp_fs
-            on fs.fight_uid = opp_fs.fight_uid
-            and fs.round_num = opp_fs.round_num
-            and fs.fighter_uid != opp_fs.opponent_uid;
-        """,
-        get_engine(),
-    )
-    df["event_date"] = pd.to_datetime(df["event_date"])
+                )
+            select
+                event_details.title,
+                event_details.event_date,
+                fm.fight_division,
+                fm.fight_type,
+                fm.decision,
+                fm.decision_round,
+                fs.fight_uid,
+                fs.round_num,
+                fs.fighter_uid,
+                fighter_name,
+                fs.nickname,
+                fs.stance,
+                fs.style,
+                fighter_result,
+                height_inches,
+                reach_inches,
+                total_strikes_landed,
+                total_strikes_attempted,
+                takedowns_landed,
+                takedowns_attempted,
+                sig_strikes_head_landed,
+                sig_strikes_head_attempted,
+                sig_strikes_body_landed,
+                sig_strikes_body_attempted,
+                sig_strikes_leg_landed,
+                sig_strikes_leg_attempted,
+                opponent_name,
+                opponent_result,
+                opponent_reach_inches,
+                opponent_height_inches,
+                opponent_strikes_attempted,
+                opponent_strikes_landed,
+                opponent_takedowns_attempted,
+                opponent_takedowns_landed
+            from fs
+            inner join event_details
+                on fs.fight_uid = event_details.fight_uid
+            inner join fight_metadata fm
+                on fs.fight_uid = fm.fight_uid
+            inner join opp_fs
+                on fs.fight_uid = opp_fs.fight_uid
+                and fs.round_num = opp_fs.round_num
+                and fs.fighter_uid != opp_fs.opponent_uid;
+            """,
+            connection=conn,
+        )
+    if df["event_date"].dtype == pl.String:
+        df = df.with_columns(pl.col("event_date").str.strptime(pl.Date, "%Y-%m-%d"))
     return df
 
 
-def filter_data(df: pd.DataFrame, fighter: str) -> pd.DataFrame:
-    return df[df["fighter_name"] == fighter].copy()
+def filter_data(df: pl.DataFrame, fighter: str) -> pl.DataFrame:
+    return df.filter(pl.col("fighter_name") == fighter)
 
 
 def get_fighter_divisions() -> dict[str, str]:
-    df = pd.read_sql_query(
-        """
-        with fighter_division_counts as (
-            select
-                fighter_uid,
-                fight_division,
-                count(*) as fight_count
-            from (
-                select fighter1_uid as fighter_uid, fight_division from ufc_fights
-                union all
-                select fighter2_uid as fighter_uid, fight_division from ufc_fights
+    engine = get_engine()
+    with engine.connect() as conn:
+        df = pl.read_database(
+            """
+            with fighter_division_counts as (
+                select
+                    fighter_uid,
+                    fight_division,
+                    count(*) as fight_count
+                from (
+                    select fighter1_uid as fighter_uid, fight_division from ufc_fights
+                    union all
+                    select fighter2_uid as fighter_uid, fight_division from ufc_fights
+                )
+                where fight_division is not null
+                group by fighter_uid, fight_division
+            ),
+            fighter_primary_division as (
+                select
+                    fighter_uid,
+                    fight_division,
+                    row_number() over (partition by fighter_uid order by fight_count desc) as rn
+                from fighter_division_counts
             )
-            where fight_division is not null
-            group by fighter_uid, fight_division
-        ),
-        fighter_primary_division as (
             select
-                fighter_uid,
-                fight_division,
-                row_number() over (partition by fighter_uid order by fight_count desc) as rn
-            from fighter_division_counts
+                f.first_name || ' ' || f.last_name as fighter_name,
+                fpd.fight_division
+            from fighter_primary_division fpd
+            inner join ufc_fighters f on fpd.fighter_uid = f.fighter_uid
+            where fpd.rn = 1
+            """,
+            connection=conn,
         )
-        select
-            f.first_name || ' ' || f.last_name as fighter_name,
-            fpd.fight_division
-        from fighter_primary_division fpd
-        inner join ufc_fighters f on fpd.fighter_uid = f.fighter_uid
-        where fpd.rn = 1
-        """,
-        get_engine(),
-    )
-    return dict(zip(df["fighter_name"], df["fight_division"]))
+    return dict(zip(df["fighter_name"].to_list(), df["fight_division"].to_list()))
 
 
 DIVISION_COLORS = {
