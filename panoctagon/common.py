@@ -347,10 +347,15 @@ def dump_html(
 
 
 def write_data_to_db(data: list[SQLModelType]) -> None:
+    if not data:
+        return
+
     engine = get_engine()
     print(f"[n={len(data):5,d}] writing records")
+
     with Session(engine) as session:
-        session.bulk_save_objects(data)
+        for item in data:
+            session.merge(item)
         session.commit()
 
 

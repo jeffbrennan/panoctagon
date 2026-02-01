@@ -94,7 +94,7 @@ def fights(force: bool = False) -> int:
     fights_to_parse = get_html_files(
         path=fight_dir,
         uid_col=col(UFCFight.fight_uid),
-        where_clause=None,
+        where_clause=is_not(UFCFight.fighter1_result, None),  # pyright: ignore[reportCallIssue, reportArgumentType]
         force_run=force,
     )
 
@@ -114,7 +114,8 @@ def fights(force: bool = False) -> int:
     fights_with_stats = [
         result for result in results if result.fight_parsing_type == FightParsingType.previous
     ]
-    write_stats_to_db(fights_with_stats)
+    if len(fights_with_stats) > 0:
+        write_stats_to_db(fights_with_stats)
 
     event_uids = list(
         set(
