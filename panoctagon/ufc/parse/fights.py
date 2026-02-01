@@ -275,7 +275,7 @@ def parse_division(division_fight_type_raw: str) -> ParseDivisionResult:
 
 
 def parse_upcoming_fight(
-    fight_html: bs4.BeautifulSoup, event_uid: str, fight_uid: str
+    fight_html: bs4.BeautifulSoup, event_uid: str, fight_uid: str, fight_order: Optional[int] = None
 ) -> FightDetailsParsingResult | None:
     parsing_issues: list[str] = []
 
@@ -306,13 +306,14 @@ def parse_upcoming_fight(
         decision_round=None,
         decision_time_seconds=None,
         referee=None,
+        fight_order=fight_order,
     )
 
     return FightDetailsParsingResult(uid=fight_uid, result=fight, issues=parsing_issues)
 
 
 def parse_fight_details(
-    fight_html: bs4.BeautifulSoup, event_uid: str, fight_uid: str
+    fight_html: bs4.BeautifulSoup, event_uid: str, fight_uid: str, fight_order: Optional[int] = None
 ) -> FightDetailsParsingResult | None:
     tbl = get_table_rows(fight_html)[0]
     parsing_issues: list[str] = []
@@ -412,6 +413,7 @@ def parse_fight_details(
         decision_round=decision_round,
         decision_time_seconds=decision_time_seconds,
         referee=referee,
+        fight_order=fight_order,
     )
 
     return FightDetailsParsingResult(uid=fight_uid, result=fight, issues=parsing_issues)
@@ -457,7 +459,7 @@ def parse_fight(
 
     event_uid = get_event_uid(fight_html)
     if pre_run_check.value == FightParsingType.upcoming.value:
-        details = parse_upcoming_fight(fight_html, event_uid, fight_contents.uid)
+        details = parse_upcoming_fight(fight_html, event_uid, fight_contents.uid, fight_contents.fight_order)
         return FightParsingResult(
             fight_uid=fight_contents.uid,
             fight_result=details,
@@ -467,7 +469,7 @@ def parse_fight(
             fight_parsing_type=pre_run_check,
         )
 
-    fight_parsing_results = parse_fight_details(fight_html, event_uid, fight_contents.uid)
+    fight_parsing_results = parse_fight_details(fight_html, event_uid, fight_contents.uid, fight_contents.fight_order)
     total_stats = parse_round_totals(fight_html, fight_contents.uid)
     sig_stats = parse_sig_stats(fight_html, fight_contents.uid)
 

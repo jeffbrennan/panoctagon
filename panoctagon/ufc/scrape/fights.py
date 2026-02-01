@@ -141,16 +141,16 @@ def get_fights_from_event(
             message=fight_uid_result.message,
         )
 
-    downloaded_fights = sorted(set([i.split("_")[1] for i in downloads]))
+    downloaded_fights = sorted(set([i.split("_")[-1].replace(".html", "") for i in downloads]))
     configs = [
         ScrapingConfig(
             uid=fight_uid,
             description="fight",
             base_url="http://www.ufcstats.com/fight-details",
             base_dir=event.base_dir,
-            path=event.base_dir / f"{event.uid}_{fight_uid}.html",
+            path=event.base_dir / f"{event.uid}_{idx:02d}_{fight_uid}.html",
         )
-        for fight_uid in fight_uid_result.uids
+        for idx, fight_uid in enumerate(fight_uid_result.uids, start=1)
         if fight_uid not in downloaded_fights
     ]
 

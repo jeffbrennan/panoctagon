@@ -99,7 +99,12 @@ def fights(force: bool = False) -> int:
     )
 
     for fight in fights_to_parse:
-        fight.uid = fight.uid.split("_")[-1]
+        parts = fight.uid.split("_")
+        if len(parts) == 3:
+            fight.fight_order = int(parts[1])
+            fight.uid = parts[2]
+        else:
+            fight.uid = parts[-1]
 
     if len(fights_to_parse) == 0:
         print("no fights to parse. exiting early")

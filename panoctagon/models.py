@@ -26,6 +26,7 @@ class FileContents(BaseModel):
     contents: str
     file_num: int
     n_files: int
+    fight_order: Optional[int] = None
 
 
 class ScrapingWriteResult(BaseModel):

@@ -47,6 +47,7 @@ def get_upcoming_fights() -> pl.DataFrame:
                 e.event_location,
                 f.fight_division,
                 f.fight_type,
+                f.fight_order,
                 f.fighter1_uid,
                 f1.fighter_name as fighter1_name,
                 f1.dob as fighter1_dob,
@@ -74,7 +75,7 @@ def get_upcoming_fights() -> pl.DataFrame:
             left join fighter_records fr1 on f.fighter1_uid = fr1.fighter_uid
             left join fighter_records fr2 on f.fighter2_uid = fr2.fighter_uid
             where f.fighter1_result is null
-            order by e.event_date asc
+            order by e.event_date asc, f.fight_order asc nulls last
             """,
             connection=conn,
         )
