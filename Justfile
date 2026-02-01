@@ -16,7 +16,7 @@ dbw:
     duckdb data/panoctagon_orm.duckdb
 
 viz:
-    uv run python panoctagon/dashboard.py
+    uv run python panoctagon/dashboard/main.py
 
 check:
     uv run pyright .
