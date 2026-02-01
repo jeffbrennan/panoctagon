@@ -6,7 +6,13 @@ import typer
 from sqlalchemy.sql.operators import is_not
 from sqlmodel import col
 
-from panoctagon.common import create_header, get_html_files, setup_panoctagon, write_parsing_timestamp
+from panoctagon.common import (
+    create_header,
+    get_html_files,
+    setup_panoctagon,
+    write_parsing_timestamp,
+)
+from panoctagon.models import FightParsingType
 from panoctagon.tables import UFCEvent, UFCFight, UFCFighter
 from panoctagon.ufc.parse.bios import (
     parse_headshot,
@@ -104,13 +110,21 @@ def fights(force: bool = False) -> int:
     results = [parse_fight(fight) for fight in fights_to_parse]
 
     write_fight_results_to_db(results, force)
-    write_stats_to_db(results)
 
-    event_uids = list(set(
-        r.fight_result.result.event_uid
-        for r in results
-        if r.fight_result is not None and r.fight_result.result is not None
-    ))
+    fights_with_stats = [
+        result for result in results if result.fight_parsing_type == FightParsingType.previous
+    ]
+    write_stats_to_db(fights_with_stats)
+
+    event_uids = list(
+        set(
+            r.fight_result.result.event_uid
+            for r in results
+            if r.fight_result is not None
+            and r.fight_result.result is not None
+            and r.fight_parsing_type == FightParsingType.previous
+        )
+    )
 
     if len(event_uids) > 0:
         write_parsing_timestamp(

@@ -1,4 +1,5 @@
 import re
+from dataclasses import dataclass
 from typing import Any, Optional
 
 import bs4
@@ -23,6 +24,7 @@ from panoctagon.enums import (
 from panoctagon.models import (
     FightDetailsParsingResult,
     FightParsingResult,
+    FightParsingType,
     FileContents,
     RoundSigStats,
     RoundTotalStats,
@@ -192,6 +194,123 @@ def get_event_uid(fight_html: bs4.BeautifulSoup) -> str:
     return event_uid
 
 
+@dataclass
+class ParseDivisionResult:
+    fight_type: FightType | None
+    weight_division: UFCDivisionNames | None
+    parsing_issues: list[str]
+
+
+def parse_division(division_fight_type_raw: str) -> ParseDivisionResult:
+    parsing_issues = []
+    fight_type = None
+    weight_division = None
+    division_fight_type = (
+        division_fight_type_raw.replace("UFC", "")
+        .replace("Ultimate Fighter", "")
+        .replace("Ultimate", "")
+        .replace("Latin America", "")
+        .replace("Australia vs. UK", "")
+        .replace("TUF Nations Canada vs. Australia", "")
+        .replace("Japan", "")
+        .replace("Championship", "Title")
+        .replace("Superfight", "Open Weight")
+        .replace("Tournament Title", "Title")
+        .replace("Tournament", "Open Weight")
+        .replace("'", "")
+        .replace("Womens", "Women's")
+        .replace("Road To", "")
+        .replace("Road to", "")
+        .strip()
+    )
+
+    division_fight_type = (
+        re.sub("\\d", "", division_fight_type)
+        .strip()
+        .replace("Brazil", "")
+        .replace("China", "")
+        .replace("Interim", "")
+    )
+    division_fight_type_split = division_fight_type.split(" ")
+    division_fight_type_split = [i for i in division_fight_type_split if i != ""]
+    n_words = len(division_fight_type_split)
+
+    if n_words == 4:
+        weight_division = " ".join(division_fight_type_split[0:2])
+        fight_type = " ".join(division_fight_type_split[2:4])
+    elif n_words == 3:
+        if "Title" in division_fight_type_split:
+            weight_division = " ".join(division_fight_type_split[0:1])
+            fight_type = " ".join(division_fight_type_split[1:3])
+        elif division_fight_type_split[-1] == "Bout":
+            weight_division = " ".join(division_fight_type_split[0:2])
+            fight_type = " ".join(division_fight_type_split[2:3])
+        else:
+            parsing_issues.append(
+                f"unhandled 3 words division fight type parsing. {division_fight_type_split}"
+            )
+
+    elif n_words == 2:
+        if division_fight_type == "Title Bout":
+            weight_division = "Open Weight"
+            fight_type = "Title Bout"
+        else:
+            weight_division, fight_type = division_fight_type.split(" ")
+    else:
+        parsing_issues.append(f"unhandled number of words  < 2 and > 4 {division_fight_type_split}")
+
+    try:
+        fight_type = FightType(fight_type)
+    except ValueError as e:
+        parsing_issues.append(str(e))
+        fight_type = None
+
+    try:
+        weight_division = UFCDivisionNames(weight_division)
+    except ValueError as e:
+        parsing_issues.append(str(e))
+        weight_division = None
+
+    return ParseDivisionResult(fight_type, weight_division, parsing_issues)
+
+
+def parse_upcoming_fight(
+    fight_html: bs4.BeautifulSoup, event_uid: str, fight_uid: str
+) -> FightDetailsParsingResult | None:
+    parsing_issues: list[str] = []
+
+    person_links = fight_html.find_all("a", class_="b-link b-fight-details__person-link")
+    assert len(person_links) == 2
+    f1_uid, f2_uid = [str(i["href"]).split("/")[-1] for i in person_links]
+
+    division_fight_type_raw = fight_html.find("i", class_="b-fight-details__fight-title")
+    fight_type = None
+    weight_division = None
+    if division_fight_type_raw is not None:
+        division_result = parse_division(division_fight_type_raw.text)
+        fight_type = division_result.fight_type
+        weight_division = division_result.weight_division
+        parsing_issues.extend(division_result.parsing_issues)
+
+    fight = UFCFight(
+        event_uid=event_uid,
+        fight_uid=fight_uid,
+        fight_style=FightStyle.MMA,
+        fight_type=fight_type,
+        fight_division=weight_division,
+        fighter1_uid=f1_uid,
+        fighter2_uid=f2_uid,
+        fighter1_result=None,
+        fighter2_result=None,
+        decision=None,
+        decision_round=None,
+        decision_time_seconds=None,
+        referee=None,
+    )
+
+    return FightDetailsParsingResult(uid=fight_uid, result=fight, issues=parsing_issues)
+
+
 def parse_fight_details(
     fight_html: bs4.BeautifulSoup, event_uid: str, fight_uid: str
 ) -> FightDetailsParsingResult | None:
@@ -274,73 +393,10 @@ def parse_fight_details(
     weight_division = None
     fight_type = None
     if division_fight_type_raw is not None:
-        division_fight_type = (
-            division_fight_type_raw.text.replace("UFC", "")
-            .replace("Ultimate Fighter", "")
-            .replace("Ultimate", "")
-            .replace("Latin America", "")
-            .replace("Australia vs. UK", "")
-            .replace("TUF Nations Canada vs. Australia", "")
-            .replace("Japan", "")
-            .replace("Championship", "Title")
-            .replace("Superfight", "Open Weight")
-            .replace("Tournament Title", "Title")
-            .replace("Tournament", "Open Weight")
-            .replace("'", "")
-            .replace("Womens", "Women's")
-            .replace("Road To", "")
-            .replace("Road to", "")
-            .strip()
-        )
-
-        division_fight_type = (
-            re.sub("\\d", "", division_fight_type)
-            .strip()
-            .replace("Brazil", "")
-            .replace("China", "")
-            .replace("Interim", "")
-        )
-        division_fight_type_split = division_fight_type.split(" ")
-        division_fight_type_split = [i for i in division_fight_type_split if i != ""]
-        n_words = len(division_fight_type_split)
-
-        if n_words == 4:
-            weight_division = " ".join(division_fight_type_split[0:2])
-            fight_type = " ".join(division_fight_type_split[2:4])
-        elif n_words == 3:
-            if "Title" in division_fight_type_split:
-                weight_division = " ".join(division_fight_type_split[0:1])
-                fight_type = " ".join(division_fight_type_split[1:3])
-            elif division_fight_type_split[-1] == "Bout":
-                weight_division = " ".join(division_fight_type_split[0:2])
-                fight_type = " ".join(division_fight_type_split[2:3])
-            else:
-                parsing_issues.append(
-                    f"unhandled 3 words division fight type parsing. {division_fight_type_split}"
-                )
-
-        elif n_words == 2:
-            if division_fight_type == "Title Bout":
-                weight_division = "Open Weight"
-                fight_type = "Title Bout"
-            else:
-                weight_division, fight_type = division_fight_type.split(" ")
-        else:
-            parsing_issues.append(
-                f"unhandled number of words  < 2 and > 4 {division_fight_type_split}"
-            )
-
-        try:
-            fight_type = FightType(fight_type)
-        except ValueError as e:
-            parsing_issues.append(str(e))
-            fight_type = None
-
-        try:
-            weight_division = UFCDivisionNames(weight_division)
-        except ValueError as e:
-            parsing_issues.append(str(e))
-            weight_division = None
+        division_result = parse_division(division_fight_type_raw.text)
+        fight_type = division_result.fight_type
+        weight_division = division_result.weight_division
+        parsing_issues.extend(division_result.parsing_issues)
 
     fight = UFCFight(
         event_uid=event_uid,
@@ -361,9 +417,9 @@ def parse_fight_details(
     return FightDetailsParsingResult(uid=fight_uid, result=fight, issues=parsing_issues)
 
 
-def check_file_issues(
+def check_fight_type(
     fight_contents: FileContents, fight_html: bs4.BeautifulSoup
-) -> Optional[FightParsingResult]:
+) -> FightParsingResult | FightParsingType:
     file_error_indicators = [
         "Round-by-round stats not currently available.",
     ]
@@ -379,18 +435,11 @@ def check_file_issues(
                 total_stats=None,
                 sig_stats=None,
                 file_issues=[error_indicator],
+                fight_parsing_type=FightParsingType.unknown,
             )
 
     fight_tables = fight_html.find_all("table")
-    if len(fight_tables) != 4:
-        return FightParsingResult(
-            fight_uid=fight_contents.uid,
-            fight_result=None,
-            total_stats=None,
-            sig_stats=None,
-            file_issues=[f"unhandled number of tables: {len(fight_tables)}"],
-        )
-    return None
+    return FightParsingType.upcoming if len(fight_tables) == 1 else FightParsingType.previous
 
 
 def parse_fight(
@@ -402,11 +451,22 @@ def parse_fight(
         print(create_header(80, title, False, "."))
 
     fight_html = bs4.BeautifulSoup(fight_contents.contents, features="lxml")
-    check_results = check_file_issues(fight_contents, fight_html)
-    if check_results is not None:
-        return check_results
+    pre_run_check = check_fight_type(fight_contents, fight_html)
+    if isinstance(pre_run_check, FightParsingResult):
+        return pre_run_check
 
     event_uid = get_event_uid(fight_html)
+    if pre_run_check.value == FightParsingType.upcoming.value:
+        details = parse_upcoming_fight(fight_html, event_uid, fight_contents.uid)
+        return FightParsingResult(
+            fight_uid=fight_contents.uid,
+            fight_result=details,
+            total_stats=None,
+            sig_stats=None,
+            file_issues=file_issues,
+            fight_parsing_type=pre_run_check,
+        )
+
     fight_parsing_results = parse_fight_details(fight_html, event_uid, fight_contents.uid)
     total_stats = parse_round_totals(fight_html, fight_contents.uid)
     sig_stats = parse_sig_stats(fight_html, fight_contents.uid)
@@ -417,6 +477,7 @@ def parse_fight(
         total_stats=total_stats,
         sig_stats=sig_stats,
         file_issues=file_issues,
+        fight_parsing_type=pre_run_check,
     )
 
 
