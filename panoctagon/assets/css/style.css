@@ -221,18 +221,18 @@ svg.main-svg {
     font-weight: 600 !important;
     background-color: #1a1a1a !important;
     color: rgb(242, 240, 227) !important;
-    padding: 10px 20px !important;
-    border-radius: 0 0 0 0 !important;
+    padding: 8px 16px !important;
+    border-radius: 0 !important;
     font-size: 14px !important;
     margin-bottom: 0 !important;
-    margin-left: 50px !important;
+    margin-left: 10px !important;
     display: inline-block !important;
 }
 
 .plot-container-wrapper {
     background-color: rgb(242, 240, 227) !important;
     padding-top: 0 !important;
-    margin-top: -2px !important;
+    margin-top: 0 !important;
 }
 
 .plot-container-wrapper .dash-graph {

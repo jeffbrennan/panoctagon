@@ -6,6 +6,7 @@ from dash import Input, Output, callback, dcc, html
 from panoctagon.common import get_engine
 from panoctagon.dashboard.common import (
     DIVISION_COLORS,
+    PLOT_COLORS,
     apply_figure_styling,
     filter_data,
     get_fighter_divisions,
@@ -188,7 +189,7 @@ def update_strikes_comparison(fighter: str):
                 x=comparison["event_date"].to_list(),
                 y=comparison["total_strikes_landed"].to_list(),
                 name="Fighter Strikes Landed",
-                marker_color="green",
+                marker_color=PLOT_COLORS["primary"],
             )
         )
         fig.add_trace(
@@ -196,7 +197,7 @@ def update_strikes_comparison(fighter: str):
                 x=comparison["event_date"].to_list(),
                 y=comparison["opponent_strikes_landed"].to_list(),
                 name="Opponent Strikes Landed",
-                marker_color="red",
+                marker_color=PLOT_COLORS["tertiary"],
             )
         )
 
@@ -450,7 +451,7 @@ def create_matchup_discrepancy_figure(matchup_df: pl.DataFrame) -> go.Figure:
             y=(age_win_rates["win_rate"] * 100).to_list(),
             mode="lines+markers",
             name="Age Advantage",
-            line=dict(color="#e63946", width=2),
+            line=dict(color=PLOT_COLORS["primary"], width=2),
             marker=dict(size=10),
             hovertemplate="Age diff: %{x}<br>Win rate: %{y:.1f}%<br>Fights: %{customdata}<extra></extra>",
             customdata=age_win_rates["count"].to_list(),
@@ -463,7 +464,7 @@ def create_matchup_discrepancy_figure(matchup_df: pl.DataFrame) -> go.Figure:
             y=(reach_win_rates["win_rate"] * 100).to_list(),
             mode="lines+markers",
             name="Reach Advantage",
-            line=dict(color="#457b9d", width=2),
+            line=dict(color=PLOT_COLORS["secondary"], width=2),
             marker=dict(size=10),
             hovertemplate="Reach diff: %{x}<br>Win rate: %{y:.1f}%<br>Fights: %{customdata}<extra></extra>",
             customdata=reach_win_rates["count"].to_list(),
@@ -477,7 +478,7 @@ def create_matchup_discrepancy_figure(matchup_df: pl.DataFrame) -> go.Figure:
             y=(exp_win_rates["win_rate"] * 100).to_list(),
             mode="lines+markers",
             name="Experience Advantage",
-            line=dict(color="#2a9d8f", width=2),
+            line=dict(color=PLOT_COLORS["tertiary"], width=2),
             marker=dict(size=10),
             hovertemplate="Exp diff: %{x}<br>Win rate: %{y:.1f}%<br>Fights: %{customdata}<extra></extra>",
             customdata=exp_win_rates["count"].to_list(),
@@ -560,7 +561,7 @@ def create_striking_target_winrate_figure(roster_df: pl.DataFrame) -> go.Figure:
     target_df = pl.DataFrame(target_data)
 
     fig = go.Figure()
-    colors = {"Head": "#e63946", "Body": "#457b9d", "Leg": "#2a9d8f"}
+    colors = {"Head": PLOT_COLORS["head"], "Body": PLOT_COLORS["body"], "Leg": PLOT_COLORS["leg"]}
 
     for target in ["Head", "Body", "Leg"]:
         t_data = target_df.filter(pl.col("target") == target)

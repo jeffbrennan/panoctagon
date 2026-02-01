@@ -300,3 +300,17 @@ DIVISION_COLORS = {
     "Catch Weight": "#808080",
     "Open Weight": "#A9A9A9",
 }
+
+PLOT_COLORS = {
+    "primary": "#1a1a1a",
+    "secondary": "#4a4a4a",
+    "tertiary": "#7a7a7a",
+    "quaternary": "#a0a0a0",
+    "win": "#2d5a27",
+    "loss": "#8b3a3a",
+    "draw": "#5c5c5c",
+    "neutral": "#5c5c5c",
+    "head": "#1a1a1a",
+    "body": "#5c5c5c",
+    "leg": "#a0a0a0",
+}

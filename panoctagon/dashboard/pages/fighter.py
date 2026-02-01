@@ -8,6 +8,7 @@ from dash import ALL, Input, Output, callback, ctx, dash_table, html
 
 from panoctagon.dashboard.common import (
     PLACEHOLDER_IMAGE,
+    PLOT_COLORS,
     apply_figure_styling,
     create_plot_with_title,
     filter_data,
@@ -192,10 +193,10 @@ def update_career_timeline(fighter: str):
     )
 
     color_map = {
-        "WIN": "#7370ff",
-        "LOSS": "#ff7e70",
-        "DRAW": "gray",
-        "NO_CONTEST": "orange",
+        "WIN": PLOT_COLORS["win"],
+        "LOSS": PLOT_COLORS["loss"],
+        "DRAW": PLOT_COLORS["draw"],
+        "NO_CONTEST": PLOT_COLORS["tertiary"],
     }
     marker_colors = [
         color_map.get(result, "gray") for result in fight_timeline["fighter_result"].to_list()
@@ -301,6 +302,18 @@ def update_win_method_chart(fighter: str):
 
     fig = go.Figure()
 
+    method_colors = {
+        "KO": PLOT_COLORS["primary"],
+        "TKO": PLOT_COLORS["secondary"],
+        "SUB": PLOT_COLORS["tertiary"],
+        "Submission": PLOT_COLORS["tertiary"],
+        "UNANIMOUS_DECISION": PLOT_COLORS["quaternary"],
+        "SPLIT_DECISION": "#b8b8b8",
+        "MAJORITY_DECISION": "#c8c8c8",
+        "DQ": PLOT_COLORS["neutral"],
+        "DOC": PLOT_COLORS["neutral"],
+    }
+
     if win_counts.height > 0:
         for row in win_counts.iter_rows(named=True):
             method = row["decision"]
@@ -313,6 +326,7 @@ def update_win_method_chart(fighter: str):
                     orientation="h",
                     text=f"{method} ({count})",
                     textposition="inside",
+                    marker_color=method_colors.get(method, PLOT_COLORS["neutral"]),
                 )
             )
 
@@ -330,6 +344,7 @@ def update_win_method_chart(fighter: str):
                     text=f"{method} ({count})",
                     textposition="inside",
                     showlegend=method not in win_methods_set,
+                    marker_color=method_colors.get(method, PLOT_COLORS["neutral"]),
                 )
             )
 
@@ -470,6 +485,10 @@ def update_accuracy_trend(fighter: str):
             y="accuracy",
             markers=True,
         )
+        fig.update_traces(
+            line_color=PLOT_COLORS["primary"],
+            marker_color=PLOT_COLORS["primary"],
+        )
         fig.update_yaxes(title="Accuracy (%)", range=[0, 100])
 
     fig.update_layout(height=400)
@@ -505,6 +524,7 @@ def update_target_distribution(fighter: str):
                 x=strike_targets["event_date"].to_list(),
                 y=strike_targets["sig_strikes_head_landed"].to_list(),
                 name="Head",
+                marker_color=PLOT_COLORS["head"],
             )
         )
         fig.add_trace(
@@ -512,6 +532,7 @@ def update_target_distribution(fighter: str):
                 x=strike_targets["event_date"].to_list(),
                 y=strike_targets["sig_strikes_body_landed"].to_list(),
                 name="Body",
+                marker_color=PLOT_COLORS["body"],
             )
         )
         fig.add_trace(
@@ -519,6 +540,7 @@ def update_target_distribution(fighter: str):
                 x=strike_targets["event_date"].to_list(),
                 y=strike_targets["sig_strikes_leg_landed"].to_list(),
                 name="Leg",
+                marker_color=PLOT_COLORS["leg"],
             )
         )
 

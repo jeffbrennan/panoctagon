@@ -39,7 +39,7 @@ app.layout = dmc.MantineProvider(
                 dmc.AppShellHeader(
                     dmc.Group(
                         [
-                            dmc.Title("panoctagon", c="red", size="h2"),
+                            dmc.Title("panoctagon", c="#1a1a1a", size="h2"),
                             dmc.Badge(
                                 f"Data current as of {get_last_refresh()}",
                                 color="gray",
