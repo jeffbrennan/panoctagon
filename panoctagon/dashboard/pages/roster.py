@@ -1,6 +1,6 @@
-import polars as pl
 import plotly.express as px
 import plotly.graph_objects as go
+import polars as pl
 from dash import Input, Output, callback, dcc, html
 
 from panoctagon.common import get_engine
@@ -243,7 +243,10 @@ def create_fighter_clustering_figure(
     roster_df = roster_df.with_columns(
         [
             pl.col("fighter_name")
-            .map_elements(lambda x: normalize_division(fighter_divisions.get(x, "Unknown")), return_dtype=pl.String)
+            .map_elements(
+                lambda x: normalize_division(fighter_divisions.get(x, "Unknown")),
+                return_dtype=pl.String,
+            )
             .alias("division"),
             (pl.col("wins") / pl.col("total_fights") * 100).alias("win_pct"),
         ]
@@ -284,7 +287,12 @@ def create_fighter_clustering_figure(
 
     max_landed = roster_df["avg_strikes_landed"].max()
     max_absorbed = roster_df["avg_strikes_absorbed"].max()
-    max_val = float(max(max_landed if max_landed is not None else 0, max_absorbed if max_absorbed is not None else 0))  # type: ignore[arg-type]
+    max_val = float(
+        max(
+            max_landed if max_landed is not None else 0,
+            max_absorbed if max_absorbed is not None else 0,
+        )
+    )  # type: ignore[arg-type]
     fig.add_shape(
         type="line",
         x0=0,
@@ -325,9 +333,7 @@ def create_matchup_discrepancy_figure(matchup_df: pl.DataFrame) -> go.Figure:
     date_columns = ["event_date", "fighter1_dob", "fighter2_dob"]
     for col in date_columns:
         if matchup_df[col].dtype == pl.String:
-            matchup_df = matchup_df.with_columns(
-                pl.col(col).str.strptime(pl.Date, "%Y-%m-%d")
-            )
+            matchup_df = matchup_df.with_columns(pl.col(col).str.strptime(pl.Date, "%Y-%m-%d"))
 
     matchup_df = matchup_df.with_columns(
         [
@@ -505,16 +511,13 @@ def create_striking_target_winrate_figure(roster_df: pl.DataFrame) -> go.Figure:
         fig.update_layout(height=500)
         return apply_figure_styling(fig)
 
-    roster_df = (
-        roster_df.filter(pl.col("total_sig_strikes") > 0)
-        .with_columns(
-            [
-                (pl.col("total_head_strikes") / pl.col("total_sig_strikes") * 100).alias("head_pct"),
-                (pl.col("total_body_strikes") / pl.col("total_sig_strikes") * 100).alias("body_pct"),
-                (pl.col("total_leg_strikes") / pl.col("total_sig_strikes") * 100).alias("leg_pct"),
-                (pl.col("wins") / pl.col("total_fights") * 100).alias("win_pct"),
-            ]
-        )
+    roster_df = roster_df.filter(pl.col("total_sig_strikes") > 0).with_columns(
+        [
+            (pl.col("total_head_strikes") / pl.col("total_sig_strikes") * 100).alias("head_pct"),
+            (pl.col("total_body_strikes") / pl.col("total_sig_strikes") * 100).alias("body_pct"),
+            (pl.col("total_leg_strikes") / pl.col("total_sig_strikes") * 100).alias("leg_pct"),
+            (pl.col("wins") / pl.col("total_fights") * 100).alias("win_pct"),
+        ]
     )
 
     bins = [0, 40, 50, 60, 70, 80, 100]
@@ -524,9 +527,7 @@ def create_striking_target_winrate_figure(roster_df: pl.DataFrame) -> go.Figure:
     for target, col in [("Head", "head_pct"), ("Body", "body_pct"), ("Leg", "leg_pct")]:
         temp_df = roster_df.with_columns(
             pl.col(col).cut(breaks=bins).alias("bin_cat")
-        ).with_columns(
-            pl.col("bin_cat").cast(pl.String).alias("bin")
-        )
+        ).with_columns(pl.col("bin_cat").cast(pl.String).alias("bin"))
 
         bin_mapping = {
             "(-inf, 0.0]": None,
@@ -636,7 +637,7 @@ roster_analysis_content = html.Div(
         ),
         html.Div(
             [
-                html.Div("Matchup Discrepancy", className="plot-title"),
+                html.Div("Matchup Discrepancy", className="plot-title plot-title-with-legend"),
                 html.Div(
                     dcc.Graph(
                         id="matchup-discrepancy",

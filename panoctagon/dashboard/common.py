@@ -35,12 +35,15 @@ def apply_figure_styling(fig: go.Figure) -> go.Figure:
     return fig
 
 
-def create_plot_with_title(title: str, graph_id: str, margin_bottom: bool = False) -> html.Div:
+def create_plot_with_title(
+    title: str, graph_id: str, margin_bottom: bool = False, has_top_legend: bool = False
+) -> html.Div:
+    title_class = "plot-title plot-title-with-legend" if has_top_legend else "plot-title"
     return html.Div(
         [
             html.Div(
                 title,
-                className="plot-title",
+                className=title_class,
             ),
             html.Div(
                 dcc.Graph(
