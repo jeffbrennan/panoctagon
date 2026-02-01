@@ -772,7 +772,7 @@ fighter_analysis_content = html.Div(
                         style_data={
                             "border": "none",
                         },
-                        style_cell_conditional=[
+                        style_cell_conditional=[  # type: ignore[arg-type]
                             {
                                 "if": {"column_id": ""},
                                 "width": "40px",

@@ -281,10 +281,9 @@ def create_fighter_clustering_figure(
             )
         )
 
-    max_val = max(
-        roster_df["avg_strikes_landed"].max(),
-        roster_df["avg_strikes_absorbed"].max(),
-    )
+    max_landed = roster_df["avg_strikes_landed"].max()
+    max_absorbed = roster_df["avg_strikes_absorbed"].max()
+    max_val = float(max(max_landed if max_landed is not None else 0, max_absorbed if max_absorbed is not None else 0))  # type: ignore[arg-type]
     fig.add_shape(
         type="line",
         x0=0,

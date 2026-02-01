@@ -17,7 +17,7 @@ def build_fighter_graph(
     dict[tuple[str, str], int],
 ]:
     G = nx.DiGraph()
-    fighter_opponents_by_year: dict[str, dict[str, list[str]]] = {}
+    fighter_opponents_by_year: dict[str, dict[str, dict[str, list[str]]]] = {}
     fighter_stats: dict[str, dict[str, int]] = {}
     fighter_matchups: dict[tuple[str, str], int] = {}
 
@@ -371,10 +371,10 @@ fighter_network_content = html.Div(
             [
                 html.Div(
                     [
-                        dmc.Text("Division", size="sm", fw=500, mb="xs", c="#1a1a1a"),
+                        dmc.Text("Division", size="sm", mb="xs", style={"color": " #1a1a1a"}),
                         dmc.Select(
                             id="network-division-dropdown",
-                            data=[
+                            data=[  # pyright: ignore[reportArgumentType]
                                 {"value": "HEAVYWEIGHT", "label": "Heavyweight"},
                                 {"value": "LIGHT_HEAVYWEIGHT", "label": "Light Heavyweight"},
                                 {"value": "MIDDLEWEIGHT", "label": "Middleweight"},
@@ -397,7 +397,7 @@ fighter_network_content = html.Div(
                 ),
                 html.Div(
                     [
-                        dmc.Text("Year Range", size="sm", fw=500, mb="xs", c="#1a1a1a"),
+                        dmc.Text("Year Range", size="sm", mb="xs", style={"color:": "#1a1a1a"}),
                         dcc.RangeSlider(
                             id="network-year-slider",
                             min=1997,

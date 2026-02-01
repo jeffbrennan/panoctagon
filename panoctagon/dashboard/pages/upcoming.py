@@ -226,7 +226,7 @@ def create_matchup_card(
     )
 
 
-def create_matchup_row(fight: dict) -> html.Div:
+def create_matchup_row(fight: dict) -> dmc.Paper:
     fighter1_card = create_matchup_card(fight, 1, 2)
     fighter2_card = create_matchup_card(fight, 2, 1)
 
