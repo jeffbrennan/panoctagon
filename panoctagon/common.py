@@ -374,7 +374,7 @@ def get_table_rows(soup: bs4.BeautifulSoup) -> list[bs4.ResultSet[bs4.Tag]]:
         if rows is None:
             raise ValueError()
 
-        all_results.extend(rows)
+        all_results.append(rows)
 
     return all_results
 

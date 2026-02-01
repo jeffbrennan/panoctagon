@@ -459,7 +459,9 @@ def parse_fight(
 
     event_uid = get_event_uid(fight_html)
     if pre_run_check.value == FightParsingType.upcoming.value:
-        details = parse_upcoming_fight(fight_html, event_uid, fight_contents.uid, fight_contents.fight_order)
+        details = parse_upcoming_fight(
+            fight_html, event_uid, fight_contents.uid, fight_contents.fight_order
+        )
         return FightParsingResult(
             fight_uid=fight_contents.uid,
             fight_result=details,
@@ -469,7 +471,9 @@ def parse_fight(
             fight_parsing_type=pre_run_check,
         )
 
-    fight_parsing_results = parse_fight_details(fight_html, event_uid, fight_contents.uid, fight_contents.fight_order)
+    fight_parsing_results = parse_fight_details(
+        fight_html, event_uid, fight_contents.uid, fight_contents.fight_order
+    )
     total_stats = parse_round_totals(fight_html, fight_contents.uid)
     sig_stats = parse_sig_stats(fight_html, fight_contents.uid)
 

@@ -1,5 +1,5 @@
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -200,11 +200,8 @@ def scrape_fights_parallel(
     events_to_parse: list[EventToParse], force: bool, max_workers: int = 8
 ) -> list[FightScrapingResult]:
     results = []
-    # with requests.Session() as session:
-    #     get_fights_from_event(events_to_parse[0], force, session)
-
     with requests.Session() as session:
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
             future_to_event = {
                 executor.submit(get_fights_from_event, event, force, session): event
                 for event in events_to_parse
