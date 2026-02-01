@@ -18,8 +18,8 @@ from panoctagon.dashboard.pages.upcoming import create_upcoming_fights_content
 def get_last_refresh() -> str:
     return (
         pd.read_sql_query(
-            "select max(event_date::DATE) AS event_date FROM ufc_events", get_engine()
-        )["event_date"]
+            "select max(downloaded_ts::DATE) AS downloaded FROM ufc_events", get_engine()
+        )["downloaded"]
         .iloc[0]
         .strftime("%Y-%m-%d")
     )
