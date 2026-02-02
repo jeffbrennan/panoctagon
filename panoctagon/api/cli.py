@@ -7,12 +7,6 @@ from typing import Any, Optional
 import httpx
 import typer
 
-app = typer.Typer(
-    name="data",
-    help="Query UFC fight data from the API",
-    pretty_exceptions_enable=False,
-)
-
 DEFAULT_API_URL = "http://localhost:8000"
 
 
@@ -84,7 +78,7 @@ def api_request(endpoint: str, params: Optional[dict[str, Any]] = None) -> Any:
         return response.json()
     except httpx.ConnectError:
         typer.echo(f"Error: Could not connect to API at {get_api_url()}", err=True)
-        typer.echo("Make sure the API server is running: uv run panoctagon serve", err=True)
+        typer.echo("Start the API server first: uv run panoctagon serve", err=True)
         raise typer.Exit(1)
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 404:
@@ -95,25 +89,79 @@ def api_request(endpoint: str, params: Optional[dict[str, Any]] = None) -> Any:
         raise typer.Exit(1)
 
 
-@app.command("fighter")
-def fighter_search(
-    name: Optional[str] = typer.Option(None, "--name", "-n", help="Search by fighter name"),
-    division: Optional[str] = typer.Option(None, "--division", "-d", help="Filter by weight class"),
-    limit: int = typer.Option(20, "--limit", "-l", help="Maximum results"),
-    fmt: OutputFormat = typer.Option(OutputFormat.table, "--format", "-f", help="Output format"),
-) -> None:
-    """Search for fighters by name or division."""
+def format_division(div: Optional[str]) -> str:
+    if not div:
+        return "Unknown"
+    return div.replace("_", " ").title()
+
+
+def upcoming_impl(fmt: OutputFormat) -> None:
+    data = api_request("/upcoming")
+
+    if fmt == OutputFormat.json:
+        typer.echo(format_output(data, fmt))
+        return
+
+    if not data:
+        typer.echo("No upcoming events found.")
+        return
+
+    for event in data:
+        typer.echo(f"\n{event['event_title']}")
+        typer.echo(f"{event['event_date']} - {event['event_location']}")
+        typer.echo("=" * 60)
+
+        for fight in event["fights"]:
+            division = format_division(fight.get("fight_division"))
+            fight_type = " [TITLE]" if fight.get("fight_type") and "title" in fight["fight_type"].lower() else ""
+
+            typer.echo(f"\n{division}{fight_type}")
+            f1 = f"{fight['fighter1_name']} ({fight['fighter1_record']})"
+            f2 = f"{fight['fighter2_name']} ({fight['fighter2_record']})"
+            typer.echo(f"  {f1}")
+            typer.echo(f"    vs")
+            typer.echo(f"  {f2}")
+
+
+def rankings_impl(division: Optional[str], min_fights: int, limit: int, fmt: OutputFormat) -> None:
+    data = api_request("/rankings", {"division": division, "min_fights": min_fights, "limit": limit})
+
+    if fmt == OutputFormat.json:
+        typer.echo(format_output(data, fmt))
+        return
+
+    if not data:
+        typer.echo("No rankings found.")
+        return
+
+    current_division = None
+    for fighter in data:
+        if fighter["division"] != current_division:
+            current_division = fighter["division"]
+            div_display = format_division(current_division)
+            typer.echo(f"\n{div_display}")
+            typer.echo("-" * 50)
+            typer.echo(f"{'Rank':<5} {'Fighter':<25} {'Record':<12} {'Win%':<6}")
+            typer.echo("-" * 50)
+
+        record = f"{fighter['wins']}-{fighter['losses']}-{fighter['draws']}"
+        typer.echo(f"{fighter['rank']:<5} {fighter['full_name']:<25} {record:<12} {fighter['win_rate']:<6.1f}")
+
+
+def search_impl(name: str, division: Optional[str], limit: int, fmt: OutputFormat) -> None:
     data = api_request("/fighter", {"name": name, "division": division, "limit": limit})
     columns = ["full_name", "nickname", "stance", "division", "wins", "losses", "draws"]
     typer.echo(format_output(data, fmt, columns))
 
 
-@app.command("fighter-detail")
-def fighter_detail(
-    fighter_uid: str = typer.Argument(..., help="Fighter UID"),
-    fmt: OutputFormat = typer.Option(OutputFormat.table, "--format", "-f", help="Output format"),
-) -> None:
-    """Get detailed information about a specific fighter."""
+def fighter_impl(name: str, fmt: OutputFormat) -> None:
+    fighters = api_request("/fighter", {"name": name, "limit": 1})
+
+    if not fighters:
+        typer.echo(f"No fighter found matching '{name}'", err=True)
+        raise typer.Exit(1)
+
+    fighter_uid = fighters[0]["fighter_uid"]
     data = api_request(f"/fighter/{fighter_uid}")
 
     if fmt == OutputFormat.json:
@@ -148,124 +196,111 @@ def fighter_detail(
         typer.echo(format_table(fights, columns))
 
 
-@app.command("upcoming")
-def upcoming_fights(
-    fmt: OutputFormat = typer.Option(OutputFormat.table, "--format", "-f", help="Output format"),
-) -> None:
-    """List upcoming UFC events and matchups."""
-    data = api_request("/upcoming")
+def record_impl(name: str, fmt: OutputFormat) -> None:
+    fighters = api_request("/fighter", {"name": name, "limit": 5})
+
+    if not fighters:
+        typer.echo(f"No fighter found matching '{name}'", err=True)
+        raise typer.Exit(1)
 
     if fmt == OutputFormat.json:
-        typer.echo(format_output(data, fmt))
+        records = [
+            {
+                "name": f["full_name"],
+                "record": f"{f['wins']}-{f['losses']}-{f['draws']}",
+                "wins": f["wins"],
+                "losses": f["losses"],
+                "draws": f["draws"],
+            }
+            for f in fighters
+        ]
+        typer.echo(json.dumps(records, indent=2))
         return
 
-    if not data:
-        typer.echo("No upcoming events found.")
-        return
-
-    for event in data:
-        typer.echo(f"\n{event['event_title']}")
-        typer.echo(f"{event['event_date']} - {event['event_location']}")
-        typer.echo("=" * 60)
-
-        for fight in event["fights"]:
-            division = fight.get("fight_division") or "TBD"
-            division = division.replace("_", " ").title() if division else "TBD"
-            fight_type = " [TITLE]" if fight.get("fight_type") and "title" in fight["fight_type"].lower() else ""
-
-            typer.echo(f"\n{division}{fight_type}")
-            f1 = f"{fight['fighter1_name']} ({fight['fighter1_record']})"
-            f2 = f"{fight['fighter2_name']} ({fight['fighter2_record']})"
-            typer.echo(f"  {f1}")
-            typer.echo(f"    vs")
-            typer.echo(f"  {f2}")
+    for f in fighters:
+        record = f"{f['wins']}-{f['losses']}-{f['draws']}"
+        typer.echo(f"{f['full_name']}: {record}")
 
 
-@app.command("rankings")
-def rankings(
-    division: Optional[str] = typer.Option(None, "--division", "-d", help="Filter by weight class"),
-    min_fights: int = typer.Option(5, "--min-fights", "-m", help="Minimum UFC fights"),
-    limit: int = typer.Option(15, "--limit", "-l", help="Top N per division"),
-    fmt: OutputFormat = typer.Option(OutputFormat.table, "--format", "-f", help="Output format"),
-) -> None:
-    """Show fighter rankings by win rate within each division."""
-    data = api_request("/rankings", {"division": division, "min_fights": min_fights, "limit": limit})
+def history_impl(name: str, limit: int, fmt: OutputFormat) -> None:
+    fighters = api_request("/fighter", {"name": name, "limit": 1})
+
+    if not fighters:
+        typer.echo(f"No fighter found matching '{name}'", err=True)
+        raise typer.Exit(1)
+
+    fighter_uid = fighters[0]["fighter_uid"]
+    data = api_request(f"/fighter/{fighter_uid}")
 
     if fmt == OutputFormat.json:
-        typer.echo(format_output(data, fmt))
+        typer.echo(json.dumps(data["recent_fights"][:limit], indent=2, default=str))
         return
 
-    if not data:
-        typer.echo("No rankings found.")
+    bio = data["bio"]
+    fights = data["recent_fights"][:limit]
+
+    typer.echo(f"\n{bio['full_name']} - Fight History")
+    typer.echo("=" * 70)
+
+    for fight in fights:
+        result = fight.get("result") or "UPCOMING"
+        decision = fight.get("decision") or ""
+        rd = f"R{fight['decision_round']}" if fight.get("decision_round") else ""
+
+        result_str = f"{result}"
+        if decision:
+            result_str += f" ({decision}"
+            if rd:
+                result_str += f" {rd}"
+            result_str += ")"
+
+        typer.echo(f"{fight['event_date']}  vs {fight['opponent_name']:<25} {result_str}")
+
+
+def compare_impl(fighter1: str, fighter2: str, fmt: OutputFormat) -> None:
+    f1_list = api_request("/fighter", {"name": fighter1, "limit": 1})
+    f2_list = api_request("/fighter", {"name": fighter2, "limit": 1})
+
+    if not f1_list:
+        typer.echo(f"No fighter found matching '{fighter1}'", err=True)
+        raise typer.Exit(1)
+    if not f2_list:
+        typer.echo(f"No fighter found matching '{fighter2}'", err=True)
+        raise typer.Exit(1)
+
+    f1_detail = api_request(f"/fighter/{f1_list[0]['fighter_uid']}")
+    f2_detail = api_request(f"/fighter/{f2_list[0]['fighter_uid']}")
+
+    if fmt == OutputFormat.json:
+        typer.echo(json.dumps({"fighter1": f1_detail, "fighter2": f2_detail}, indent=2, default=str))
         return
 
-    current_division = None
-    for fighter in data:
-        if fighter["division"] != current_division:
-            current_division = fighter["division"]
-            div_display = current_division.replace("_", " ").title() if current_division else "Unknown"
-            typer.echo(f"\n{div_display}")
-            typer.echo("-" * 50)
-            typer.echo(f"{'Rank':<5} {'Fighter':<25} {'Record':<12} {'Win%':<6}")
-            typer.echo("-" * 50)
+    b1, r1 = f1_detail["bio"], f1_detail["record"]
+    b2, r2 = f2_detail["bio"], f2_detail["record"]
 
-        record = f"{fighter['wins']}-{fighter['losses']}-{fighter['draws']}"
-        typer.echo(f"{fighter['rank']:<5} {fighter['full_name']:<25} {record:<12} {fighter['win_rate']:<6.1f}")
+    typer.echo(f"\n{'='*60}")
+    typer.echo(f"{'TALE OF THE TAPE':^60}")
+    typer.echo(f"{'='*60}")
 
+    def compare_row(label: str, v1: Any, v2: Any) -> None:
+        v1_str = str(v1) if v1 is not None else "-"
+        v2_str = str(v2) if v2 is not None else "-"
+        typer.echo(f"{v1_str:>25}  {label:^8}  {v2_str:<25}")
 
-@app.command("roster")
-def roster(
-    stance: Optional[str] = typer.Option(None, "--stance", "-s", help="Filter by stance"),
-    division: Optional[str] = typer.Option(None, "--division", "-d", help="Filter by weight class"),
-    min_fights: int = typer.Option(5, "--min-fights", "-m", help="Minimum UFC fights"),
-    min_win_rate: Optional[float] = typer.Option(None, "--min-win-rate", help="Minimum win rate %"),
-    max_win_rate: Optional[float] = typer.Option(None, "--max-win-rate", help="Maximum win rate %"),
-    limit: int = typer.Option(50, "--limit", "-l", help="Maximum results"),
-    fmt: OutputFormat = typer.Option(OutputFormat.table, "--format", "-f", help="Output format"),
-) -> None:
-    """Search the UFC roster with filters for stance, division, and statistics."""
-    data = api_request(
-        "/roster",
-        {
-            "stance": stance,
-            "division": division,
-            "min_fights": min_fights,
-            "min_win_rate": min_win_rate,
-            "max_win_rate": max_win_rate,
-            "limit": limit,
-        },
-    )
-    columns = [
-        "full_name",
-        "stance",
-        "division",
-        "wins",
-        "losses",
-        "win_rate",
-        "avg_strikes_landed",
-        "avg_strikes_absorbed",
-    ]
-    typer.echo(format_output(data, fmt, columns))
+    compare_row("NAME", b1["full_name"], b2["full_name"])
+    compare_row("RECORD", f"{r1['wins']}-{r1['losses']}-{r1['draws']}", f"{r2['wins']}-{r2['losses']}-{r2['draws']}")
+    compare_row("STANCE", b1.get("stance"), b2.get("stance"))
+    compare_row("HEIGHT", f"{b1.get('height_inches') or '-'} in", f"{b2.get('height_inches') or '-'} in")
+    compare_row("REACH", f"{b1.get('reach_inches') or '-'} in", f"{b2.get('reach_inches') or '-'} in")
+
+    win_pct_1 = round(r1["wins"] * 100 / r1["total_fights"], 1) if r1["total_fights"] > 0 else 0
+    win_pct_2 = round(r2["wins"] * 100 / r2["total_fights"], 1) if r2["total_fights"] > 0 else 0
+    compare_row("WIN %", f"{win_pct_1}%", f"{win_pct_2}%")
+
+    typer.echo(f"{'='*60}")
 
 
-@app.command("events")
-def events(
-    upcoming_only: bool = typer.Option(False, "--upcoming", "-u", help="Only show upcoming events"),
-    limit: int = typer.Option(20, "--limit", "-l", help="Maximum events"),
-    fmt: OutputFormat = typer.Option(OutputFormat.table, "--format", "-f", help="Output format"),
-) -> None:
-    """List UFC events."""
-    data = api_request("/events", {"upcoming_only": upcoming_only, "limit": limit})
-    columns = ["title", "event_date", "event_location", "num_fights"]
-    typer.echo(format_output(data, fmt, columns))
-
-
-@app.command("fight")
-def fight_detail(
-    fight_uid: str = typer.Argument(..., help="Fight UID"),
-    fmt: OutputFormat = typer.Option(OutputFormat.table, "--format", "-f", help="Output format"),
-) -> None:
-    """Get detailed statistics for a specific fight."""
+def fight_impl(fight_uid: str, fmt: OutputFormat) -> None:
     data = api_request(f"/fight/{fight_uid}")
 
     if fmt == OutputFormat.json:
@@ -273,9 +308,7 @@ def fight_detail(
         return
 
     typer.echo(f"\n{data['event_title']} - {data['event_date']}")
-    division = data.get("fight_division") or "Unknown"
-    division = division.replace("_", " ").title() if division else "Unknown"
-    typer.echo(f"{division}")
+    typer.echo(f"{format_division(data.get('fight_division'))}")
     typer.echo("=" * 60)
 
     f1 = data["fighter1"]
@@ -305,5 +338,40 @@ def fight_detail(
                     typer.echo(f"  {fighter['fighter_name']}: Strikes {strikes}, TD {tds}, Ctrl {ctrl_str}")
 
 
-if __name__ == "__main__":
-    app()
+def event_impl(upcoming_only: bool, limit: int, fmt: OutputFormat) -> None:
+    data = api_request("/events", {"upcoming_only": upcoming_only, "limit": limit})
+    columns = ["title", "event_date", "event_location", "num_fights"]
+    typer.echo(format_output(data, fmt, columns))
+
+
+def roster_impl(
+    stance: Optional[str],
+    division: Optional[str],
+    min_fights: int,
+    min_win_rate: Optional[float],
+    max_win_rate: Optional[float],
+    limit: int,
+    fmt: OutputFormat,
+) -> None:
+    data = api_request(
+        "/roster",
+        {
+            "stance": stance,
+            "division": division,
+            "min_fights": min_fights,
+            "min_win_rate": min_win_rate,
+            "max_win_rate": max_win_rate,
+            "limit": limit,
+        },
+    )
+    columns = [
+        "full_name",
+        "stance",
+        "division",
+        "wins",
+        "losses",
+        "win_rate",
+        "avg_strikes_landed",
+        "avg_strikes_absorbed",
+    ]
+    typer.echo(format_output(data, fmt, columns))
