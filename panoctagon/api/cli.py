@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import sys
 from enum import Enum
 from typing import Any, Optional
 
 import httpx
+import questionary
 import typer
 
 DEFAULT_API_URL = "http://localhost:8000"
@@ -19,6 +21,44 @@ def get_api_url() -> str:
     import os
 
     return os.environ.get("PANOCTAGON_API_URL", DEFAULT_API_URL)
+
+
+def is_interactive() -> bool:
+    return sys.stdin.isatty() and sys.stdout.isatty()
+
+
+def select_fighter(name: str, prompt: Optional[str] = None) -> dict[str, Any]:
+    fighters = api_request("/fighter", {"name": name, "limit": 20})
+
+    if not fighters:
+        typer.echo(f"No fighter found matching '{name}'", err=True)
+        raise typer.Exit(1)
+
+    if len(fighters) == 1:
+        return fighters[0]
+
+    if not is_interactive():
+        return fighters[0]
+
+    prompt_text = prompt or f"Multiple fighters match '{name}'. Select one:"
+    choices = []
+    for f in fighters:
+        record = f"{f['wins']}-{f['losses']}-{f['draws']}"
+        division = format_division(f.get("division"))
+        label = f"{f['full_name']} ({record}) - {division}"
+        choices.append(questionary.Choice(title=label, value=f))
+
+    selected = questionary.select(
+        prompt_text,
+        choices=choices,
+        use_arrow_keys=True,
+        use_jk_keys=True,
+    ).ask()
+
+    if selected is None:
+        raise typer.Exit(0)
+
+    return selected
 
 
 def format_table(data: list[dict[str, Any]], columns: Optional[list[str]] = None) -> str:
@@ -155,14 +195,8 @@ def search_impl(name: str, division: Optional[str], limit: int, fmt: OutputForma
 
 
 def fighter_impl(name: str, fmt: OutputFormat) -> None:
-    fighters = api_request("/fighter", {"name": name, "limit": 1})
-
-    if not fighters:
-        typer.echo(f"No fighter found matching '{name}'", err=True)
-        raise typer.Exit(1)
-
-    fighter_uid = fighters[0]["fighter_uid"]
-    data = api_request(f"/fighter/{fighter_uid}")
+    fighter = select_fighter(name)
+    data = api_request(f"/fighter/{fighter['fighter_uid']}")
 
     if fmt == OutputFormat.json:
         typer.echo(format_output(data, fmt))
@@ -197,40 +231,26 @@ def fighter_impl(name: str, fmt: OutputFormat) -> None:
 
 
 def record_impl(name: str, fmt: OutputFormat) -> None:
-    fighters = api_request("/fighter", {"name": name, "limit": 5})
-
-    if not fighters:
-        typer.echo(f"No fighter found matching '{name}'", err=True)
-        raise typer.Exit(1)
+    fighter = select_fighter(name)
 
     if fmt == OutputFormat.json:
-        records = [
-            {
-                "name": f["full_name"],
-                "record": f"{f['wins']}-{f['losses']}-{f['draws']}",
-                "wins": f["wins"],
-                "losses": f["losses"],
-                "draws": f["draws"],
-            }
-            for f in fighters
-        ]
-        typer.echo(json.dumps(records, indent=2))
+        record_data = {
+            "name": fighter["full_name"],
+            "record": f"{fighter['wins']}-{fighter['losses']}-{fighter['draws']}",
+            "wins": fighter["wins"],
+            "losses": fighter["losses"],
+            "draws": fighter["draws"],
+        }
+        typer.echo(json.dumps(record_data, indent=2))
         return
 
-    for f in fighters:
-        record = f"{f['wins']}-{f['losses']}-{f['draws']}"
-        typer.echo(f"{f['full_name']}: {record}")
+    record = f"{fighter['wins']}-{fighter['losses']}-{fighter['draws']}"
+    typer.echo(f"{fighter['full_name']}: {record}")
 
 
 def history_impl(name: str, limit: int, fmt: OutputFormat) -> None:
-    fighters = api_request("/fighter", {"name": name, "limit": 1})
-
-    if not fighters:
-        typer.echo(f"No fighter found matching '{name}'", err=True)
-        raise typer.Exit(1)
-
-    fighter_uid = fighters[0]["fighter_uid"]
-    data = api_request(f"/fighter/{fighter_uid}")
+    fighter = select_fighter(name)
+    data = api_request(f"/fighter/{fighter['fighter_uid']}")
 
     if fmt == OutputFormat.json:
         typer.echo(json.dumps(data["recent_fights"][:limit], indent=2, default=str))
@@ -258,18 +278,11 @@ def history_impl(name: str, limit: int, fmt: OutputFormat) -> None:
 
 
 def compare_impl(fighter1: str, fighter2: str, fmt: OutputFormat) -> None:
-    f1_list = api_request("/fighter", {"name": fighter1, "limit": 1})
-    f2_list = api_request("/fighter", {"name": fighter2, "limit": 1})
+    f1 = select_fighter(fighter1, prompt=f"Select first fighter ('{fighter1}'):")
+    f2 = select_fighter(fighter2, prompt=f"Select second fighter ('{fighter2}'):")
 
-    if not f1_list:
-        typer.echo(f"No fighter found matching '{fighter1}'", err=True)
-        raise typer.Exit(1)
-    if not f2_list:
-        typer.echo(f"No fighter found matching '{fighter2}'", err=True)
-        raise typer.Exit(1)
-
-    f1_detail = api_request(f"/fighter/{f1_list[0]['fighter_uid']}")
-    f2_detail = api_request(f"/fighter/{f2_list[0]['fighter_uid']}")
+    f1_detail = api_request(f"/fighter/{f1['fighter_uid']}")
+    f2_detail = api_request(f"/fighter/{f2['fighter_uid']}")
 
     if fmt == OutputFormat.json:
         typer.echo(json.dumps({"fighter1": f1_detail, "fighter2": f2_detail}, indent=2, default=str))
