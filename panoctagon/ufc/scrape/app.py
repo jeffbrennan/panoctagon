@@ -33,6 +33,7 @@ from panoctagon.ufc.scrape.fights import (
     read_event_uids,
     scrape_fights_parallel,
 )
+from panoctagon.ufc.scrape.bets import scrape_betting_odds
 
 app = typer.Typer()
 
@@ -237,3 +238,37 @@ def fights(force: bool = False, max_workers: int = 8) -> int:
 
     print(setup.footer)
     return len(successful_results)
+
+
+@app.command()
+def betting_odds(
+    force: bool = False,
+    n: Optional[int] = None,
+    sequential: bool = True,
+    max_workers: int = 2,
+    min_delay: float = 1.0,
+    max_delay: float = 3.0,
+) -> int:
+    setup = setup_panoctagon(title="Panoctagon UFC Betting Odds Scraper")
+
+    result = scrape_betting_odds(
+        force=force,
+        sequential=sequential,
+        n=n or 0,
+        max_workers=max_workers,
+        delay_range=(min_delay, max_delay),
+    )
+
+    report_stats(
+        RunStats(
+            start=setup.start_time,
+            end=time.time(),
+            n_ops=result["success"] + result["failed"],
+            op_name="event",
+            successes=result["success"],
+            failures=result["failed"],
+        )
+    )
+
+    print(setup.footer)
+    return result["odds_saved"]

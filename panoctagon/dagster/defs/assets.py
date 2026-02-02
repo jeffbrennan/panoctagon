@@ -68,6 +68,12 @@ def dagster_parse_fighter_bio(context: AssetExecutionContext) -> None:
     context.add_output_metadata({"n_records": n_bios})
 
 
+@asset(compute_kind="python", key=["ufc_betting_odds"], deps=["ufc_fights", "ufc_fighters"])
+def dagster_scrape_betting_odds(context: AssetExecutionContext) -> None:
+    n_odds = scrape.betting_odds()
+    context.add_output_metadata({"n_records": n_odds})
+
+
 @asset(compute_kind="python", key=["divisions"], deps=["promotions"])
 def dagster_divisions():
     setup_divisions()

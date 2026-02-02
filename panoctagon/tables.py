@@ -110,6 +110,22 @@ class UFCFightStats(SQLModel, table=True):
     sig_strikes_grounded_attempted: Optional[int] = None
 
 
+class UFCBettingOdds(SQLModel, table=True):
+    __tablename__ = "ufc_betting_odds"  # pyright: ignore [reportAssignmentType]
+    __table_args__ = (
+        UniqueConstraint(
+            "fight_uid", "fighter_uid", "bookmaker", name="betting_odds_pk"
+        ),
+    )
+
+    fight_uid: str = Field(primary_key=True)
+    fighter_uid: str = Field(primary_key=True)
+    bookmaker: str = Field(primary_key=True)
+    opening_odds: Optional[int] = None
+    closing_odds: Optional[int] = None
+    scraped_ts: Optional[str] = None
+
+
 class TempBulkDeleteTest(SQLModel, table=True):
     uid: str = Field(primary_key=True)
     another_col: str
