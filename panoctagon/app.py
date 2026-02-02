@@ -53,10 +53,11 @@ def rankings(
     division: Optional[str] = typer.Option(None, "--division", "-d", help="Filter by weight class"),
     min_fights: int = typer.Option(5, "--min-fights", "-m", help="Minimum UFC fights"),
     limit: int = typer.Option(15, "--limit", "-l", help="Top N per division"),
+    interactive: bool = typer.Option(False, "--interactive", "-i", help="Interactively select division"),
     fmt: OutputFormat = typer.Option(OutputFormat.table, "--format", "-f", help="Output format"),
 ) -> None:
     """Show fighter rankings by win rate within each division."""
-    rankings_impl(division, min_fights, limit, fmt)
+    rankings_impl(division, min_fights, limit, fmt, interactive)
 
 
 @app.command()
@@ -110,21 +111,22 @@ def compare(
 
 @app.command()
 def fight(
-    fight_uid: str = typer.Argument(..., help="Fight UID"),
+    name: str = typer.Argument(..., help="Fighter name to look up fights for"),
     fmt: OutputFormat = typer.Option(OutputFormat.table, "--format", "-f", help="Output format"),
 ) -> None:
-    """Get detailed statistics for a specific fight."""
-    fight_impl(fight_uid, fmt)
+    """Get detailed statistics for a fight. Search by fighter name, then select a fight."""
+    fight_impl(name, fmt)
 
 
 @app.command()
 def event(
+    name: Optional[str] = typer.Argument(None, help="Event name to search for"),
     upcoming_only: bool = typer.Option(False, "--upcoming", "-u", help="Only show upcoming events"),
     limit: int = typer.Option(20, "--limit", "-l", help="Maximum events"),
     fmt: OutputFormat = typer.Option(OutputFormat.table, "--format", "-f", help="Output format"),
 ) -> None:
-    """List UFC events."""
-    event_impl(upcoming_only, limit, fmt)
+    """List UFC events, or view a specific event's card by name."""
+    event_impl(name, upcoming_only, limit, fmt)
 
 
 @app.command()

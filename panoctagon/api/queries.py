@@ -473,6 +473,115 @@ def get_events(upcoming_only: bool = False, limit: int = 20) -> pl.DataFrame:
         return pl.read_database(query, connection=conn)
 
 
+def search_events(name: Optional[str] = None, limit: int = 20) -> pl.DataFrame:
+    engine = get_engine()
+    with engine.connect() as conn:
+        query = """
+        select
+            e.event_uid,
+            e.title,
+            e.event_date,
+            e.event_location,
+            count(f.fight_uid) as num_fights
+        from ufc_events e
+        left join ufc_fights f on e.event_uid = f.event_uid
+        where 1=1
+        """
+
+        if name:
+            query += f" and lower(e.title) like lower('%{name}%')"
+
+        query += f" group by e.event_uid, e.title, e.event_date, e.event_location order by e.event_date desc limit {limit}"
+
+        return pl.read_database(query, connection=conn)
+
+
+def get_event_fights(event_uid: str) -> pl.DataFrame:
+    engine = get_engine()
+    with engine.connect() as conn:
+        return pl.read_database(
+            f"""
+            select
+                f.fight_uid,
+                f.fight_division,
+                f.fight_type,
+                f.fight_order,
+                f1.first_name || ' ' || f1.last_name as fighter1_name,
+                f.fighter1_result,
+                f2.first_name || ' ' || f2.last_name as fighter2_name,
+                f.fighter2_result,
+                f.decision,
+                f.decision_round
+            from ufc_fights f
+            inner join ufc_fighters f1 on f.fighter1_uid = f1.fighter_uid
+            inner join ufc_fighters f2 on f.fighter2_uid = f2.fighter_uid
+            where f.event_uid = '{event_uid}'
+            order by f.fight_order asc nulls last
+            """,
+            connection=conn,
+        )
+
+
+def get_fighter_fights(fighter_uid: str, limit: int = 10) -> pl.DataFrame:
+    engine = get_engine()
+    with engine.connect() as conn:
+        return pl.read_database(
+            f"""
+            with fighter_fights as (
+                select
+                    f.fight_uid,
+                    f.event_uid,
+                    f.fight_division,
+                    f.decision,
+                    f.decision_round,
+                    f.fighter2_uid as opponent_uid,
+                    f.fighter1_result as result
+                from ufc_fights f
+                where f.fighter1_uid = '{fighter_uid}'
+                union all
+                select
+                    f.fight_uid,
+                    f.event_uid,
+                    f.fight_division,
+                    f.decision,
+                    f.decision_round,
+                    f.fighter1_uid as opponent_uid,
+                    f.fighter2_result as result
+                from ufc_fights f
+                where f.fighter2_uid = '{fighter_uid}'
+            )
+            select
+                ff.fight_uid,
+                e.title as event_title,
+                e.event_date,
+                ff.fight_division,
+                opp.first_name || ' ' || opp.last_name as opponent_name,
+                ff.result,
+                ff.decision
+            from fighter_fights ff
+            inner join ufc_events e on ff.event_uid = e.event_uid
+            inner join ufc_fighters opp on ff.opponent_uid = opp.fighter_uid
+            order by e.event_date desc
+            limit {limit}
+            """,
+            connection=conn,
+        )
+
+
+def get_divisions() -> pl.DataFrame:
+    engine = get_engine()
+    with engine.connect() as conn:
+        return pl.read_database(
+            """
+            select distinct fight_division as division
+            from ufc_fights
+            where fight_division is not null
+            order by fight_division
+            """,
+            connection=conn,
+        )
+
+
 def get_fight_detail(fight_uid: str) -> tuple[Optional[pl.DataFrame], Optional[pl.DataFrame]]:
     engine = get_engine()
     with engine.connect() as conn:

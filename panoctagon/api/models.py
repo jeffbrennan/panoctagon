@@ -162,3 +162,34 @@ class FightDetail(BaseModel):
     referee: Optional[str]
     fighter1: FightFighterStats
     fighter2: FightFighterStats
+
+
+class EventFight(BaseModel):
+    fight_uid: str
+    fight_division: Optional[str]
+    fight_type: Optional[str]
+    fight_order: Optional[int]
+    fighter1_name: str
+    fighter1_result: Optional[str]
+    fighter2_name: str
+    fighter2_result: Optional[str]
+    decision: Optional[str]
+    decision_round: Optional[int]
+
+
+class EventDetail(BaseModel):
+    event_uid: str
+    title: str
+    event_date: str
+    event_location: str
+    fights: list[EventFight]
+
+
+class FighterFightSummary(BaseModel):
+    fight_uid: str
+    event_title: str
+    event_date: str
+    fight_division: Optional[str]
+    opponent_name: str
+    result: Optional[str]
+    decision: Optional[str]

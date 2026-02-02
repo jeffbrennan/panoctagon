@@ -5,12 +5,15 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException, Query
 
 from panoctagon.api.models import (
+    EventDetail,
+    EventFight,
     EventSummary,
     FightDetail,
     FightFighterStats,
     FightRoundStats,
     FighterBio,
     FighterDetail,
+    FighterFightSummary,
     FighterRecord,
     FighterSearchResult,
     FightSummary,
@@ -20,12 +23,16 @@ from panoctagon.api.models import (
     UpcomingMatchup,
 )
 from panoctagon.api.queries import (
+    get_divisions,
+    get_event_fights,
     get_events,
     get_fight_detail,
     get_fighter_detail,
+    get_fighter_fights,
     get_rankings,
     get_roster,
     get_upcoming_fights,
+    search_events,
     search_fighters,
 )
 
@@ -301,6 +308,88 @@ def get_fight(fight_uid: str) -> FightDetail:
         fighter1=fighter1,
         fighter2=fighter2,
     )
+
+
+@app.get("/event/search", response_model=list[EventSummary])
+def search_events_endpoint(
+    name: Optional[str] = Query(None, description="Search events by name"),
+    limit: int = Query(20, ge=1, le=100, description="Maximum events to return"),
+) -> list[EventSummary]:
+    df = search_events(name=name, limit=limit)
+    return [
+        EventSummary(
+            event_uid=row["event_uid"],
+            title=row["title"],
+            event_date=row["event_date"],
+            event_location=row["event_location"],
+            num_fights=row["num_fights"],
+        )
+        for row in df.iter_rows(named=True)
+    ]
+
+
+@app.get("/event/{event_uid}", response_model=EventDetail)
+def get_event_detail(event_uid: str) -> EventDetail:
+    events_df = search_events(limit=1000)
+    event_row = None
+    for row in events_df.iter_rows(named=True):
+        if row["event_uid"] == event_uid:
+            event_row = row
+            break
+
+    if event_row is None:
+        raise HTTPException(status_code=404, detail=f"Event {event_uid} not found")
+
+    fights_df = get_event_fights(event_uid)
+    fights = [
+        EventFight(
+            fight_uid=row["fight_uid"],
+            fight_division=row["fight_division"],
+            fight_type=row["fight_type"],
+            fight_order=row["fight_order"],
+            fighter1_name=row["fighter1_name"],
+            fighter1_result=row["fighter1_result"],
+            fighter2_name=row["fighter2_name"],
+            fighter2_result=row["fighter2_result"],
+            decision=row["decision"],
+            decision_round=row["decision_round"],
+        )
+        for row in fights_df.iter_rows(named=True)
+    ]
+
+    return EventDetail(
+        event_uid=event_row["event_uid"],
+        title=event_row["title"],
+        event_date=event_row["event_date"],
+        event_location=event_row["event_location"],
+        fights=fights,
+    )
+
+
+@app.get("/fighter/{fighter_uid}/fights", response_model=list[FighterFightSummary])
+def get_fighter_fights_endpoint(
+    fighter_uid: str,
+    limit: int = Query(10, ge=1, le=50, description="Maximum fights to return"),
+) -> list[FighterFightSummary]:
+    df = get_fighter_fights(fighter_uid, limit=limit)
+    return [
+        FighterFightSummary(
+            fight_uid=row["fight_uid"],
+            event_title=row["event_title"],
+            event_date=row["event_date"],
+            fight_division=row["fight_division"],
+            opponent_name=row["opponent_name"],
+            result=row["result"],
+            decision=row["decision"],
+        )
+        for row in df.iter_rows(named=True)
+    ]
+
+
+@app.get("/divisions", response_model=list[str])
+def list_divisions() -> list[str]:
+    df = get_divisions()
+    return df["division"].to_list()
 
 
 @app.get("/health")

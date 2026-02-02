@@ -61,6 +61,96 @@ def select_fighter(name: str, prompt: Optional[str] = None) -> dict[str, Any]:
     return selected
 
 
+def select_event(name: str) -> dict[str, Any]:
+    events = api_request("/event/search", {"name": name, "limit": 20})
+
+    if not events:
+        typer.echo(f"No event found matching '{name}'", err=True)
+        raise typer.Exit(1)
+
+    if len(events) == 1:
+        return events[0]
+
+    if not is_interactive():
+        return events[0]
+
+    choices = []
+    for e in events:
+        label = f"{e['title']} ({e['event_date']}) - {e['event_location']}"
+        choices.append(questionary.Choice(title=label, value=e))
+
+    selected = questionary.select(
+        f"Multiple events match '{name}'. Select one:",
+        choices=choices,
+        use_arrow_keys=True,
+        use_jk_keys=True,
+    ).ask()
+
+    if selected is None:
+        raise typer.Exit(0)
+
+    return selected
+
+
+def select_fight_from_fighter(fighter: dict[str, Any]) -> dict[str, Any]:
+    fights = api_request(f"/fighter/{fighter['fighter_uid']}/fights", {"limit": 15})
+
+    if not fights:
+        typer.echo(f"No fights found for {fighter['full_name']}", err=True)
+        raise typer.Exit(1)
+
+    if not is_interactive():
+        return fights[0]
+
+    choices = []
+    for f in fights:
+        result = f.get("result") or "UPCOMING"
+        decision = f.get("decision") or ""
+        result_str = f"{result} ({decision})" if decision else result
+        label = f"{f['event_date']} vs {f['opponent_name']} - {result_str}"
+        choices.append(questionary.Choice(title=label, value=f))
+
+    selected = questionary.select(
+        f"Select a fight for {fighter['full_name']}:",
+        choices=choices,
+        use_arrow_keys=True,
+        use_jk_keys=True,
+    ).ask()
+
+    if selected is None:
+        raise typer.Exit(0)
+
+    return selected
+
+
+def select_division() -> str:
+    divisions = api_request("/divisions")
+
+    if not divisions:
+        typer.echo("No divisions found", err=True)
+        raise typer.Exit(1)
+
+    if not is_interactive():
+        return divisions[0]
+
+    choices = [
+        questionary.Choice(title=format_division(d), value=d)
+        for d in divisions
+    ]
+
+    selected = questionary.select(
+        "Select a division:",
+        choices=choices,
+        use_arrow_keys=True,
+        use_jk_keys=True,
+    ).ask()
+
+    if selected is None:
+        raise typer.Exit(0)
+
+    return selected
+
+
 def format_table(data: list[dict[str, Any]], columns: Optional[list[str]] = None) -> str:
     if not data:
         return "No data found."
@@ -163,7 +253,10 @@ def upcoming_impl(fmt: OutputFormat) -> None:
             typer.echo(f"  {f2}")
 
 
-def rankings_impl(division: Optional[str], min_fights: int, limit: int, fmt: OutputFormat) -> None:
+def rankings_impl(division: Optional[str], min_fights: int, limit: int, fmt: OutputFormat, interactive: bool = False) -> None:
+    if interactive and division is None and is_interactive():
+        division = select_division()
+
     data = api_request("/rankings", {"division": division, "min_fights": min_fights, "limit": limit})
 
     if fmt == OutputFormat.json:
@@ -313,7 +406,11 @@ def compare_impl(fighter1: str, fighter2: str, fmt: OutputFormat) -> None:
     typer.echo(f"{'='*60}")
 
 
-def fight_impl(fight_uid: str, fmt: OutputFormat) -> None:
+def fight_impl(query: str, fmt: OutputFormat) -> None:
+    fighter = select_fighter(query)
+    fight = select_fight_from_fighter(fighter)
+    fight_uid = fight["fight_uid"]
+
     data = api_request(f"/fight/{fight_uid}")
 
     if fmt == OutputFormat.json:
@@ -351,10 +448,38 @@ def fight_impl(fight_uid: str, fmt: OutputFormat) -> None:
                     typer.echo(f"  {fighter['fighter_name']}: Strikes {strikes}, TD {tds}, Ctrl {ctrl_str}")
 
 
-def event_impl(upcoming_only: bool, limit: int, fmt: OutputFormat) -> None:
-    data = api_request("/events", {"upcoming_only": upcoming_only, "limit": limit})
-    columns = ["title", "event_date", "event_location", "num_fights"]
-    typer.echo(format_output(data, fmt, columns))
+def event_impl(name: Optional[str], upcoming_only: bool, limit: int, fmt: OutputFormat) -> None:
+    if name:
+        event = select_event(name)
+        data = api_request(f"/event/{event['event_uid']}")
+
+        if fmt == OutputFormat.json:
+            typer.echo(format_output(data, fmt))
+            return
+
+        typer.echo(f"\n{data['title']}")
+        typer.echo(f"{data['event_date']} - {data['event_location']}")
+        typer.echo("=" * 60)
+
+        for fight in data["fights"]:
+            division = format_division(fight.get("fight_division"))
+            fight_type = " [TITLE]" if fight.get("fight_type") and "title" in fight["fight_type"].lower() else ""
+
+            r1 = fight.get("fighter1_result") or "TBD"
+            r2 = fight.get("fighter2_result") or "TBD"
+            decision = fight.get("decision") or ""
+
+            typer.echo(f"\n{division}{fight_type}")
+            typer.echo(f"  {fight['fighter1_name']} ({r1})")
+            typer.echo(f"    vs")
+            typer.echo(f"  {fight['fighter2_name']} ({r2})")
+            if decision:
+                rd = f" R{fight['decision_round']}" if fight.get("decision_round") else ""
+                typer.echo(f"  Result: {decision}{rd}")
+    else:
+        data = api_request("/events", {"upcoming_only": upcoming_only, "limit": limit})
+        columns = ["title", "event_date", "event_location", "num_fights"]
+        typer.echo(format_output(data, fmt, columns))
 
 
 def roster_impl(
