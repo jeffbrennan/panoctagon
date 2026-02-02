@@ -523,19 +523,20 @@ def create_striking_target_winrate_figure(roster_df: pl.DataFrame) -> go.Figure:
     target_data = []
     for target, col in [("Head", "head_pct"), ("Body", "body_pct"), ("Leg", "leg_pct")]:
         bins_labels = [
-            (0, 40, "0-40%"),
-            (40, 50, "40-50%"),
-            (50, 60, "50-60%"),
-            (60, 70, "60-70%"),
-            (70, 80, "70-80%"),
-            (80, 100, "80-100%"),
+            (0, 40, "0-40%", True),
+            (40, 50, "40-50%", False),
+            (50, 60, "50-60%", False),
+            (60, 70, "60-70%", False),
+            (70, 80, "70-80%", False),
+            (80, 100, "80-100%", False),
         ]
 
-        for lower, upper, label in bins_labels:
-            bin_data = roster_df.filter(
-                (pl.col(col) > lower) & (pl.col(col) <= upper)
-            )
-            if bin_data.height >= 1:
+        for lower, upper, label, include_lower in bins_labels:
+            if include_lower:
+                bin_data = roster_df.filter((pl.col(col) >= lower) & (pl.col(col) <= upper))
+            else:
+                bin_data = roster_df.filter((pl.col(col) > lower) & (pl.col(col) <= upper))
+            if bin_data.height >= 3:
                 target_data.append(
                     {
                         "target": target,
