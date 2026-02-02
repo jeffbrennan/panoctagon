@@ -506,86 +506,112 @@ def create_matchup_discrepancy_figure(matchup_df: pl.DataFrame) -> go.Figure:
 
 
 def create_striking_target_winrate_figure(roster_df: pl.DataFrame) -> go.Figure:
-    if roster_df.height == 0:
-        fig = go.Figure()
-        fig.update_layout(height=500)
-        return apply_figure_styling(fig)
-
-    roster_df = roster_df.filter(pl.col("total_sig_strikes") > 0).with_columns(
-        [
-            (pl.col("total_head_strikes") / pl.col("total_sig_strikes") * 100).alias("head_pct"),
-            (pl.col("total_body_strikes") / pl.col("total_sig_strikes") * 100).alias("body_pct"),
-            (pl.col("total_leg_strikes") / pl.col("total_sig_strikes") * 100).alias("leg_pct"),
-            (pl.col("wins") / pl.col("total_fights") * 100).alias("win_pct"),
-        ]
-    )
-
-    target_data = []
-    for target, col in [("Head", "head_pct"), ("Body", "body_pct"), ("Leg", "leg_pct")]:
-        bins_labels = [
-            (0, 40, "0-40%", True),
-            (40, 50, "40-50%", False),
-            (50, 60, "50-60%", False),
-            (60, 70, "60-70%", False),
-            (70, 80, "70-80%", False),
-            (80, 100, "80-100%", False),
-        ]
-
-        for lower, upper, label, include_lower in bins_labels:
-            if include_lower:
-                bin_data = roster_df.filter((pl.col(col) >= lower) & (pl.col(col) <= upper))
-            else:
-                bin_data = roster_df.filter((pl.col(col) > lower) & (pl.col(col) <= upper))
-            if bin_data.height >= 3:
-                target_data.append(
-                    {
-                        "target": target,
-                        "bin": label,
-                        "avg_win_pct": bin_data["win_pct"].mean(),
-                        "count": bin_data.height,
-                    }
-                )
-
-    if not target_data:
-        fig = go.Figure()
-        fig.update_layout(height=500)
-        return apply_figure_styling(fig)
-
-    target_df = pl.DataFrame(target_data)
-
-    fig = go.Figure()
-    colors = {"Head": PLOT_COLORS["head"], "Body": PLOT_COLORS["body"], "Leg": PLOT_COLORS["leg"]}
-
-    for target in ["Head", "Body", "Leg"]:
-        t_data = target_df.filter(pl.col("target") == target)
-        if t_data.height == 0:
-            continue
-
-        hover_text = [
-            f"<b>{target} Strikes: {row['bin']}</b><br>"
-            f"Avg Win%: {row['avg_win_pct']:.1f}%<br>"
-            f"Fighters: {row['count']}"
-            for row in t_data.iter_rows(named=True)
-        ]
-
-        fig.add_trace(
-            go.Bar(
-                x=t_data["bin"].to_list(),
-                y=t_data["avg_win_pct"].to_list(),
-                name=target,
-                marker_color=colors[target],
-                hovertext=hover_text,
-                hoverinfo="text",
+    engine = get_engine()
+    with engine.connect() as conn:
+        target_df = pl.read_database(  # sql
+            """
+            WITH base AS (
+                SELECT
+                    event_uid,
+                    fight_uid,
+                    fighter1_uid AS fighter_uid,
+                    fighter1_result AS result
+                FROM ufc_fights
+                UNION ALL
+                SELECT
+                    event_uid,
+                    fight_uid,
+                    fighter2_uid AS fighter_uid,
+                    fighter2_result AS result
+                FROM ufc_fights
+            ),
+            counts AS (
+                SELECT
+                    fight_uid,
+                    fighter_uid,
+                    sum(sig_strikes_landed) AS sig_strikes_landed,
+                    sum(sig_strikes_head_landed) AS sig_strikes_head_landed,
+                    sum(sig_strikes_body_landed) AS sig_strikes_body_landed,
+                    sum(sig_strikes_leg_landed) AS sig_strikes_leg_landed
+                FROM ufc_fight_stats
+                GROUP BY fight_uid, fighter_uid
+            ),
+            pcts AS (
+                SELECT
+                    fight_uid,
+                    fighter_uid,
+                    sig_strikes_landed AS total_strikes,
+                    sig_strikes_head_landed / sig_strikes_landed AS head_pct,
+                    sig_strikes_body_landed / sig_strikes_landed AS body_pct,
+                    sig_strikes_leg_landed / sig_strikes_landed AS leg_pct
+                FROM counts
+            ),
+            final AS (
+                SELECT
+                    base.event_uid,
+                    base.fight_uid,
+                    base.fighter_uid,
+                    base.result,
+                    pcts.head_pct,
+                    pcts.body_pct,
+                    pcts.leg_pct
+                FROM base
+                INNER JOIN pcts
+                ON base.fight_uid = pcts.fight_uid
+                AND base.fighter_uid = pcts.fighter_uid
             )
+            SELECT * FROM final
+            WHERE result in ('WIN', 'LOSS')
+            """,
+            connection=conn,
         )
 
-    fig.update_layout(
-        xaxis_title="% of Sig Strikes to Target",
-        yaxis_title="Average Win %",
-        barmode="group",
-        height=500,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+    target_df = target_df.unpivot(
+        index=["event_uid", "fight_uid", "fighter_uid", "result"],
+        on=["head_pct", "body_pct", "leg_pct"],
+        variable_name="target",
+        value_name="pct",
     )
+
+    fig = px.box(
+        data_frame=target_df,
+        x="pct",
+        y="target",
+        color="result",
+    )
+    # fig = go.Figure()
+    # colors = {"Head": PLOT_COLORS["head"], "Body": PLOT_COLORS["body"], "Leg": PLOT_COLORS["leg"]}
+
+    # for target in ["Head", "Body", "Leg"]:
+    #     t_data = target_df.filter(pl.col("target") == target)
+    #     if t_data.height == 0:
+    #         continue
+
+    #     hover_text = [
+    #         f"<b>{target} Strikes: {row['bin']}</b><br>"
+    #         f"Avg Win%: {row['avg_win_pct']:.1f}%<br>"
+    #         f"Fighters: {row['count']}"
+    #         for row in t_data.iter_rows(named=True)
+    #     ]
+
+    #     fig.add_trace(
+    #         go.Bar(
+    #             x=t_data["bin"].to_list(),
+    #             y=t_data["avg_win_pct"].to_list(),
+    #             name=target,
+    #             marker_color=colors[target],
+    #             hovertext=hover_text,
+    #             hoverinfo="text",
+    #         )
+    #     )
+
+    # fig.update_layout(
+    #     xaxis_title="% of Sig Strikes to Target",
+    #     yaxis_title="Average Win %",
+    #     barmode="group",
+    #     height=500,
+    #     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+    # )
 
     return apply_figure_styling(fig)
 
