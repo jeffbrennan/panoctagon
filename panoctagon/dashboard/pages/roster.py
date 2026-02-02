@@ -508,22 +508,28 @@ def create_matchup_discrepancy_figure(matchup_df: pl.DataFrame) -> go.Figure:
 def create_striking_target_winrate_figure(roster_df: pl.DataFrame) -> go.Figure:
     engine = get_engine()
     with engine.connect() as conn:
-        target_df = pl.read_database(  # sql
+        target_df = pl.read_database(
             """
             WITH base AS (
                 SELECT
-                    event_uid,
-                    fight_uid,
-                    fighter1_uid AS fighter_uid,
-                    fighter1_result AS result
-                FROM ufc_fights
+                    e.title AS event_name,
+                    e.event_date,
+                    f.event_uid,
+                    f.fight_uid,
+                    f.fighter1_uid AS fighter_uid,
+                    f.fighter1_result AS result
+                FROM ufc_fights f
+                INNER JOIN ufc_events e ON f.event_uid = e.event_uid
                 UNION ALL
                 SELECT
-                    event_uid,
-                    fight_uid,
-                    fighter2_uid AS fighter_uid,
-                    fighter2_result AS result
-                FROM ufc_fights
+                    e.title AS event_name,
+                    e.event_date,
+                    f.event_uid,
+                    f.fight_uid,
+                    f.fighter2_uid AS fighter_uid,
+                    f.fighter2_result AS result
+                FROM ufc_fights f
+                INNER JOIN ufc_events e ON f.event_uid = e.event_uid
             ),
             counts AS (
                 SELECT
@@ -541,16 +547,20 @@ def create_striking_target_winrate_figure(roster_df: pl.DataFrame) -> go.Figure:
                     fight_uid,
                     fighter_uid,
                     sig_strikes_landed AS total_strikes,
-                    sig_strikes_head_landed / sig_strikes_landed AS head_pct,
-                    sig_strikes_body_landed / sig_strikes_landed AS body_pct,
-                    sig_strikes_leg_landed / sig_strikes_landed AS leg_pct
+                    sig_strikes_head_landed / NULLIF(sig_strikes_landed, 0) AS head_pct,
+                    sig_strikes_body_landed / NULLIF(sig_strikes_landed, 0) AS body_pct,
+                    sig_strikes_leg_landed / NULLIF(sig_strikes_landed, 0) AS leg_pct
                 FROM counts
+                WHERE sig_strikes_landed > 0
             ),
             final AS (
                 SELECT
+                    base.event_name,
+                    base.event_date,
                     base.event_uid,
                     base.fight_uid,
                     base.fighter_uid,
+                    fi.first_name || ' ' || fi.last_name AS fighter_name,
                     base.result,
                     pcts.head_pct,
                     pcts.body_pct,
@@ -559,59 +569,88 @@ def create_striking_target_winrate_figure(roster_df: pl.DataFrame) -> go.Figure:
                 INNER JOIN pcts
                 ON base.fight_uid = pcts.fight_uid
                 AND base.fighter_uid = pcts.fighter_uid
+                INNER JOIN ufc_fighters fi ON base.fighter_uid = fi.fighter_uid
             )
             SELECT * FROM final
             WHERE result in ('WIN', 'LOSS')
+            AND head_pct IS NOT NULL
+            AND body_pct IS NOT NULL
+            AND leg_pct IS NOT NULL
             """,
             connection=conn,
         )
 
+    if target_df.height == 0:
+        fig = go.Figure()
+        fig.update_layout(height=500)
+        return apply_figure_styling(fig)
+
     target_df = target_df.unpivot(
-        index=["event_uid", "fight_uid", "fighter_uid", "result"],
+        index=[
+            "event_name",
+            "event_date",
+            "event_uid",
+            "fight_uid",
+            "fighter_uid",
+            "fighter_name",
+            "result",
+        ],
         on=["head_pct", "body_pct", "leg_pct"],
         variable_name="target",
         value_name="pct",
     )
 
+    target_df = target_df.with_columns(
+        [
+            pl.col("target").replace({"head_pct": "Head", "body_pct": "Body", "leg_pct": "Leg"}),
+        ]
+    )
+
+    if target_df["event_date"].dtype == pl.String:
+        target_df = target_df.with_columns(pl.col("event_date").str.strptime(pl.Date, "%Y-%m-%d"))
+
+    target_df = target_df.with_columns(
+        [
+            pl.col("event_date").dt.to_string("%Y-%m-%d").alias("event_date_str"),
+            pl.col("target").cast(pl.Categorical(ordering="physical")),
+        ]
+    )
+
+    target_df = target_df.sort(["target", "result"])
+
     fig = px.box(
-        data_frame=target_df,
+        target_df.to_pandas(),
         x="pct",
         y="target",
         color="result",
+        category_orders={"target": ["Head", "Body", "Leg"]},
+        color_discrete_map={"WIN": PLOT_COLORS["win"], "LOSS": PLOT_COLORS["loss"]},
+        custom_data=["fighter_name", "event_name", "event_date_str"],
     )
-    # fig = go.Figure()
-    # colors = {"Head": PLOT_COLORS["head"], "Body": PLOT_COLORS["body"], "Leg": PLOT_COLORS["leg"]}
 
-    # for target in ["Head", "Body", "Leg"]:
-    #     t_data = target_df.filter(pl.col("target") == target)
-    #     if t_data.height == 0:
-    #         continue
+    fig.update_traces(
+        hovertemplate=(
+            "<b>%{customdata[0]}</b><br>"
+            "%{customdata[1]}<br>"
+            "%{customdata[2]}<br>"
+            "Target %: %{x:.1%}<br>"
+            "<extra></extra>"
+        )
+    )
 
-    #     hover_text = [
-    #         f"<b>{target} Strikes: {row['bin']}</b><br>"
-    #         f"Avg Win%: {row['avg_win_pct']:.1f}%<br>"
-    #         f"Fighters: {row['count']}"
-    #         for row in t_data.iter_rows(named=True)
-    #     ]
-
-    #     fig.add_trace(
-    #         go.Bar(
-    #             x=t_data["bin"].to_list(),
-    #             y=t_data["avg_win_pct"].to_list(),
-    #             name=target,
-    #             marker_color=colors[target],
-    #             hovertext=hover_text,
-    #             hoverinfo="text",
-    #         )
-    #     )
-
-    # fig.update_layout(
-    #     xaxis_title="% of Sig Strikes to Target",
-    #     yaxis_title="Average Win %",
-    #     barmode="group",
-    #     height=500,
-    #     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
-    # )
+    fig.update_layout(
+        xaxis_title="% of Significant Strikes",
+        yaxis_title="Target",
+        height=500,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="center",
+            x=0.5,
+            title=None,
+        ),
+    )
 
     return apply_figure_styling(fig)
 
@@ -640,7 +679,7 @@ roster_analysis_content = html.Div(
             [
                 html.Div(
                     "Striking Target vs Win Rate",
-                    className="plot-title",
+                    className="plot-title plot-title-with-legend",
                 ),
                 html.Div(
                     dcc.Graph(
