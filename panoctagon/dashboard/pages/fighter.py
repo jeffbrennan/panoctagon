@@ -182,6 +182,7 @@ def update_career_timeline(fighter: str):
                 "fighter_result",
                 "title",
                 "opponent_name",
+                "decision",
             ]
         )
         .agg(pl.col("opponent_strikes_landed").sum())
@@ -219,9 +220,21 @@ def update_career_timeline(fighter: str):
         "NO_CONTEST": "No Contest vs",
     }
 
+    decision_abbrev = {
+        "KO": "KO",
+        "TKO": "TKO",
+        "SUB": "SUB",
+        "UNANIMOUS_DECISION": "UD",
+        "SPLIT_DECISION": "SD",
+        "MAJORITY_DECISION": "MD",
+        "DQ": "DQ",
+        "DOC": "DOC",
+    }
+
     hover_text = [
         f"<b>{row['title']}</b> | {row['event_date']}"
         f"<br>{result_map.get(row['fighter_result'])} <b>{row['opponent_name']}</b>"
+        f" ({decision_abbrev.get(row['decision'], row['decision'])})"
         f"<br>+{row['opponent_strikes_landed']:,} strikes ({row['cumulative_absorbed']:,} total)"
         for row in fight_timeline.iter_rows(named=True)
     ]
