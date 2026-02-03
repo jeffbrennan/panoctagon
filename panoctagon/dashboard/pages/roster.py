@@ -187,7 +187,14 @@ def update_strikes_comparison(fighter: str):
             .with_columns(
                 pl.col("event_date").dt.to_string("%Y-%m-%d"),
                 pl.col("fighter_result")
-                .replace({"WIN": "Beat", "LOSS": "Defeated by", "DRAW": "Draw vs", "NO_CONTEST": "No Contest vs"})
+                .replace(
+                    {
+                        "WIN": "Beat",
+                        "LOSS": "Defeated by",
+                        "DRAW": "Draw vs",
+                        "NO_CONTEST": "No Contest vs",
+                    }
+                )
                 .alias("result_label"),
             )
         )
@@ -205,8 +212,8 @@ def update_strikes_comparison(fighter: str):
             go.Bar(
                 x=comparison["event_date"].to_list(),
                 y=comparison["total_strikes_landed"].to_list(),
-                name="Fighter Strikes Landed",
-                marker_color=PLOT_COLORS["primary"],
+                name="Landed",
+                marker_color=PLOT_COLORS["l1"],
                 customdata=customdata,
                 hovertemplate="<b>%{customdata[0]}</b> | %{x}<br>%{customdata[1]} <b>%{customdata[2]}</b><br>Landed: %{y}<extra></extra>",
             )
@@ -215,8 +222,8 @@ def update_strikes_comparison(fighter: str):
             go.Bar(
                 x=comparison["event_date"].to_list(),
                 y=comparison["opponent_strikes_landed"].to_list(),
-                name="Opponent Strikes Landed",
-                marker_color=PLOT_COLORS["tertiary"],
+                name="Absorbed",
+                marker_color=PLOT_COLORS["l5"],
                 customdata=customdata,
                 hovertemplate="<b>%{customdata[0]}</b> | %{x}<br>%{customdata[1]} <b>%{customdata[2]}</b><br>Absorbed: %{y}<extra></extra>",
             )
@@ -527,7 +534,7 @@ def create_matchup_discrepancy_figure(matchup_df: pl.DataFrame) -> go.Figure:
             y=(age_win_rates["win_rate"] * 100).to_list(),
             mode="lines+markers",
             name="Age Advantage",
-            line=dict(color=PLOT_COLORS["primary"], width=2),
+            line=dict(color=PLOT_COLORS["l1"], width=2),
             marker=dict(size=10),
             hovertemplate="Age diff: %{x}<br>Win rate: %{y:.1f}%<br>Fights: %{customdata}<extra></extra>",
             customdata=age_win_rates["count"].to_list(),
@@ -540,7 +547,7 @@ def create_matchup_discrepancy_figure(matchup_df: pl.DataFrame) -> go.Figure:
             y=(reach_win_rates["win_rate"] * 100).to_list(),
             mode="lines+markers",
             name="Reach Advantage",
-            line=dict(color=PLOT_COLORS["secondary"], width=2),
+            line=dict(color=PLOT_COLORS["l2"], width=2),
             marker=dict(size=10),
             hovertemplate="Reach diff: %{x}<br>Win rate: %{y:.1f}%<br>Fights: %{customdata}<extra></extra>",
             customdata=reach_win_rates["count"].to_list(),
@@ -554,7 +561,7 @@ def create_matchup_discrepancy_figure(matchup_df: pl.DataFrame) -> go.Figure:
             y=(exp_win_rates["win_rate"] * 100).to_list(),
             mode="lines+markers",
             name="Experience Advantage",
-            line=dict(color=PLOT_COLORS["tertiary"], width=2),
+            line=dict(color=PLOT_COLORS["l3"], width=2),
             marker=dict(size=10),
             hovertemplate="Exp diff: %{x}<br>Win rate: %{y:.1f}%<br>Fights: %{customdata}<extra></extra>",
             customdata=exp_win_rates["count"].to_list(),

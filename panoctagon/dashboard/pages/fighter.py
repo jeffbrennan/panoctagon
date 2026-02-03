@@ -196,7 +196,7 @@ def update_career_timeline(fighter: str):
         "WIN": PLOT_COLORS["win"],
         "LOSS": PLOT_COLORS["loss"],
         "DRAW": PLOT_COLORS["draw"],
-        "NO_CONTEST": PLOT_COLORS["tertiary"],
+        "NO_CONTEST": PLOT_COLORS["l3"],
     }
     marker_colors = [
         color_map.get(result, "gray") for result in fight_timeline["fighter_result"].to_list()
@@ -303,13 +303,13 @@ def update_win_method_chart(fighter: str):
     fig = go.Figure()
 
     method_colors = {
-        "KO": PLOT_COLORS["primary"],
-        "TKO": PLOT_COLORS["secondary"],
-        "SUB": PLOT_COLORS["tertiary"],
-        "Submission": PLOT_COLORS["tertiary"],
-        "UNANIMOUS_DECISION": PLOT_COLORS["quaternary"],
-        "SPLIT_DECISION": PLOT_COLORS["quinary"],
-        "MAJORITY_DECISION": PLOT_COLORS["senary"],
+        "KO": PLOT_COLORS["l1"],
+        "TKO": PLOT_COLORS["l2"],
+        "SUB": PLOT_COLORS["l3"],
+        "Submission": PLOT_COLORS["l3"],
+        "UNANIMOUS_DECISION": PLOT_COLORS["l4"],
+        "SPLIT_DECISION": PLOT_COLORS["l5"],
+        "MAJORITY_DECISION": PLOT_COLORS["l6"],
         "DQ": PLOT_COLORS["neutral"],
         "DOC": PLOT_COLORS["neutral"],
     }
@@ -486,8 +486,8 @@ def update_accuracy_trend(fighter: str):
             markers=True,
         )
         fig.update_traces(
-            line_color=PLOT_COLORS["primary"],
-            marker_color=PLOT_COLORS["primary"],
+            line_color=PLOT_COLORS["l1"],
+            marker_color=PLOT_COLORS["l1"],
         )
         fig.update_yaxes(title="Accuracy (%)", range=[0, 100])
 
@@ -509,13 +509,29 @@ def update_target_distribution(fighter: str):
             df_filtered.group_by(["fight_uid", "event_date"])
             .agg(
                 [
+                    pl.col("title").first(),
+                    pl.col("fighter_result").first(),
+                    pl.col("opponent_name").first(),
                     pl.col("sig_strikes_head_landed").sum(),
                     pl.col("sig_strikes_body_landed").sum(),
                     pl.col("sig_strikes_leg_landed").sum(),
                 ]
             )
             .sort("event_date")
-            .with_columns(pl.col("event_date").dt.to_string("%Y-%m-%d"))
+            .with_columns(
+                pl.col("event_date").dt.to_string("%Y-%m-%d"),
+                pl.col("fighter_result")
+                .replace({"WIN": "Beat", "LOSS": "Defeated by", "DRAW": "Draw vs", "NO_CONTEST": "No Contest vs"})
+                .alias("result_label"),
+            )
+        )
+
+        customdata = list(
+            zip(
+                strike_targets["title"].to_list(),
+                strike_targets["result_label"].to_list(),
+                strike_targets["opponent_name"].to_list(),
+            )
         )
 
         fig = go.Figure()
@@ -525,6 +541,8 @@ def update_target_distribution(fighter: str):
                 y=strike_targets["sig_strikes_leg_landed"].to_list(),
                 name="Leg",
                 marker_color=PLOT_COLORS["leg"],
+                customdata=customdata,
+                hovertemplate="<b>%{customdata[0]}</b> | %{x}<br>%{customdata[1]} <b>%{customdata[2]}</b><br>Leg: %{y}<extra></extra>",
             )
         )
         fig.add_trace(
@@ -533,6 +551,8 @@ def update_target_distribution(fighter: str):
                 y=strike_targets["sig_strikes_body_landed"].to_list(),
                 name="Body",
                 marker_color=PLOT_COLORS["body"],
+                customdata=customdata,
+                hovertemplate="<b>%{customdata[0]}</b> | %{x}<br>%{customdata[1]} <b>%{customdata[2]}</b><br>Body: %{y}<extra></extra>",
             )
         )
         fig.add_trace(
@@ -541,6 +561,8 @@ def update_target_distribution(fighter: str):
                 y=strike_targets["sig_strikes_head_landed"].to_list(),
                 name="Head",
                 marker_color=PLOT_COLORS["head"],
+                customdata=customdata,
+                hovertemplate="<b>%{customdata[0]}</b> | %{x}<br>%{customdata[1]} <b>%{customdata[2]}</b><br>Head: %{y}<extra></extra>",
             )
         )
 
