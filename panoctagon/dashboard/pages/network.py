@@ -2,7 +2,7 @@ import dash_mantine_components as dmc
 import networkx as nx
 import plotly.graph_objects as go
 import polars as pl
-from dash import Input, Output, callback, dcc, html
+from dash import Input, Output, callback, dcc, html, no_update
 
 from panoctagon.common import get_engine
 from panoctagon.dashboard.common import apply_figure_styling, get_fighter_divisions
@@ -321,7 +321,7 @@ def get_network_data() -> pl.DataFrame:
 )
 def update_network_graph(tab: str, division: str, year_range: list[int]):
     if tab != "network":
-        return go.Figure()
+        return no_update
 
     min_year, max_year = year_range
     filtered_network_df = network_df.filter(
@@ -421,7 +421,14 @@ fighter_network_content = html.Div(
         html.Div(
             dcc.Graph(
                 id="fighter-network-graph",
-                figure={},
+                figure=go.Figure().update_layout(
+                    plot_bgcolor="rgb(242, 240, 227)",
+                    paper_bgcolor="rgb(242, 240, 227)",
+                    xaxis=dict(visible=False),
+                    yaxis=dict(visible=False),
+                    height=700,
+                    margin=dict(l=20, r=80, t=20, b=20),
+                ),
                 config={"displayModeBar": False},
             ),
             className="plot-container-wrapper",
