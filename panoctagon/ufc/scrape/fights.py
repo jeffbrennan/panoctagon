@@ -54,26 +54,11 @@ def get_list_of_fights(soup: bs4.BeautifulSoup) -> list[str]:
 
     for table in table_rows:
         for row in table:
-            if not hasattr(row, "a"):
+            link = row.get("data-link")
+            if link is None or "fight-details" not in link:
                 continue
 
-            if row.a is None:
-                continue
-
-            row_link = row.a.get("href")
-            if row_link is None:
-                row_link = row.a.get("data-link")
-
-            if row_link is None:
-                continue
-
-            if not isinstance(row_link, str):
-                continue
-
-            if "fight-details" not in row_link:
-                continue
-
-            fight_uid = row_link.split("/")[-1]
+            fight_uid = str(link).split("/")[-1]
             fight_uids.append(fight_uid)
     return fight_uids
 

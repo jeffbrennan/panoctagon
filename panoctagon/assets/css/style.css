@@ -52,19 +52,18 @@ body,
     padding-bottom: 8px !important;
     position: relative;
     border: none !important;
-    font-size: 0.85em !important;
+    font-size: 0.9em !important;
 }
 
 .dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner td,
 .dash-cell-value {
     font-family: "JetBrains Mono", monospace !important;
     font-weight: 300 !important;
-    font-size: 0.9em !important;
+    font-size: 0.95em !important;
     padding-left: 8px !important;
     padding-right: 8px !important;
     margin: 0 !important;
     border-right: none !important;
-    background-color: rgb(242, 240, 227) !important;
 }
 
 td.dash-cell.cell--selected.focused {
@@ -128,14 +127,6 @@ td.dash-cell.cell--selected.focused {
     tr
     td:last-child {
     border-right: none !important;
-}
-
-.dash-table-container
-    .dash-spreadsheet-container
-    .dash-spreadsheet-inner
-    tr:hover
-    td {
-    background-color: rgba(210, 10, 10, 0.15) !important;
 }
 
 .dash-spreadsheet-container .column-header--sort {
@@ -221,26 +212,49 @@ svg.main-svg {
     font-weight: 600 !important;
     background-color: #1a1a1a !important;
     color: rgb(242, 240, 227) !important;
-    padding: 10px 20px !important;
-    border-radius: 0 0 0 0 !important;
+    padding: 8px 16px !important;
+    border-radius: 0 !important;
     font-size: 14px !important;
     margin-bottom: 0 !important;
-    margin-left: 50px !important;
+    margin-left: 66px !important;
     display: inline-block !important;
+}
+
+.plot-title-with-legend {
+    position: relative !important;
+    z-index: 10 !important;
+}
+
+.plot-title-with-legend + .plot-container-wrapper {
+    margin-top: -35px !important;
 }
 
 .plot-container-wrapper {
     background-color: rgb(242, 240, 227) !important;
     padding-top: 0 !important;
-    margin-top: -2px !important;
+    margin-top: 0 !important;
+}
+
+.plot-container-wrapper .dash-graph,
+.plot-container-wrapper .js-plotly-plot,
+.plot-container-wrapper .svg-container {
+    width: 100% !important;
+    min-width: 100% !important;
+    margin-top: 0 !important;
 }
 
 .plot-container-wrapper .dash-graph {
-    margin-top: 0 !important;
+    animation: plotFadeIn 200ms 250ms ease-out forwards;
+    opacity: 0;
+}
+
+@keyframes plotFadeIn {
+    to {
+        opacity: 1;
+    }
 }
 
 .plot-container-wrapper .js-plotly-plot {
-    margin-top: 0 !important;
     padding-top: 0 !important;
 }
 
