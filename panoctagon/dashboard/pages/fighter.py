@@ -522,9 +522,9 @@ def update_target_distribution(fighter: str):
         fig.add_trace(
             go.Bar(
                 x=strike_targets["event_date"].to_list(),
-                y=strike_targets["sig_strikes_head_landed"].to_list(),
-                name="Head",
-                marker_color=PLOT_COLORS["head"],
+                y=strike_targets["sig_strikes_leg_landed"].to_list(),
+                name="Leg",
+                marker_color=PLOT_COLORS["leg"],
             )
         )
         fig.add_trace(
@@ -538,9 +538,9 @@ def update_target_distribution(fighter: str):
         fig.add_trace(
             go.Bar(
                 x=strike_targets["event_date"].to_list(),
-                y=strike_targets["sig_strikes_leg_landed"].to_list(),
-                name="Leg",
-                marker_color=PLOT_COLORS["leg"],
+                y=strike_targets["sig_strikes_head_landed"].to_list(),
+                name="Head",
+                marker_color=PLOT_COLORS["head"],
             )
         )
 
