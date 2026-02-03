@@ -1,3 +1,4 @@
+import dash_mantine_components as dmc
 import plotly.express as px
 import plotly.graph_objects as go
 import polars as pl
@@ -5,7 +6,6 @@ from dash import Input, Output, callback, dcc, html
 
 from panoctagon.common import get_engine
 from panoctagon.dashboard.common import (
-    DIVISION_COLORS,
     PLOT_COLORS,
     apply_figure_styling,
     filter_data,
@@ -45,6 +45,7 @@ def get_matchup_data() -> pl.DataFrame:
                 )
             select
                 f.fight_uid,
+                f.fight_division,
                 e.event_date,
                 f.fighter1_uid,
                 f1.fighter_name as fighter1_name,
@@ -232,9 +233,7 @@ def normalize_division(db_division: str) -> str:
     return mapping.get(db_division, "Unknown")
 
 
-def create_fighter_clustering_figure(
-    roster_df: pl.DataFrame, fighter_divisions: dict[str, str]
-) -> go.Figure:
+def create_fighter_clustering_figure(roster_df: pl.DataFrame) -> go.Figure:
     if roster_df.height == 0:
         fig = go.Figure()
         fig.update_layout(height=600)
@@ -285,18 +284,16 @@ def create_fighter_clustering_figure(
         )
 
     roster_df = roster_df.join(opposition_df, on="fighter_name", how="left")
-    roster_df = roster_df.with_columns(
-        pl.col("opposition_strength").fill_null(0)
-    )
-
-    max_opposition = roster_df["opposition_strength"].max()
-    if max_opposition is None or max_opposition == 0:
-        max_opposition = 1
+    roster_df = roster_df.with_columns(pl.col("opposition_strength").fill_null(0))
 
     roster_df = roster_df.with_columns(
         [
             (pl.col("wins") / pl.col("total_fights") * 100).alias("win_pct"),
-            (pl.col("opposition_strength") / max_opposition * 100).alias("opposition_strength_normalized"),
+            (
+                (pl.col("opposition_strength").rank() - 1)
+                / (pl.col("opposition_strength").len() - 1)
+                * 100
+            ).alias("opposition_strength_normalized"),
         ]
     )
 
@@ -323,8 +320,8 @@ def create_fighter_clustering_figure(
                 colorscale=[[0, "#c8c8c8"], [0.5, "#7a7a7a"], [1, "#1a1a1a"]],
                 cmin=0,
                 cmax=100,
-                line=dict(width=1, color="white"),
-                opacity=0.8,
+                line=dict(width=1, color="rgb(33,33,33)"),
+                opacity=1,
                 colorbar=dict(
                     title="Opposition<br>Strength",
                     thickness=15,
@@ -558,7 +555,7 @@ def create_matchup_discrepancy_figure(matchup_df: pl.DataFrame) -> go.Figure:
     return apply_figure_styling(fig)
 
 
-def create_striking_target_winrate_figure(roster_df: pl.DataFrame) -> go.Figure:
+def create_striking_target_winrate_figure(division: str) -> go.Figure:
     engine = get_engine()
     with engine.connect() as conn:
         target_df = pl.read_database(
@@ -569,6 +566,7 @@ def create_striking_target_winrate_figure(roster_df: pl.DataFrame) -> go.Figure:
                     e.event_date,
                     f.event_uid,
                     f.fight_uid,
+                    f.fight_division,
                     f.fighter1_uid AS fighter_uid,
                     f.fighter1_result AS result
                 FROM ufc_fights f
@@ -579,6 +577,7 @@ def create_striking_target_winrate_figure(roster_df: pl.DataFrame) -> go.Figure:
                     e.event_date,
                     f.event_uid,
                     f.fight_uid,
+                    f.fight_division,
                     f.fighter2_uid AS fighter_uid,
                     f.fighter2_result AS result
                 FROM ufc_fights f
@@ -612,6 +611,7 @@ def create_striking_target_winrate_figure(roster_df: pl.DataFrame) -> go.Figure:
                     base.event_date,
                     base.event_uid,
                     base.fight_uid,
+                    base.fight_division,
                     base.fighter_uid,
                     fi.first_name || ' ' || fi.last_name AS fighter_name,
                     base.result,
@@ -632,6 +632,10 @@ def create_striking_target_winrate_figure(roster_df: pl.DataFrame) -> go.Figure:
             """,
             connection=conn,
         )
+
+    if division != "ALL":
+        target_df = target_df.filter(pl.col("fight_division") == division)
+    target_df = target_df.drop("fight_division")
 
     if target_df.height == 0:
         fig = go.Figure()
@@ -712,15 +716,75 @@ fighter_divisions = get_fighter_divisions()
 roster_df = get_roster_stats()
 matchup_df = get_matchup_data()
 df = get_main_data()
+
+
+@callback(
+    Output("fighter-clustering", "figure"),
+    Input("roster-division-dropdown", "value"),
+)
+def update_fighter_clustering(division: str):
+    filtered_df = roster_df
+    if division != "ALL":
+        fighters_in_division = [name for name, div in fighter_divisions.items() if div == division]
+        filtered_df = filtered_df.filter(pl.col("fighter_name").is_in(fighters_in_division))
+    return create_fighter_clustering_figure(filtered_df)
+
+
+@callback(
+    Output("striking-target-winrate", "figure"),
+    Input("roster-division-dropdown", "value"),
+)
+def update_striking_target(division: str):
+    return create_striking_target_winrate_figure(division)
+
+
+@callback(
+    Output("matchup-discrepancy", "figure"),
+    Input("roster-division-dropdown", "value"),
+)
+def update_matchup_discrepancy(division: str):
+    filtered_df = matchup_df
+    if division != "ALL":
+        filtered_df = filtered_df.filter(pl.col("fight_division") == division)
+    return create_matchup_discrepancy_figure(filtered_df)
+
+
 roster_analysis_content = html.Div(
     [
+        html.Div(
+            [
+                dmc.Text("Division", size="sm", mb="xs", style={"color": "#1a1a1a"}),
+                dmc.Select(
+                    id="roster-division-dropdown",
+                    data=[  # pyright: ignore[reportArgumentType]
+                        {"value": "ALL", "label": "All"},
+                        {"value": "HEAVYWEIGHT", "label": "Heavyweight"},
+                        {"value": "LIGHT_HEAVYWEIGHT", "label": "Light Heavyweight"},
+                        {"value": "MIDDLEWEIGHT", "label": "Middleweight"},
+                        {"value": "WELTERWEIGHT", "label": "Welterweight"},
+                        {"value": "LIGHTWEIGHT", "label": "Lightweight"},
+                        {"value": "FEATHERWEIGHT", "label": "Featherweight"},
+                        {"value": "BANTAMWEIGHT", "label": "Bantamweight"},
+                        {"value": "FLYWEIGHT", "label": "Flyweight"},
+                        {"value": "WOMENS_FEATHERWEIGHT", "label": "Women's Featherweight"},
+                        {"value": "WOMENS_BANTAMWEIGHT", "label": "Women's Bantamweight"},
+                        {"value": "WOMENS_FLYWEIGHT", "label": "Women's Flyweight"},
+                        {"value": "WOMENS_STRAWWEIGHT", "label": "Women's Strawweight"},
+                    ],
+                    value="MIDDLEWEIGHT",
+                    searchable=True,
+                    clearable=False,
+                ),
+            ],
+            style={"width": "25%", "marginBottom": "1.5rem"},
+        ),
         html.Div(
             [
                 html.Div("Striking Type", className="plot-title"),
                 html.Div(
                     dcc.Graph(
                         id="fighter-clustering",
-                        figure=create_fighter_clustering_figure(roster_df, fighter_divisions),
+                        figure={},
                         config={"displayModeBar": False},
                     ),
                     className="plot-container-wrapper",
@@ -737,7 +801,7 @@ roster_analysis_content = html.Div(
                 html.Div(
                     dcc.Graph(
                         id="striking-target-winrate",
-                        figure=create_striking_target_winrate_figure(roster_df),
+                        figure={},
                         config={"displayModeBar": False},
                     ),
                     className="plot-container-wrapper",
@@ -751,7 +815,7 @@ roster_analysis_content = html.Div(
                 html.Div(
                     dcc.Graph(
                         id="matchup-discrepancy",
-                        figure=create_matchup_discrepancy_figure(matchup_df),
+                        figure={},
                         config={"displayModeBar": False},
                     ),
                     className="plot-container-wrapper",
