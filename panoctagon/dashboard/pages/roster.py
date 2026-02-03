@@ -827,6 +827,16 @@ def create_striking_target_winrate_figure(division: str) -> go.Figure:
                 )
             )
 
+            if result == "LOSS":
+                fig.add_shape(
+                    type="line",
+                    x0=med,
+                    x1=med,
+                    y0=y_pos - 0.15,
+                    y1=y_pos + 0.15,
+                    line=dict(color=PLOT_COLORS["win"], width=2),
+                )
+
             outliers = subset.filter((pl.col("pct") < fence_low) | (pl.col("pct") > fence_high))
 
             if outliers.height > 0:
