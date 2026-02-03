@@ -430,7 +430,6 @@ fighter_network_content = html.Div(
                     margin=dict(l=20, r=80, t=20, b=20),
                 ),
                 config={"displayModeBar": False},
-                responsive=True,
             ),
             className="plot-container-wrapper",
         ),
