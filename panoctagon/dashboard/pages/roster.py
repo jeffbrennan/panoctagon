@@ -460,25 +460,45 @@ def create_matchup_discrepancy_figure(matchup_df: pl.DataFrame) -> go.Figure:
         pl.col("age_diff").cut(breaks=age_bins).alias("age_bin_cat")
     ).with_columns(pl.col("age_bin_cat").cast(pl.String).alias("age_bin"))
 
-    age_bin_mapping = {
-        "(-20.0, -10.0]": "-20 to -10",
-        "(-10.0, -5.0]": "-10 to -5",
-        "(-5.0, -2.0]": "-5 to -2",
-        "(-2.0, 0.0]": "-2 to 0",
-        "(0.0, 2.0]": "0 to 2",
-        "(2.0, 5.0]": "2 to 5",
-        "(5.0, 10.0]": "5 to 10",
-        "(10.0, 20.0]": "10 to 20",
-    }
+    age_bin_order = [
+        "-20 to -10",
+        "-10 to -5",
+        "-5 to -2",
+        "-2 to 0",
+        "0 to 2",
+        "2 to 5",
+        "5 to 10",
+        "10 to 20",
+    ]
     results_df = results_df.with_columns(
         pl.col("age_bin")
-        .map_elements(lambda x: age_bin_mapping.get(x, x), return_dtype=pl.String)
+        .replace_strict(
+            [
+                "(-20, -10]",
+                "(-10, -5]",
+                "(-5, -2]",
+                "(-2, 0]",
+                "(0, 2]",
+                "(2, 5]",
+                "(5, 10]",
+                "(10, 20]",
+            ],
+            age_bin_order,
+            default=None,
+        )
         .alias("age_bin")
     )
     age_win_rates = (
         results_df.group_by("age_bin")
         .agg([pl.col("won").mean().alias("win_rate"), pl.col("won").len().alias("count")])
         .filter(pl.col("count") >= 20)
+        .with_columns(
+            pl.col("age_bin")
+            .replace_strict(age_bin_order, list(range(len(age_bin_order))), default=99)
+            .alias("_sort")
+        )
+        .sort("_sort")
+        .drop("_sort")
     )
 
     reach_bins = [-15, -6, -3, -1, 1, 3, 6, 15]
@@ -486,24 +506,58 @@ def create_matchup_discrepancy_figure(matchup_df: pl.DataFrame) -> go.Figure:
         pl.col("reach_diff").cut(breaks=reach_bins).alias("reach_bin_cat")
     ).with_columns(pl.col("reach_bin_cat").cast(pl.String).alias("reach_bin"))
 
-    reach_bin_mapping = {
-        "(-15.0, -6.0]": "-6+ in",
-        "(-6.0, -3.0]": "-3 to -6",
-        "(-3.0, -1.0]": "-1 to -3",
-        "(-1.0, 1.0]": "Even",
-        "(1.0, 3.0]": "+1 to +3",
-        "(3.0, 6.0]": "+3 to +6",
-        "(6.0, 15.0]": "+6+ in",
-    }
+    reach_bin_order = [
+        "-6+ in",
+        "-6+ in",
+        "-3 to -6",
+        "-1 to -3",
+        "Even",
+        "+1 to +3",
+        "+3 to +6",
+        "+6+ in",
+        "+6+ in",
+    ]
     results_df = results_df.with_columns(
         pl.col("reach_bin")
-        .map_elements(lambda x: reach_bin_mapping.get(x, x), return_dtype=pl.String)
+        .replace_strict(
+            [
+                "(-inf, -15]",
+                "(-15, -6]",
+                "(-6, -3]",
+                "(-3, -1]",
+                "(-1, 1]",
+                "(1, 3]",
+                "(3, 6]",
+                "(6, 15]",
+                "(15, inf]",
+            ],
+            reach_bin_order,
+            default=None,
+        )
         .alias("reach_bin")
     )
+    reach_bin_sort_order = [
+        "-6+ in",
+        "-3 to -6",
+        "-1 to -3",
+        "Even",
+        "+1 to +3",
+        "+3 to +6",
+        "+6+ in",
+    ]
     reach_win_rates = (
         results_df.group_by("reach_bin")
         .agg([pl.col("won").mean().alias("win_rate"), pl.col("won").len().alias("count")])
         .filter(pl.col("count") >= 20)
+        .with_columns(
+            pl.col("reach_bin")
+            .replace_strict(
+                reach_bin_sort_order, list(range(len(reach_bin_sort_order))), default=99
+            )
+            .alias("_sort")
+        )
+        .sort("_sort")
+        .drop("_sort")
     )
 
     exp_bins = [-50, -10, -5, -2, 0, 2, 5, 10, 50]
@@ -511,25 +565,45 @@ def create_matchup_discrepancy_figure(matchup_df: pl.DataFrame) -> go.Figure:
         pl.col("exp_diff").cut(breaks=exp_bins).alias("exp_bin_cat")
     ).with_columns(pl.col("exp_bin_cat").cast(pl.String).alias("exp_bin"))
 
-    exp_bin_mapping = {
-        "(-50.0, -10.0]": "-10+ fights",
-        "(-10.0, -5.0]": "-5 to -10",
-        "(-5.0, -2.0]": "-2 to -5",
-        "(-2.0, 0.0]": "-2 to 0",
-        "(0.0, 2.0]": "0 to 2",
-        "(2.0, 5.0]": "2 to 5",
-        "(5.0, 10.0]": "5 to 10",
-        "(10.0, 50.0]": "10+ fights",
-    }
+    exp_bin_order = [
+        "-10+ fights",
+        "-5 to -10",
+        "-2 to -5",
+        "-2 to 0",
+        "0 to 2",
+        "2 to 5",
+        "5 to 10",
+        "10+ fights",
+    ]
     results_df = results_df.with_columns(
         pl.col("exp_bin")
-        .map_elements(lambda x: exp_bin_mapping.get(x, x), return_dtype=pl.String)
+        .replace_strict(
+            [
+                "(-50, -10]",
+                "(-10, -5]",
+                "(-5, -2]",
+                "(-2, 0]",
+                "(0, 2]",
+                "(2, 5]",
+                "(5, 10]",
+                "(10, 50]",
+            ],
+            exp_bin_order,
+            default=None,
+        )
         .alias("exp_bin")
     )
     exp_win_rates = (
         results_df.group_by("exp_bin")
         .agg([pl.col("won").mean().alias("win_rate"), pl.col("won").len().alias("count")])
         .filter(pl.col("count") >= 20)
+        .with_columns(
+            pl.col("exp_bin")
+            .replace_strict(exp_bin_order, list(range(len(exp_bin_order))), default=99)
+            .alias("_sort")
+        )
+        .sort("_sort")
+        .drop("_sort")
     )
 
     fig.add_trace(
@@ -576,7 +650,7 @@ def create_matchup_discrepancy_figure(matchup_df: pl.DataFrame) -> go.Figure:
     fig.add_hline(y=50, line_dash="dash", line_color="gray", opacity=0.5)
 
     fig.update_layout(
-        xaxis_title="Advantage (negative = disadvantage)",
+        xaxis_title="Advantage",
         yaxis_title="Win %",
         height=500,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
