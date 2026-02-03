@@ -699,10 +699,9 @@ def create_striking_target_winrate_figure(division: str) -> go.Figure:
 
     cat_positions = {"Head": 0, "Body": 1, "Leg": 2}
     result_offsets = {"WIN": -0.2, "LOSS": 0.2}
-    result_colors = {"WIN": PLOT_COLORS["win"], "LOSS": PLOT_COLORS["loss"]}
     result_fill_colors = {
-        "WIN": "rgba(59,191,90,0.3)",
-        "LOSS": "rgba(201,78,66,0.3)",
+        "WIN": PLOT_COLORS["win"],
+        "LOSS": PLOT_COLORS["loss"],
     }
     legend_shown: set[str] = set()
 
@@ -710,9 +709,7 @@ def create_striking_target_winrate_figure(division: str) -> go.Figure:
 
     for result in ["WIN", "LOSS"]:
         for target in ["Head", "Body", "Leg"]:
-            subset = target_df.filter(
-                (pl.col("target") == target) & (pl.col("result") == result)
-            )
+            subset = target_df.filter((pl.col("target") == target) & (pl.col("result") == result))
             if subset.height == 0:
                 continue
 
@@ -746,15 +743,13 @@ def create_striking_target_winrate_figure(division: str) -> go.Figure:
                     legendgroup=result,
                     showlegend=show,
                     fillcolor=result_fill_colors[result],
-                    line_color=result_colors[result],
+                    line_color=PLOT_COLORS["l1"],
                     orientation="h",
                     hoverinfo="none",
                 )
             )
 
-            outliers = subset.filter(
-                (pl.col("pct") < fence_low) | (pl.col("pct") > fence_high)
-            )
+            outliers = subset.filter((pl.col("pct") < fence_low) | (pl.col("pct") > fence_high))
 
             if outliers.height > 0:
                 fig.add_trace(
@@ -762,9 +757,7 @@ def create_striking_target_winrate_figure(division: str) -> go.Figure:
                         x=outliers["pct"].to_list(),
                         y=[y_pos] * outliers.height,
                         mode="markers",
-                        marker=dict(size=6, color=result_colors[result]),
-                        name=result,
-                        legendgroup=result,
+                        marker=dict(size=6, color=PLOT_COLORS["l1"]),
                         showlegend=False,
                         customdata=outliers.select(
                             ["fighter_name", "event_name", "event_date_str"]

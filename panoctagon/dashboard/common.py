@@ -314,6 +314,8 @@ PLOT_COLORS = {
     "l7": "#d0d0d0",
     "win": "rgb(242, 240, 227)",
     "loss": "rgb(26,26,26)",
+    "win_transparent": "rgba(242, 240, 227, 0.7)",
+    "loss_transparent": "rgba(26, 26, 26, 1.0)",
     "draw": "#5c5c5c",
     "neutral": "#5c5c5c",
     "head": "#1a1a1a",
