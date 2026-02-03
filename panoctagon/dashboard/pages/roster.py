@@ -694,37 +694,99 @@ def create_striking_target_winrate_figure(division: str) -> go.Figure:
         target_df = target_df.with_columns(pl.col("event_date").str.strptime(pl.Date, "%Y-%m-%d"))
 
     target_df = target_df.with_columns(
-        [
-            pl.col("event_date").dt.to_string("%Y-%m-%d").alias("event_date_str"),
-            pl.col("target").cast(pl.Categorical(ordering="physical")),
-        ]
+        pl.col("event_date").dt.to_string("%Y-%m-%d").alias("event_date_str")
     )
 
-    target_df = target_df.sort(["target", "result"])
+    cat_positions = {"Head": 0, "Body": 1, "Leg": 2}
+    result_offsets = {"WIN": -0.2, "LOSS": 0.2}
+    result_colors = {"WIN": PLOT_COLORS["win"], "LOSS": PLOT_COLORS["loss"]}
+    result_fill_colors = {
+        "WIN": "rgba(59,191,90,0.3)",
+        "LOSS": "rgba(201,78,66,0.3)",
+    }
+    legend_shown: set[str] = set()
 
-    fig = px.box(
-        target_df.to_pandas(),
-        x="pct",
-        y="target",
-        color="result",
-        category_orders={"target": ["Head", "Body", "Leg"]},
-        color_discrete_map={"WIN": PLOT_COLORS["win"], "LOSS": PLOT_COLORS["loss"]},
-        custom_data=["fighter_name", "event_name", "event_date_str"],
-    )
+    fig = go.Figure()
 
-    fig.update_traces(
-        hovertemplate=(
-            "<b>%{customdata[0]}</b><br>"
-            "%{customdata[1]}<br>"
-            "%{customdata[2]}<br>"
-            "Target %: %{x:.1%}<br>"
-            "<extra></extra>"
-        )
-    )
+    for result in ["WIN", "LOSS"]:
+        for target in ["Head", "Body", "Leg"]:
+            subset = target_df.filter(
+                (pl.col("target") == target) & (pl.col("result") == result)
+            )
+            if subset.height == 0:
+                continue
+
+            y_pos = cat_positions[target] + result_offsets[result]
+            show = result not in legend_shown
+            if show:
+                legend_shown.add(result)
+
+            pct = subset["pct"]
+            q1 = pct.quantile(0.25, interpolation="linear")
+            q3 = pct.quantile(0.75, interpolation="linear")
+            med = pct.median()
+            assert q1 is not None and q3 is not None and med is not None
+            iqr = q3 - q1
+
+            fence_low = q1 - 1.5 * iqr
+            fence_high = q3 + 1.5 * iqr
+            whisker_low = pct.filter(pct >= fence_low).min()
+            whisker_high = pct.filter(pct <= fence_high).max()
+            assert whisker_low is not None and whisker_high is not None
+
+            fig.add_trace(
+                go.Box(
+                    q1=[q1],
+                    median=[med],
+                    q3=[q3],
+                    lowerfence=[whisker_low],
+                    upperfence=[whisker_high],
+                    y=[y_pos],
+                    name=result,
+                    legendgroup=result,
+                    showlegend=show,
+                    fillcolor=result_fill_colors[result],
+                    line_color=result_colors[result],
+                    orientation="h",
+                    hoverinfo="none",
+                )
+            )
+
+            outliers = subset.filter(
+                (pl.col("pct") < fence_low) | (pl.col("pct") > fence_high)
+            )
+
+            if outliers.height > 0:
+                fig.add_trace(
+                    go.Scatter(
+                        x=outliers["pct"].to_list(),
+                        y=[y_pos] * outliers.height,
+                        mode="markers",
+                        marker=dict(size=6, color=result_colors[result]),
+                        name=result,
+                        legendgroup=result,
+                        showlegend=False,
+                        customdata=outliers.select(
+                            ["fighter_name", "event_name", "event_date_str"]
+                        ).rows(),
+                        hovertemplate=(
+                            "<b>%{customdata[0]}</b><br>"
+                            "%{customdata[1]}<br>"
+                            "%{customdata[2]}<br>"
+                            "Target %: %{x:.1%}<br>"
+                            "<extra></extra>"
+                        ),
+                    )
+                )
 
     fig.update_layout(
         xaxis_title="% of Significant Strikes",
-        yaxis_title="Target",
+        yaxis=dict(
+            title="Target",
+            tickvals=[0, 1, 2],
+            ticktext=["Head", "Body", "Leg"],
+            range=[-0.5, 2.5],
+        ),
         height=500,
         legend=dict(
             orientation="h",
