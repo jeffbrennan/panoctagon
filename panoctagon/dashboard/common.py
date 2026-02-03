@@ -54,11 +54,12 @@ def create_plot_with_title(
                     id=graph_id,
                     figure={},
                     config={"displayModeBar": False},
+                    responsive=True,
                 ),
                 className="plot-container-wrapper",
             ),
         ],
-        style={"marginBottom": "2rem"} if margin_bottom else {},
+        style={"width": "100%", "marginBottom": "2rem"} if margin_bottom else {"width": "100%"},
     )
 
 

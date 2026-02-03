@@ -872,11 +872,12 @@ roster_analysis_content = html.Div(
                         id="fighter-clustering",
                         figure={},
                         config={"displayModeBar": False},
+                        responsive=True,
                     ),
                     className="plot-container-wrapper",
                 ),
             ],
-            style={"marginBottom": "2rem"},
+            style={"width": "100%", "marginBottom": "2rem"},
         ),
         html.Div(
             [
@@ -889,11 +890,12 @@ roster_analysis_content = html.Div(
                         id="striking-target-winrate",
                         figure={},
                         config={"displayModeBar": False},
+                        responsive=True,
                     ),
                     className="plot-container-wrapper",
                 ),
             ],
-            style={"marginBottom": "2rem"},
+            style={"width": "100%", "marginBottom": "2rem"},
         ),
         html.Div(
             [
@@ -903,10 +905,12 @@ roster_analysis_content = html.Div(
                         id="matchup-discrepancy",
                         figure={},
                         config={"displayModeBar": False},
+                        responsive=True,
                     ),
                     className="plot-container-wrapper",
                 ),
             ],
+            style={"width": "100%"},
         ),
     ]
 )

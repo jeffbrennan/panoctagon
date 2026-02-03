@@ -235,12 +235,26 @@ svg.main-svg {
     margin-top: 0 !important;
 }
 
-.plot-container-wrapper .dash-graph {
+.plot-container-wrapper .dash-graph,
+.plot-container-wrapper .js-plotly-plot,
+.plot-container-wrapper .svg-container {
+    width: 100% !important;
+    min-width: 100% !important;
     margin-top: 0 !important;
 }
 
+.plot-container-wrapper .dash-graph {
+    animation: plotFadeIn 200ms 250ms ease-out forwards;
+    opacity: 0;
+}
+
+@keyframes plotFadeIn {
+    to {
+        opacity: 1;
+    }
+}
+
 .plot-container-wrapper .js-plotly-plot {
-    margin-top: 0 !important;
     padding-top: 0 !important;
 }
 
