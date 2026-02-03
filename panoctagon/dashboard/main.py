@@ -2,7 +2,7 @@ from pathlib import Path
 
 import dash_mantine_components as dmc
 import pandas as pd
-from dash import Dash, html
+from dash import Dash, Input, Output, callback, html
 
 from panoctagon.common import get_engine
 from panoctagon.dashboard.pages.fighter import fighter_analysis_content
@@ -39,7 +39,11 @@ app.layout = dmc.MantineProvider(
                 dmc.AppShellHeader(
                     dmc.Group(
                         [
-                            dmc.Title("panoctagon", c="red", size="h2"),
+                            html.A(
+                                dmc.Title("panoctagon", c="#1a1a1a", size="h2"),
+                                id="title-link",
+                                style={"textDecoration": "none", "cursor": "pointer"},
+                            ),
                             dmc.Badge(
                                 f"Data current as of {get_last_refresh()}",
                                 color="gray",
@@ -96,6 +100,15 @@ app.layout = dmc.MantineProvider(
         ),
     )
 )
+
+
+@callback(
+    Output("top-level-tabs", "value", allow_duplicate=True),
+    Input("title-link", "n_clicks"),
+    prevent_initial_call=True,
+)
+def reset_to_upcoming(_: int | None) -> str:
+    return "upcoming"
 
 
 if __name__ == "__main__":
