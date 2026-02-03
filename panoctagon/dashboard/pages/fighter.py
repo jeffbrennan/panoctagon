@@ -291,60 +291,86 @@ def update_win_method_chart(fighter: str):
         fig.update_layout(height=400)
         return apply_figure_styling(fig)
 
-    df_wins = df_filtered.filter(pl.col("fighter_result") == "WIN")
-    df_losses = df_filtered.filter(pl.col("fighter_result") == "LOSS")
+    fights = (
+        df_filtered.group_by("fight_uid")
+        .agg([
+            pl.col("decision").first(),
+            pl.col("fighter_result").first(),
+            pl.col("opponent_name").first(),
+            pl.col("event_date").first(),
+        ])
+        .with_columns(pl.col("event_date").dt.year().cast(pl.String).alias("year"))
+    )
 
-    win_methods = df_wins.group_by("fight_uid").agg(pl.col("decision").first())
-    win_counts = win_methods.group_by("decision").len().sort("len", descending=True)
+    df_wins = fights.filter(pl.col("fighter_result") == "WIN")
+    df_losses = fights.filter(pl.col("fighter_result") == "LOSS")
 
-    loss_methods = df_losses.group_by("fight_uid").agg(pl.col("decision").first())
-    loss_counts = loss_methods.group_by("decision").len().sort("len", descending=True)
-
-    fig = go.Figure()
+    win_counts = df_wins.group_by("decision").len()
+    loss_counts = df_losses.group_by("decision").len()
+    win_count_map = dict(zip(win_counts["decision"].to_list(), win_counts["len"].to_list()))
+    loss_count_map = dict(zip(loss_counts["decision"].to_list(), loss_counts["len"].to_list()))
 
     method_colors = {
         "KO": PLOT_COLORS["l1"],
-        "TKO": PLOT_COLORS["l2"],
-        "SUB": PLOT_COLORS["l3"],
-        "Submission": PLOT_COLORS["l3"],
-        "UNANIMOUS_DECISION": PLOT_COLORS["l4"],
-        "SPLIT_DECISION": PLOT_COLORS["l5"],
-        "MAJORITY_DECISION": PLOT_COLORS["l6"],
+        "TKO": PLOT_COLORS["l3"],
+        "SUB": PLOT_COLORS["l5"],
+        "UNANIMOUS_DECISION": PLOT_COLORS["l6"],
+        "SPLIT_DECISION": PLOT_COLORS["l7"],
+        "MAJORITY_DECISION": PLOT_COLORS["l7"],
         "DQ": PLOT_COLORS["neutral"],
         "DOC": PLOT_COLORS["neutral"],
     }
 
-    if win_counts.height > 0:
-        for row in win_counts.iter_rows(named=True):
-            method = row["decision"]
-            count = row["len"]
+    method_labels = {
+        "KO": "KO",
+        "TKO": "TKO",
+        "SUB": "Submission",
+        "UNANIMOUS_DECISION": "Unanimous Decision",
+        "SPLIT_DECISION": "Split Decision",
+        "MAJORITY_DECISION": "Majority Decision",
+        "DQ": "DQ",
+        "DOC": "Doctor",
+    }
+
+    def build_method_hover(method: str, method_fights: pl.DataFrame) -> str:
+        subset = method_fights.filter(pl.col("decision") == method)
+        lines = [f"<b>{method_labels[method]}</b> ({subset.height})", ""]
+        by_year = (
+            subset.group_by("year")
+            .agg(pl.col("opponent_name").sort())
+            .sort("year", descending=True)
+        )
+        for row in by_year.iter_rows(named=True):
+            lines.append(f"<b>{row['year']}</b>")
+            lines.append(f"  {', '.join(row['opponent_name'])}")
+        return "<br>".join(lines)
+
+    fig = go.Figure()
+
+    for method in method_colors:
+        if method in win_count_map:
             fig.add_trace(
                 go.Bar(
                     y=["Wins"],
-                    x=[count],
-                    name=method,
+                    x=[win_count_map[method]],
+                    name=method_labels[method],
                     orientation="h",
-                    text=f"{method} ({count})",
-                    textposition="inside",
-                    marker_color=method_colors.get(method, PLOT_COLORS["neutral"]),
+                    marker_color=method_colors[method],
+                    hovertext=[build_method_hover(method, df_wins)],
+                    hoverinfo="text",
                 )
             )
-
-    if loss_counts.height > 0:
-        win_methods_set = set(win_counts["decision"].to_list())
-        for row in loss_counts.iter_rows(named=True):
-            method = row["decision"]
-            count = row["len"]
+        if method in loss_count_map:
             fig.add_trace(
                 go.Bar(
                     y=["Losses"],
-                    x=[count],
-                    name=method,
+                    x=[loss_count_map[method]],
+                    name=method_labels[method],
                     orientation="h",
-                    text=f"{method} ({count})",
-                    textposition="inside",
-                    showlegend=method not in win_methods_set,
-                    marker_color=method_colors.get(method, PLOT_COLORS["neutral"]),
+                    showlegend=method not in win_count_map,
+                    marker_color=method_colors[method],
+                    hovertext=[build_method_hover(method, df_losses)],
+                    hoverinfo="text",
                 )
             )
 
@@ -521,7 +547,14 @@ def update_target_distribution(fighter: str):
             .with_columns(
                 pl.col("event_date").dt.to_string("%Y-%m-%d"),
                 pl.col("fighter_result")
-                .replace({"WIN": "Beat", "LOSS": "Defeated by", "DRAW": "Draw vs", "NO_CONTEST": "No Contest vs"})
+                .replace(
+                    {
+                        "WIN": "Beat",
+                        "LOSS": "Defeated by",
+                        "DRAW": "Draw vs",
+                        "NO_CONTEST": "No Contest vs",
+                    }
+                )
                 .alias("result_label"),
             )
         )
