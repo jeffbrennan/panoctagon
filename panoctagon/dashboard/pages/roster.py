@@ -240,50 +240,103 @@ def create_fighter_clustering_figure(
         fig.update_layout(height=600)
         return apply_figure_styling(fig)
 
+    engine = get_engine()
+    with engine.connect() as conn:
+        opposition_df = pl.read_database(
+            """
+            WITH fight_results AS (
+                SELECT
+                    fighter1_uid AS fighter_uid,
+                    fighter2_uid AS opponent_uid,
+                    fighter1_result AS result
+                FROM ufc_fights
+                WHERE fighter1_result IN ('WIN', 'LOSS')
+                UNION ALL
+                SELECT
+                    fighter2_uid AS fighter_uid,
+                    fighter1_uid AS opponent_uid,
+                    fighter2_result AS result
+                FROM ufc_fights
+                WHERE fighter2_result IN ('WIN', 'LOSS')
+            ),
+            opponent_records AS (
+                SELECT
+                    fighter_uid,
+                    COUNT(CASE WHEN result = 'WIN' THEN 1 END) AS wins
+                FROM fight_results
+                GROUP BY fighter_uid
+            ),
+            beaten_opponents AS (
+                SELECT
+                    fr.fighter_uid,
+                    SUM(COALESCE(op.wins, 0)) AS opposition_strength
+                FROM fight_results fr
+                LEFT JOIN opponent_records op ON fr.opponent_uid = op.fighter_uid
+                WHERE fr.result = 'WIN'
+                GROUP BY fr.fighter_uid
+            )
+            SELECT
+                f.first_name || ' ' || f.last_name AS fighter_name,
+                COALESCE(bo.opposition_strength, 0) AS opposition_strength
+            FROM ufc_fighters f
+            LEFT JOIN beaten_opponents bo ON f.fighter_uid = bo.fighter_uid
+            """,
+            connection=conn,
+        )
+
+    roster_df = roster_df.join(opposition_df, on="fighter_name", how="left")
+    roster_df = roster_df.with_columns(
+        pl.col("opposition_strength").fill_null(0)
+    )
+
+    max_opposition = roster_df["opposition_strength"].max()
+    if max_opposition is None or max_opposition == 0:
+        max_opposition = 1
+
     roster_df = roster_df.with_columns(
         [
-            pl.col("fighter_name")
-            .map_elements(
-                lambda x: normalize_division(fighter_divisions.get(x, "Unknown")),
-                return_dtype=pl.String,
-            )
-            .alias("division"),
             (pl.col("wins") / pl.col("total_fights") * 100).alias("win_pct"),
+            (pl.col("opposition_strength") / max_opposition * 100).alias("opposition_strength_normalized"),
         ]
     )
 
+    hover_text = [
+        f"<b>{row['fighter_name']}</b><br>"
+        f"Fights: {row['total_fights']}<br>"
+        f"Win%: {row['win_pct']:.1f}%<br>"
+        f"Median Landed: {row['avg_strikes_landed']:.1f}<br>"
+        f"Median Absorbed: {row['avg_strikes_absorbed']:.1f}<br>"
+        f"Opposition Strength: {row['opposition_strength']}"
+        for row in roster_df.iter_rows(named=True)
+    ]
+
     fig = go.Figure()
 
-    for division in DIVISION_COLORS:
-        div_data = roster_df.filter(pl.col("division") == division)
-        if div_data.height == 0:
-            continue
-
-        hover_text = [
-            f"<b>{row['fighter_name']}</b><br>"
-            f"Fights: {row['total_fights']}<br>"
-            f"Win%: {row['win_pct']:.1f}%<br>"
-            f"Median Landed: {row['avg_strikes_landed']:.1f}<br>"
-            f"Median Absorbed: {row['avg_strikes_absorbed']:.1f}"
-            for row in div_data.iter_rows(named=True)
-        ]
-
-        fig.add_trace(
-            go.Scatter(
-                x=div_data["avg_strikes_landed"].to_list(),
-                y=div_data["avg_strikes_absorbed"].to_list(),
-                mode="markers",
-                marker=dict(
-                    size=(div_data["total_fights"].clip(upper_bound=30) + 5).to_list(),
-                    color=DIVISION_COLORS[division],
-                    line=dict(width=1, color="white"),
-                    opacity=0.7,
+    fig.add_trace(
+        go.Scatter(
+            x=roster_df["avg_strikes_landed"].to_list(),
+            y=roster_df["avg_strikes_absorbed"].to_list(),
+            mode="markers",
+            marker=dict(
+                size=(roster_df["total_fights"].clip(upper_bound=30) + 5).to_list(),
+                color=roster_df["opposition_strength_normalized"].to_list(),
+                colorscale=[[0, "#c8c8c8"], [0.5, "#7a7a7a"], [1, "#1a1a1a"]],
+                cmin=0,
+                cmax=100,
+                line=dict(width=1, color="white"),
+                opacity=0.8,
+                colorbar=dict(
+                    title="Opposition<br>Strength",
+                    thickness=15,
+                    len=0.5,
+                    x=1.02,
                 ),
-                name=division,
-                hovertext=hover_text,
-                hoverinfo="text",
-            )
+            ),
+            hovertext=hover_text,
+            hoverinfo="text",
+            showlegend=False,
         )
+    )
 
     max_landed = roster_df["avg_strikes_landed"].max()
     max_absorbed = roster_df["avg_strikes_absorbed"].max()
