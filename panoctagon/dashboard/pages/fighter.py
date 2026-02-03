@@ -531,6 +531,7 @@ def update_accuracy_trend(fighter: str):
             marker_color=PLOT_COLORS["l1"],
         )
         fig.update_yaxes(title="Accuracy (%)", range=[0, 100])
+        fig.update_xaxes(title=None)
 
     fig.update_layout(height=400)
     return apply_figure_styling(fig)
