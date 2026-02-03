@@ -198,8 +198,18 @@ def update_career_timeline(fighter: str):
         "DRAW": PLOT_COLORS["draw"],
         "NO_CONTEST": PLOT_COLORS["l3"],
     }
+    border_map = {
+        "WIN": PLOT_COLORS["loss"],
+        "LOSS": PLOT_COLORS["win"],
+        "DRAW": PLOT_COLORS["win"],
+        "NO_CONTEST": PLOT_COLORS["win"],
+    }
+
     marker_colors = [
         color_map.get(result, "gray") for result in fight_timeline["fighter_result"].to_list()
+    ]
+    border_colors = [
+        border_map.get(result, "gray") for result in fight_timeline["fighter_result"].to_list()
     ]
 
     result_map = {
@@ -217,16 +227,15 @@ def update_career_timeline(fighter: str):
     ]
 
     fig = go.Figure()
-
     fig.add_trace(
         go.Scatter(
             x=fight_timeline["event_date"].to_list(),
             y=fight_timeline["cumulative_absorbed"].to_list(),
             mode="lines+markers",
-            line=dict(color="#1a1a1a", shape="spline", width=1),
+            line=dict(color=PLOT_COLORS["l1"], shape="spline", width=1),
             fill="tozeroy",
-            fillcolor="rgba(26, 26, 26, 1)",
-            marker=dict(size=18, color=marker_colors),
+            fillcolor=PLOT_COLORS["l1"],
+            marker=dict(size=18, color=marker_colors, line=dict(width=2, color=border_colors)),
             showlegend=False,
             hovertext=hover_text,
             hoverinfo="text",
@@ -239,7 +248,11 @@ def update_career_timeline(fighter: str):
                 x=[None],
                 y=[None],
                 mode="markers",
-                marker=dict(size=10, color=color_map.get(result, "gray")),
+                marker=dict(
+                    size=10,
+                    color=color_map.get(result, "gray"),
+                    line=dict(width=2, color=PLOT_COLORS["l1"]),
+                ),
                 name=result,
             )
         )
@@ -293,12 +306,14 @@ def update_win_method_chart(fighter: str):
 
     fights = (
         df_filtered.group_by("fight_uid")
-        .agg([
-            pl.col("decision").first(),
-            pl.col("fighter_result").first(),
-            pl.col("opponent_name").first(),
-            pl.col("event_date").first(),
-        ])
+        .agg(
+            [
+                pl.col("decision").first(),
+                pl.col("fighter_result").first(),
+                pl.col("opponent_name").first(),
+                pl.col("event_date").first(),
+            ]
+        )
         .with_columns(pl.col("event_date").dt.year().cast(pl.String).alias("year"))
     )
 
