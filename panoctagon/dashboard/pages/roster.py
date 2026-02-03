@@ -176,12 +176,28 @@ def update_strikes_comparison(fighter: str):
             df_filtered.group_by(["fight_uid", "event_date"])
             .agg(
                 [
+                    pl.col("title").first(),
+                    pl.col("fighter_result").first(),
+                    pl.col("opponent_name").first(),
                     pl.col("total_strikes_landed").sum(),
                     pl.col("opponent_strikes_landed").sum(),
                 ]
             )
             .sort("event_date")
-            .with_columns(pl.col("event_date").dt.to_string("%Y-%m-%d"))
+            .with_columns(
+                pl.col("event_date").dt.to_string("%Y-%m-%d"),
+                pl.col("fighter_result")
+                .replace({"WIN": "Beat", "LOSS": "Defeated by", "DRAW": "Draw vs", "NO_CONTEST": "No Contest vs"})
+                .alias("result_label"),
+            )
+        )
+
+        customdata = list(
+            zip(
+                comparison["title"].to_list(),
+                comparison["result_label"].to_list(),
+                comparison["opponent_name"].to_list(),
+            )
         )
 
         fig = go.Figure()
@@ -191,6 +207,8 @@ def update_strikes_comparison(fighter: str):
                 y=comparison["total_strikes_landed"].to_list(),
                 name="Fighter Strikes Landed",
                 marker_color=PLOT_COLORS["primary"],
+                customdata=customdata,
+                hovertemplate="<b>%{customdata[0]}</b> | %{x}<br>%{customdata[1]} <b>%{customdata[2]}</b><br>Landed: %{y}<extra></extra>",
             )
         )
         fig.add_trace(
@@ -199,6 +217,8 @@ def update_strikes_comparison(fighter: str):
                 y=comparison["opponent_strikes_landed"].to_list(),
                 name="Opponent Strikes Landed",
                 marker_color=PLOT_COLORS["tertiary"],
+                customdata=customdata,
+                hovertemplate="<b>%{customdata[0]}</b> | %{x}<br>%{customdata[1]} <b>%{customdata[2]}</b><br>Absorbed: %{y}<extra></extra>",
             )
         )
 
