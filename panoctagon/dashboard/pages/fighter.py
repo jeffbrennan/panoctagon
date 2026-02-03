@@ -467,29 +467,31 @@ def update_fight_history(fighter: str):
 
     data = table_df.to_dicts()
 
-    style_conditional = [{"if": {"row_index": "odd"}, "backgroundColor": "rgba(0,0,0,0.03)"}]
-
+    style_conditional = [
+        {"if": {"row_index": "odd"}, "backgroundColor": PLOT_COLORS["win"]},
+        {"if": {"row_index": "even"}, "backgroundColor": PLOT_COLORS["win"]},
+    ]
     for i, row in enumerate(data):
+        print(row)
         result = row.get("", "")
         if result == "W":
             style_conditional.append(
                 {
                     "if": {"row_index": i, "column_id": ""},
-                    "backgroundColor": "rgba(45, 90, 39, 0.2)",
-                    "color": PLOT_COLORS["win"],
-                    "fontWeight": "bold",
-                }
-            )
-        elif result == "L":
-            style_conditional.append(
-                {
-                    "if": {"row_index": i, "column_id": ""},
-                    "backgroundColor": "rgba(139, 58, 58, 0.2)",
+                    "backgroundColor": PLOT_COLORS["win"],
                     "color": PLOT_COLORS["loss"],
                     "fontWeight": "bold",
                 }
             )
-
+        elif result in ["L", "D", "NC"]:
+            style_conditional.append(
+                {
+                    "if": {"row_index": i, "column_id": ""},
+                    "backgroundColor": PLOT_COLORS["loss"],
+                    "color": PLOT_COLORS["win"],
+                    "fontWeight": "bold",
+                }
+            )
     return columns, data, style_conditional
 
 

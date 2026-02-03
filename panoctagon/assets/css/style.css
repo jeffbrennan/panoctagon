@@ -64,7 +64,6 @@ body,
     padding-right: 8px !important;
     margin: 0 !important;
     border-right: none !important;
-    background-color: rgb(242, 240, 227) !important;
 }
 
 td.dash-cell.cell--selected.focused {
