@@ -775,7 +775,7 @@ def create_striking_target_winrate_figure(division: str) -> go.Figure:
         pl.col("event_date").dt.to_string("%Y-%m-%d").alias("event_date_str")
     )
 
-    cat_positions = {"Head": 0, "Body": 1, "Leg": 2}
+    cat_positions = {"Head": 2, "Body": 1, "Leg": 0}
     result_offsets = {"WIN": -0.2, "LOSS": 0.2}
     result_fill_colors = {
         "WIN": PLOT_COLORS["win"],
@@ -865,7 +865,7 @@ def create_striking_target_winrate_figure(division: str) -> go.Figure:
         yaxis=dict(
             title="Target",
             tickvals=[0, 1, 2],
-            ticktext=["Head", "Body", "Leg"],
+            ticktext=["Leg", "Body", "Head"],
             range=[-0.5, 2.5],
         ),
         height=500,

@@ -643,6 +643,7 @@ def update_target_distribution(fighter: str):
             barmode="stack",
             yaxis_title="Strikes Landed",
             height=400,
+            legend=dict(traceorder="reversed"),
         )
 
     return apply_figure_styling(fig)
