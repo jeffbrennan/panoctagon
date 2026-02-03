@@ -15,6 +15,10 @@ def apply_figure_styling(fig: go.Figure) -> go.Figure:
         font=dict(family="JetBrains Mono, monospace", color="#1a1a1a"),
         title=None,
         margin=dict(l=68, r=10, t=0, b=10),
+        hoverlabel=dict(
+            bgcolor=PLOT_COLORS["loss"],
+            font=dict(color=PLOT_COLORS["win"]),
+        ),
     )
     fig.update_xaxes(
         showgrid=False,
