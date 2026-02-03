@@ -502,12 +502,13 @@ def update_accuracy_trend(fighter: str):
     df_filtered = filter_data(df, fighter)
 
     if df_filtered.height == 0:
-        fig = px.line()
+        fig = go.Figure()
     else:
         fight_accuracy = (
             df_filtered.group_by(["fight_uid", "event_date"])
             .agg(
                 [
+                    pl.col("title").first(),
                     pl.col("total_strikes_landed").sum(),
                     pl.col("total_strikes_attempted").sum(),
                 ]
@@ -521,15 +522,24 @@ def update_accuracy_trend(fighter: str):
             .sort("event_date")
         )
 
-        fig = px.line(
-            fight_accuracy.to_pandas(),
-            x="event_date",
-            y="accuracy",
-            markers=True,
-        )
-        fig.update_traces(
-            line_color=PLOT_COLORS["l1"],
-            marker_color=PLOT_COLORS["l1"],
+        fig = go.Figure()
+        fig.add_trace(
+            go.Scatter(
+                x=fight_accuracy["event_date"].to_list(),
+                y=fight_accuracy["accuracy"].to_list(),
+                mode="lines+markers",
+                line=dict(color=PLOT_COLORS["l1"]),
+                marker=dict(color=PLOT_COLORS["l1"]),
+                showlegend=False,
+                customdata=list(
+                    zip(
+                        fight_accuracy["title"].to_list(),
+                        fight_accuracy["total_strikes_landed"].to_list(),
+                        fight_accuracy["total_strikes_attempted"].to_list(),
+                    )
+                ),
+                hovertemplate="<b>%{customdata[0]}</b> | %{x}<br>Accuracy: %{y:.1f}%<br>Strikes: %{customdata[1]} / %{customdata[2]}<extra></extra>",
+            )
         )
         fig.update_yaxes(title="Accuracy (%)", range=[0, 100])
         fig.update_xaxes(title=None)
