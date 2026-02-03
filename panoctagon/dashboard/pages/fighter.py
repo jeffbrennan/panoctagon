@@ -472,7 +472,6 @@ def update_fight_history(fighter: str):
         {"if": {"row_index": "even"}, "backgroundColor": PLOT_COLORS["win"]},
     ]
     for i, row in enumerate(data):
-        print(row)
         result = row.get("", "")
         if result == "W":
             style_conditional.append(
