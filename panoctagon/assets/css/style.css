@@ -52,14 +52,14 @@ body,
     padding-bottom: 8px !important;
     position: relative;
     border: none !important;
-    font-size: 0.85em !important;
+    font-size: 0.9em !important;
 }
 
 .dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner td,
 .dash-cell-value {
     font-family: "JetBrains Mono", monospace !important;
     font-weight: 300 !important;
-    font-size: 0.9em !important;
+    font-size: 0.95em !important;
     padding-left: 8px !important;
     padding-right: 8px !important;
     margin: 0 !important;
