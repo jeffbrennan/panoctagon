@@ -213,7 +213,9 @@ def update_strikes_comparison(fighter: str):
                 x=comparison["event_date"].to_list(),
                 y=comparison["total_strikes_landed"].to_list(),
                 name="Landed",
-                marker_color=PLOT_COLORS["l1"],
+                marker_line_color=PLOT_COLORS["l1"],
+                marker_line_width=2,
+                marker_color=PLOT_COLORS["win"],
                 customdata=customdata,
                 hovertemplate="<b>%{customdata[0]}</b> | %{x}<br>%{customdata[1]} <b>%{customdata[2]}</b><br>Landed: %{y}<extra></extra>",
             )
@@ -223,7 +225,9 @@ def update_strikes_comparison(fighter: str):
                 x=comparison["event_date"].to_list(),
                 y=comparison["opponent_strikes_landed"].to_list(),
                 name="Absorbed",
-                marker_color=PLOT_COLORS["l5"],
+                marker_line_color=PLOT_COLORS["l1"],
+                marker_line_width=2,
+                marker_color=PLOT_COLORS["loss"],
                 customdata=customdata,
                 hovertemplate="<b>%{customdata[0]}</b> | %{x}<br>%{customdata[1]} <b>%{customdata[2]}</b><br>Absorbed: %{y}<extra></extra>",
             )
