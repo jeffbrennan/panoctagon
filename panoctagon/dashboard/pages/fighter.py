@@ -327,13 +327,13 @@ def update_win_method_chart(fighter: str):
 
     method_colors = {
         "KO": PLOT_COLORS["l1"],
+        "DOC": PLOT_COLORS["l1"],
         "TKO": PLOT_COLORS["l3"],
         "SUB": PLOT_COLORS["l5"],
         "UNANIMOUS_DECISION": PLOT_COLORS["l6"],
         "SPLIT_DECISION": PLOT_COLORS["l7"],
         "MAJORITY_DECISION": PLOT_COLORS["l7"],
-        "DQ": PLOT_COLORS["neutral"],
-        "DOC": PLOT_COLORS["neutral"],
+        "DQ": PLOT_COLORS["l7"],
     }
 
     method_labels = {
