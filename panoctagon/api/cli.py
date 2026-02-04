@@ -212,7 +212,6 @@ def api_request(endpoint: str, params: Optional[dict[str, Any]] = None) -> Any:
         return response.json()
     except httpx.ConnectError:
         typer.echo(f"Error: Could not connect to API at {get_api_url()}", err=True)
-        typer.echo("Start the API server first: uv run panoctagon serve", err=True)
         raise typer.Exit(1)
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 404:
