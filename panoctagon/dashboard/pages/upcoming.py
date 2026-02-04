@@ -5,7 +5,7 @@ import polars as pl
 from dash import html
 
 from panoctagon.common import get_engine
-from panoctagon.dashboard.common import get_headshot_base64
+from panoctagon.dashboard.common import PLOT_COLORS, get_headshot_base64
 
 
 def get_upcoming_fights() -> pl.DataFrame:
@@ -82,15 +82,15 @@ def get_upcoming_fights() -> pl.DataFrame:
 
 
 def colorize_condition(value: Any | None, threshold: int | float, gt: bool = True) -> str:
-    salmon = "#F48473"
-    teal = "#0b7b8c"
+    advantage = PLOT_COLORS["win"]
+    disadvantage = PLOT_COLORS["loss"]
     if value is None:
-        return "rgb(60,60,60)"
+        return PLOT_COLORS["neutral"]
 
     if gt:
-        return teal if value > threshold else salmon
+        return advantage if value > threshold else disadvantage
 
-    return teal if value < threshold else salmon
+    return advantage if value < threshold else disadvantage
 
 
 def create_matchup_card(

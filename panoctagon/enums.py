@@ -82,3 +82,43 @@ class ONEDivisionNames(str, Enum):
     MIDDLEWEIGHT = "Middleweight"
     LIGHT_HEAVYWEIGHT = "Light Heavyweight"
     HEAVYWEIGHT = "Heavyweight"
+
+
+def format_decision(decision: str | None) -> str:
+    if decision is None:
+        return "Unknown"
+
+    decision_map = {
+        "UNANIMOUS_DECISION": "Unanimous Decision",
+        "SPLIT_DECISION": "Split Decision",
+        "MAJORITY_DECISION": "Majority Decision",
+        "TKO": "TKO",
+        "KO": "KO",
+        "SUB": "Submission",
+        "DQ": "DQ",
+        "DOC": "Doctor Stoppage",
+        "OVERTURNED": "Overturned",
+        "COULD_NOT_CONTINUE": "Could Not Continue",
+        "OTHER": "Other",
+    }
+    return decision_map.get(decision, decision)
+
+
+def format_result(result: str | None) -> str:
+    if result is None:
+        return "Unknown"
+
+    result_map = {
+        "WIN": "W",
+        "LOSS": "L",
+        "DRAW": "D",
+        "NO_CONTEST": "NC",
+    }
+    return result_map.get(result, result)
+
+
+def format_division(div: str | None) -> str:
+    if div is None:
+        return "Unknown"
+
+    return div.replace("_", " ").title()

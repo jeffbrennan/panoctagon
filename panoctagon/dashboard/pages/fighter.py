@@ -8,12 +8,14 @@ from dash import ALL, Input, Output, callback, ctx, dash_table, html
 
 from panoctagon.dashboard.common import (
     PLACEHOLDER_IMAGE,
+    PLOT_COLORS,
     apply_figure_styling,
     create_plot_with_title,
     filter_data,
     get_headshot_base64,
     get_main_data,
 )
+from panoctagon.enums import format_decision, format_result
 
 
 def get_fighter_uid_map(df: pl.DataFrame) -> dict[str, str]:
@@ -181,6 +183,7 @@ def update_career_timeline(fighter: str):
                 "fighter_result",
                 "title",
                 "opponent_name",
+                "decision",
             ]
         )
         .agg(pl.col("opponent_strikes_landed").sum())
@@ -192,13 +195,23 @@ def update_career_timeline(fighter: str):
     )
 
     color_map = {
-        "WIN": "#7370ff",
-        "LOSS": "#ff7e70",
-        "DRAW": "gray",
-        "NO_CONTEST": "orange",
+        "WIN": PLOT_COLORS["win"],
+        "LOSS": PLOT_COLORS["loss"],
+        "DRAW": PLOT_COLORS["draw"],
+        "NO_CONTEST": PLOT_COLORS["l3"],
     }
+    border_map = {
+        "WIN": PLOT_COLORS["loss"],
+        "LOSS": PLOT_COLORS["win"],
+        "DRAW": PLOT_COLORS["win"],
+        "NO_CONTEST": PLOT_COLORS["win"],
+    }
+
     marker_colors = [
         color_map.get(result, "gray") for result in fight_timeline["fighter_result"].to_list()
+    ]
+    border_colors = [
+        border_map.get(result, "gray") for result in fight_timeline["fighter_result"].to_list()
     ]
 
     result_map = {
@@ -208,24 +221,35 @@ def update_career_timeline(fighter: str):
         "NO_CONTEST": "No Contest vs",
     }
 
+    decision_abbrev = {
+        "KO": "KO",
+        "TKO": "TKO",
+        "SUB": "SUB",
+        "UNANIMOUS_DECISION": "UD",
+        "SPLIT_DECISION": "SD",
+        "MAJORITY_DECISION": "MD",
+        "DQ": "DQ",
+        "DOC": "DOC",
+    }
+
     hover_text = [
         f"<b>{row['title']}</b> | {row['event_date']}"
         f"<br>{result_map.get(row['fighter_result'])} <b>{row['opponent_name']}</b>"
+        f" ({decision_abbrev.get(row['decision'], row['decision'])})"
         f"<br>+{row['opponent_strikes_landed']:,} strikes ({row['cumulative_absorbed']:,} total)"
         for row in fight_timeline.iter_rows(named=True)
     ]
 
     fig = go.Figure()
-
     fig.add_trace(
         go.Scatter(
             x=fight_timeline["event_date"].to_list(),
             y=fight_timeline["cumulative_absorbed"].to_list(),
             mode="lines+markers",
-            line=dict(color="#1a1a1a", shape="spline", width=1),
+            line=dict(color=PLOT_COLORS["l1"], shape="spline", width=1),
             fill="tozeroy",
-            fillcolor="rgba(26, 26, 26, 1)",
-            marker=dict(size=18, color=marker_colors),
+            fillcolor=PLOT_COLORS["l1"],
+            marker=dict(size=18, color=marker_colors, line=dict(width=2, color=border_colors)),
             showlegend=False,
             hovertext=hover_text,
             hoverinfo="text",
@@ -238,7 +262,11 @@ def update_career_timeline(fighter: str):
                 x=[None],
                 y=[None],
                 mode="markers",
-                marker=dict(size=10, color=color_map.get(result, "gray")),
+                marker=dict(
+                    size=10,
+                    color=color_map.get(result, "gray"),
+                    line=dict(width=2, color=PLOT_COLORS["l1"]),
+                ),
                 name=result,
             )
         )
@@ -249,33 +277,6 @@ def update_career_timeline(fighter: str):
     )
 
     return apply_figure_styling(fig)
-
-
-def format_decision(decision: str) -> str:
-    decision_map = {
-        "UNANIMOUS_DECISION": "Unanimous Decision",
-        "SPLIT_DECISION": "Split Decision",
-        "MAJORITY_DECISION": "Majority Decision",
-        "TKO": "TKO",
-        "KO": "KO",
-        "SUB": "Submission",
-        "DQ": "DQ",
-        "DOC": "Doctor Stoppage",
-        "OVERTURNED": "Overturned",
-        "COULD_NOT_CONTINUE": "Could Not Continue",
-        "OTHER": "Other",
-    }
-    return decision_map.get(decision, decision)
-
-
-def format_result(result: str) -> str:
-    result_map = {
-        "WIN": "W",
-        "LOSS": "L",
-        "DRAW": "D",
-        "NO_CONTEST": "NC",
-    }
-    return result_map.get(result, result)
 
 
 @callback(
@@ -290,46 +291,88 @@ def update_win_method_chart(fighter: str):
         fig.update_layout(height=400)
         return apply_figure_styling(fig)
 
-    df_wins = df_filtered.filter(pl.col("fighter_result") == "WIN")
-    df_losses = df_filtered.filter(pl.col("fighter_result") == "LOSS")
+    fights = (
+        df_filtered.group_by("fight_uid")
+        .agg(
+            [
+                pl.col("decision").first(),
+                pl.col("fighter_result").first(),
+                pl.col("opponent_name").first(),
+                pl.col("event_date").first(),
+            ]
+        )
+        .with_columns(pl.col("event_date").dt.year().cast(pl.String).alias("year"))
+    )
 
-    win_methods = df_wins.group_by("fight_uid").agg(pl.col("decision").first())
-    win_counts = win_methods.group_by("decision").len().sort("len", descending=True)
+    df_wins = fights.filter(pl.col("fighter_result") == "WIN")
+    df_losses = fights.filter(pl.col("fighter_result") == "LOSS")
 
-    loss_methods = df_losses.group_by("fight_uid").agg(pl.col("decision").first())
-    loss_counts = loss_methods.group_by("decision").len().sort("len", descending=True)
+    win_counts = df_wins.group_by("decision").len()
+    loss_counts = df_losses.group_by("decision").len()
+    win_count_map = dict(zip(win_counts["decision"].to_list(), win_counts["len"].to_list()))
+    loss_count_map = dict(zip(loss_counts["decision"].to_list(), loss_counts["len"].to_list()))
+
+    method_colors = {
+        "KO": PLOT_COLORS["l1"],
+        "DOC": PLOT_COLORS["l1"],
+        "TKO": PLOT_COLORS["l3"],
+        "SUB": PLOT_COLORS["l5"],
+        "UNANIMOUS_DECISION": PLOT_COLORS["l6"],
+        "SPLIT_DECISION": PLOT_COLORS["l7"],
+        "MAJORITY_DECISION": PLOT_COLORS["l7"],
+        "DQ": PLOT_COLORS["l7"],
+    }
+
+    method_labels = {
+        "KO": "KO",
+        "TKO": "TKO",
+        "SUB": "Submission",
+        "UNANIMOUS_DECISION": "Unanimous Decision",
+        "SPLIT_DECISION": "Split Decision",
+        "MAJORITY_DECISION": "Majority Decision",
+        "DQ": "DQ",
+        "DOC": "Doctor",
+    }
+
+    def build_method_hover(method: str, method_fights: pl.DataFrame) -> str:
+        subset = method_fights.filter(pl.col("decision") == method)
+        lines = [f"<b>{method_labels[method]}</b> ({subset.height})", ""]
+        by_year = (
+            subset.group_by("year")
+            .agg(pl.col("opponent_name").sort())
+            .sort("year", descending=True)
+        )
+        for row in by_year.iter_rows(named=True):
+            lines.append(f"<b>{row['year']}</b>")
+            lines.append(f"  {', '.join(row['opponent_name'])}")
+        return "<br>".join(lines)
 
     fig = go.Figure()
 
-    if win_counts.height > 0:
-        for row in win_counts.iter_rows(named=True):
-            method = row["decision"]
-            count = row["len"]
+    for method in method_colors:
+        if method in win_count_map:
             fig.add_trace(
                 go.Bar(
                     y=["Wins"],
-                    x=[count],
-                    name=method,
+                    x=[win_count_map[method]],
+                    name=method_labels[method],
                     orientation="h",
-                    text=f"{method} ({count})",
-                    textposition="inside",
+                    marker_color=method_colors[method],
+                    hovertext=[build_method_hover(method, df_wins)],
+                    hoverinfo="text",
                 )
             )
-
-    if loss_counts.height > 0:
-        win_methods_set = set(win_counts["decision"].to_list())
-        for row in loss_counts.iter_rows(named=True):
-            method = row["decision"]
-            count = row["len"]
+        if method in loss_count_map:
             fig.add_trace(
                 go.Bar(
                     y=["Losses"],
-                    x=[count],
-                    name=method,
+                    x=[loss_count_map[method]],
+                    name=method_labels[method],
                     orientation="h",
-                    text=f"{method} ({count})",
-                    textposition="inside",
-                    showlegend=method not in win_methods_set,
+                    showlegend=method not in win_count_map,
+                    marker_color=method_colors[method],
+                    hovertext=[build_method_hover(method, df_losses)],
+                    hoverinfo="text",
                 )
             )
 
@@ -411,29 +454,30 @@ def update_fight_history(fighter: str):
 
     data = table_df.to_dicts()
 
-    style_conditional = [{"if": {"row_index": "odd"}, "backgroundColor": "rgba(0,0,0,0.03)"}]
-
+    style_conditional = [
+        {"if": {"row_index": "odd"}, "backgroundColor": PLOT_COLORS["win"]},
+        {"if": {"row_index": "even"}, "backgroundColor": PLOT_COLORS["win"]},
+    ]
     for i, row in enumerate(data):
         result = row.get("", "")
         if result == "W":
             style_conditional.append(
                 {
                     "if": {"row_index": i, "column_id": ""},
-                    "backgroundColor": "#d4edda",
-                    "color": "darkgreen",
+                    "backgroundColor": PLOT_COLORS["win"],
+                    "color": PLOT_COLORS["loss"],
                     "fontWeight": "bold",
                 }
             )
-        elif result == "L":
+        elif result in ["L", "D", "NC"]:
             style_conditional.append(
                 {
                     "if": {"row_index": i, "column_id": ""},
-                    "backgroundColor": "#f8d7da",
-                    "color": "darkred",
+                    "backgroundColor": PLOT_COLORS["loss"],
+                    "color": PLOT_COLORS["win"],
                     "fontWeight": "bold",
                 }
             )
-
     return columns, data, style_conditional
 
 
@@ -445,12 +489,13 @@ def update_accuracy_trend(fighter: str):
     df_filtered = filter_data(df, fighter)
 
     if df_filtered.height == 0:
-        fig = px.line()
+        fig = go.Figure()
     else:
         fight_accuracy = (
             df_filtered.group_by(["fight_uid", "event_date"])
             .agg(
                 [
+                    pl.col("title").first(),
                     pl.col("total_strikes_landed").sum(),
                     pl.col("total_strikes_attempted").sum(),
                 ]
@@ -464,13 +509,27 @@ def update_accuracy_trend(fighter: str):
             .sort("event_date")
         )
 
-        fig = px.line(
-            fight_accuracy.to_pandas(),
-            x="event_date",
-            y="accuracy",
-            markers=True,
+        fig = go.Figure()
+        fig.add_trace(
+            go.Scatter(
+                x=fight_accuracy["event_date"].to_list(),
+                y=fight_accuracy["accuracy"].to_list(),
+                mode="lines+markers",
+                line=dict(color=PLOT_COLORS["l1"]),
+                marker=dict(color=PLOT_COLORS["l1"]),
+                showlegend=False,
+                customdata=list(
+                    zip(
+                        fight_accuracy["title"].to_list(),
+                        fight_accuracy["total_strikes_landed"].to_list(),
+                        fight_accuracy["total_strikes_attempted"].to_list(),
+                    )
+                ),
+                hovertemplate="<b>%{customdata[0]}</b> | %{x}<br>Accuracy: %{y:.1f}%<br>Strikes: %{customdata[1]} / %{customdata[2]}<extra></extra>",
+            )
         )
         fig.update_yaxes(title="Accuracy (%)", range=[0, 100])
+        fig.update_xaxes(title=None)
 
     fig.update_layout(height=400)
     return apply_figure_styling(fig)
@@ -490,21 +549,47 @@ def update_target_distribution(fighter: str):
             df_filtered.group_by(["fight_uid", "event_date"])
             .agg(
                 [
+                    pl.col("title").first(),
+                    pl.col("fighter_result").first(),
+                    pl.col("opponent_name").first(),
                     pl.col("sig_strikes_head_landed").sum(),
                     pl.col("sig_strikes_body_landed").sum(),
                     pl.col("sig_strikes_leg_landed").sum(),
                 ]
             )
             .sort("event_date")
-            .with_columns(pl.col("event_date").dt.to_string("%Y-%m-%d"))
+            .with_columns(
+                pl.col("event_date").dt.to_string("%Y-%m-%d"),
+                pl.col("fighter_result")
+                .replace(
+                    {
+                        "WIN": "Beat",
+                        "LOSS": "Defeated by",
+                        "DRAW": "Draw vs",
+                        "NO_CONTEST": "No Contest vs",
+                    }
+                )
+                .alias("result_label"),
+            )
+        )
+
+        customdata = list(
+            zip(
+                strike_targets["title"].to_list(),
+                strike_targets["result_label"].to_list(),
+                strike_targets["opponent_name"].to_list(),
+            )
         )
 
         fig = go.Figure()
         fig.add_trace(
             go.Bar(
                 x=strike_targets["event_date"].to_list(),
-                y=strike_targets["sig_strikes_head_landed"].to_list(),
-                name="Head",
+                y=strike_targets["sig_strikes_leg_landed"].to_list(),
+                name="Leg",
+                marker_color=PLOT_COLORS["leg"],
+                customdata=customdata,
+                hovertemplate="<b>%{customdata[0]}</b> | %{x}<br>%{customdata[1]} <b>%{customdata[2]}</b><br>Leg: %{y}<extra></extra>",
             )
         )
         fig.add_trace(
@@ -512,13 +597,19 @@ def update_target_distribution(fighter: str):
                 x=strike_targets["event_date"].to_list(),
                 y=strike_targets["sig_strikes_body_landed"].to_list(),
                 name="Body",
+                marker_color=PLOT_COLORS["body"],
+                customdata=customdata,
+                hovertemplate="<b>%{customdata[0]}</b> | %{x}<br>%{customdata[1]} <b>%{customdata[2]}</b><br>Body: %{y}<extra></extra>",
             )
         )
         fig.add_trace(
             go.Bar(
                 x=strike_targets["event_date"].to_list(),
-                y=strike_targets["sig_strikes_leg_landed"].to_list(),
-                name="Leg",
+                y=strike_targets["sig_strikes_head_landed"].to_list(),
+                name="Head",
+                marker_color=PLOT_COLORS["head"],
+                customdata=customdata,
+                hovertemplate="<b>%{customdata[0]}</b> | %{x}<br>%{customdata[1]} <b>%{customdata[2]}</b><br>Head: %{y}<extra></extra>",
             )
         )
 
@@ -526,6 +617,7 @@ def update_target_distribution(fighter: str):
             barmode="stack",
             yaxis_title="Strikes Landed",
             height=400,
+            legend=dict(traceorder="reversed"),
         )
 
     return apply_figure_styling(fig)
@@ -779,7 +871,8 @@ fighter_analysis_content = html.Div(
                         ],
                         style_data_conditional=[],
                         style_header={
-                            "backgroundColor": "#e9ecef",
+                            "backgroundColor": "#1a1a1a",
+                            "color": "rgb(242, 240, 227)",
                             "fontWeight": "bold",
                             "border": "none",
                         },

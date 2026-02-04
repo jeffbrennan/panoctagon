@@ -14,7 +14,11 @@ def apply_figure_styling(fig: go.Figure) -> go.Figure:
         paper_bgcolor="rgb(242, 240, 227)",
         font=dict(family="JetBrains Mono, monospace", color="#1a1a1a"),
         title=None,
-        margin=dict(l=10, r=10, t=0, b=10),
+        margin=dict(l=68, r=10, t=0, b=10),
+        hoverlabel=dict(
+            bgcolor=PLOT_COLORS["loss"],
+            font=dict(color=PLOT_COLORS["win"]),
+        ),
     )
     fig.update_xaxes(
         showgrid=False,
@@ -35,12 +39,15 @@ def apply_figure_styling(fig: go.Figure) -> go.Figure:
     return fig
 
 
-def create_plot_with_title(title: str, graph_id: str, margin_bottom: bool = False) -> html.Div:
+def create_plot_with_title(
+    title: str, graph_id: str, margin_bottom: bool = False, has_top_legend: bool = False
+) -> html.Div:
+    title_class = "plot-title plot-title-with-legend" if has_top_legend else "plot-title"
     return html.Div(
         [
             html.Div(
                 title,
-                className="plot-title",
+                className=title_class,
             ),
             html.Div(
                 dcc.Graph(
@@ -51,7 +58,7 @@ def create_plot_with_title(title: str, graph_id: str, margin_bottom: bool = Fals
                 className="plot-container-wrapper",
             ),
         ],
-        style={"marginBottom": "2rem"} if margin_bottom else {},
+        style={"width": "100%", "marginBottom": "2rem"} if margin_bottom else {"width": "100%"},
     )
 
 
@@ -300,3 +307,32 @@ DIVISION_COLORS = {
     "Catch Weight": "#808080",
     "Open Weight": "#A9A9A9",
 }
+
+PLOT_COLORS = {
+    "l1": "#1a1a1a",
+    "l2": "#3a3a3a",
+    "l3": "#5c5c5c",
+    "l4": "#7a7a7a",
+    "l5": "#9a9a9a",
+    "l6": "#b8b8b8",
+    "l7": "#d0d0d0",
+    "win": "rgb(242, 240, 227)",
+    "loss": "rgb(26,26,26)",
+    "win_transparent": "rgba(242, 240, 227, 0.7)",
+    "loss_transparent": "rgba(26, 26, 26, 1.0)",
+    "draw": "#5c5c5c",
+    "neutral": "#5c5c5c",
+    "head": "#1a1a1a",
+    "body": "#5c5c5c",
+    "leg": "#9a9a9a",
+}
+
+PLOT_COLOR_SEQUENCE = [
+    "#1a1a1a",
+    "#3a3a3a",
+    "#5c5c5c",
+    "#7a7a7a",
+    "#9a9a9a",
+    "#b8b8b8",
+    "#d0d0d0",
+]
