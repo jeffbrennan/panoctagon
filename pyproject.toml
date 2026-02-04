@@ -45,6 +45,9 @@ venv = ".venv"
 typeCheckingMode = "standard"
 ignore = [ "dbt_packages" ]
 
+[project.scripts]
+panoctagon = "panoctagon.app:app"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
