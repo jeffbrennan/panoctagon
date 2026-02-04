@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
-from enum import Enum
+from enum import Enum, StrEnum, auto
 from typing import Any, Optional
 
 import httpx
@@ -27,6 +27,22 @@ class SortBy(str, Enum):
     sub_wins = "sub_wins"
     opp_win_rate = "opp_win_rate"
     full_name = "full_name"
+
+
+class Division(StrEnum):
+    LIGHTWEIGHT = auto()
+    WELTERWEIGHT = auto()
+    MIDDLEWEIGHT = auto()
+    LIGHT_HEAVYWEIGHT = auto()
+    HEAVYWEIGHT = auto()
+    FLYWEIGHT = auto()
+    BANTAMWEIGHT = auto()
+    FEATHERWEIGHT = auto()
+    STRAWWEIGHT = auto()
+    WOMENS_STRAWWEIGHT = auto()
+    WOMENS_FLYWEIGHT = auto()
+    WOMENS_BANTAMWEIGHT = auto()
+    WOMENS_FEATHERWEIGHT = auto()
 
 
 def get_api_url() -> str:
@@ -135,7 +151,7 @@ def select_fight_from_fighter(fighter: dict[str, Any]) -> dict[str, Any]:
     return selected
 
 
-def select_division() -> str:
+def select_division() -> Division:
     divisions = api_request("/divisions")
 
     if not divisions:
@@ -157,7 +173,7 @@ def select_division() -> str:
     if selected is None:
         raise typer.Exit(0)
 
-    return selected
+    return Division(selected)
 
 
 def format_table(data: list[dict[str, Any]], columns: Optional[list[str]] = None) -> str:
@@ -266,7 +282,7 @@ def upcoming_impl(fmt: OutputFormat) -> None:
 
 
 def leaderboard_impl(
-    division: Optional[str],
+    division: Division | None,
     min_fights: int,
     limit: int,
     fmt: OutputFormat,
@@ -605,7 +621,7 @@ def event_impl(name: Optional[str], upcoming_only: bool, limit: int, fmt: Output
 
 
 def roster_impl(
-    division: Optional[str],
+    division: Division | None,
     min_fights: int,
     min_win_rate: Optional[float],
     max_win_rate: Optional[float],

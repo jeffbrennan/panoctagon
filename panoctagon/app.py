@@ -3,6 +3,7 @@ from typing import Optional
 import typer
 
 from panoctagon.api.cli import (
+    Division,
     OutputFormat,
     SortBy,
     compare_impl,
@@ -27,7 +28,9 @@ def upcoming(
 
 @app.command()
 def leaderboard(
-    division: Optional[str] = typer.Option(None, "--division", "-d", help="Filter by weight class"),
+    division: Division | None = typer.Option(
+        None, "--division", "-d", help="Filter by weight class"
+    ),
     min_fights: int = typer.Option(5, "--min-fights", "-m", help="Minimum UFC fights"),
     limit: int = typer.Option(15, "--limit", "-l", help="Top N per division"),
     sort_by: SortBy = typer.Option(SortBy.win_rate, "--sort", "-s", help="Metric to sort by"),
@@ -84,7 +87,9 @@ def event(
 
 @app.command()
 def roster(
-    division: Optional[str] = typer.Option(None, "--division", "-d", help="Filter by weight class"),
+    division: Division | None = typer.Option(
+        None, "--division", "-d", help="Filter by weight class"
+    ),
     min_fights: int = typer.Option(5, "--min-fights", "-m", help="Minimum UFC fights"),
     min_win_rate: Optional[float] = typer.Option(None, "--min-win-rate", help="Minimum win rate %"),
     max_win_rate: Optional[float] = typer.Option(None, "--max-win-rate", help="Maximum win rate %"),
