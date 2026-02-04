@@ -418,49 +418,106 @@ def history_impl(name: str, limit: int, fmt: OutputFormat) -> None:
 
 
 def compare_impl(fighter1: str, fighter2: str, fmt: OutputFormat) -> None:
+    from rich.console import Console
+    from rich.table import Table
+
     f1 = select_fighter(fighter1, prompt=f"Select first fighter ('{fighter1}'):")
     f2 = select_fighter(fighter2, prompt=f"Select second fighter ('{fighter2}'):")
 
     f1_detail = api_request(f"/fighter/{f1['fighter_uid']}")
     f2_detail = api_request(f"/fighter/{f2['fighter_uid']}")
+    f1_stats = api_request(f"/fighter/{f1['fighter_uid']}/stats")
+    f2_stats = api_request(f"/fighter/{f2['fighter_uid']}/stats")
 
     if fmt == OutputFormat.json:
         typer.echo(
-            json.dumps({"fighter1": f1_detail, "fighter2": f2_detail}, indent=2, default=str)
+            json.dumps(
+                {
+                    "fighter1": {**f1_detail, "stats": f1_stats},
+                    "fighter2": {**f2_detail, "stats": f2_stats},
+                },
+                indent=2,
+                default=str,
+            )
         )
         return
 
     b1, r1 = f1_detail["bio"], f1_detail["record"]
     b2, r2 = f2_detail["bio"], f2_detail["record"]
+    s1, s2 = f1_stats, f2_stats
 
-    typer.echo(f"\n{'=' * 60}")
-    typer.echo(f"{'TALE OF THE TAPE':^60}")
-    typer.echo(f"{'=' * 60}")
+    table = Table(title="TALE OF THE TAPE", show_header=False, show_lines=True, padding=(0, 2))
+    table.add_column(justify="right", style="bold")
+    table.add_column(justify="center", style="dim")
+    table.add_column(justify="left", style="bold")
 
-    def compare_row(label: str, v1: Any, v2: Any) -> None:
-        v1_str = str(v1) if v1 is not None else "-"
-        v2_str = str(v2) if v2 is not None else "-"
-        typer.echo(f"{v1_str:>25}  {label:^8}  {v2_str:<25}")
+    def compare_vals(
+        v1: Any, v2: Any, higher_better: bool = True, suffix: str = ""
+    ) -> tuple[str, str]:
+        if v1 is None and v2 is None:
+            return "-", "-"
+        if v1 is None:
+            return "-", f"[green]{v2}{suffix}[/green]"
+        if v2 is None:
+            return f"[green]{v1}{suffix}[/green]", "-"
 
-    compare_row("NAME", b1["full_name"], b2["full_name"])
-    compare_row(
-        "RECORD",
-        f"{r1['wins']}-{r1['losses']}-{r1['draws']}",
-        f"{r2['wins']}-{r2['losses']}-{r2['draws']}",
-    )
-    compare_row("STANCE", b1.get("stance"), b2.get("stance"))
-    compare_row(
-        "HEIGHT", f"{b1.get('height_inches') or '-'} in", f"{b2.get('height_inches') or '-'} in"
-    )
-    compare_row(
-        "REACH", f"{b1.get('reach_inches') or '-'} in", f"{b2.get('reach_inches') or '-'} in"
-    )
+        s1_str = f"{v1}{suffix}"
+        s2_str = f"{v2}{suffix}"
+
+        if v1 == v2:
+            return s1_str, s2_str
+        if (v1 > v2) == higher_better:
+            return f"[green]{s1_str}[/green]", f"[red]{s2_str}[/red]"
+        return f"[red]{s1_str}[/red]", f"[green]{s2_str}[/green]"
 
     win_pct_1 = round(r1["wins"] * 100 / r1["total_fights"], 1) if r1["total_fights"] > 0 else 0
     win_pct_2 = round(r2["wins"] * 100 / r2["total_fights"], 1) if r2["total_fights"] > 0 else 0
-    compare_row("WIN %", f"{win_pct_1}%", f"{win_pct_2}%")
 
-    typer.echo(f"{'=' * 60}")
+    table.add_row(f"[bold]{b1['full_name']}[/bold]", "NAME", f"[bold]{b2['full_name']}[/bold]")
+
+    r1_str = f"{r1['wins']}-{r1['losses']}-{r1['draws']}"
+    r2_str = f"{r2['wins']}-{r2['losses']}-{r2['draws']}"
+    if r1["wins"] > r2["wins"]:
+        r1_str, r2_str = f"[green]{r1_str}[/green]", f"[red]{r2_str}[/red]"
+    elif r2["wins"] > r1["wins"]:
+        r1_str, r2_str = f"[red]{r1_str}[/red]", f"[green]{r2_str}[/green]"
+    table.add_row(r1_str, "RECORD", r2_str)
+
+    table.add_row(str(b1.get("stance") or "-"), "STANCE", str(b2.get("stance") or "-"))
+
+    h1, h2 = compare_vals(b1.get("height_inches"), b2.get("height_inches"), suffix=" in")
+    table.add_row(h1, "HEIGHT", h2)
+
+    rc1, rc2 = compare_vals(b1.get("reach_inches"), b2.get("reach_inches"), suffix=" in")
+    table.add_row(rc1, "REACH", rc2)
+
+    w1, w2 = compare_vals(win_pct_1, win_pct_2, suffix="%")
+    table.add_row(w1, "WIN %", w2)
+
+    sig1, sig2 = compare_vals(s1.get("avg_sig_strikes"), s2.get("avg_sig_strikes"))
+    table.add_row(sig1, "SIG STRIKES/RD", sig2)
+
+    acc1, acc2 = compare_vals(s1.get("strike_accuracy"), s2.get("strike_accuracy"), suffix="%")
+    table.add_row(acc1, "STRIKE ACC", acc2)
+
+    td1, td2 = compare_vals(s1.get("avg_takedowns"), s2.get("avg_takedowns"))
+    table.add_row(td1, "TAKEDOWNS/RD", td2)
+
+    ko1, ko2 = compare_vals(s1.get("ko_wins", 0), s2.get("ko_wins", 0))
+    table.add_row(ko1, "KO WINS", ko2)
+
+    sub1, sub2 = compare_vals(s1.get("sub_wins", 0), s2.get("sub_wins", 0))
+    table.add_row(sub1, "SUB WINS", sub2)
+
+    kd1, kd2 = compare_vals(s1.get("total_knockdowns", 0), s2.get("total_knockdowns", 0))
+    table.add_row(kd1, "KNOCKDOWNS", kd2)
+
+    opp1, opp2 = compare_vals(s1.get("avg_opp_win_rate"), s2.get("avg_opp_win_rate"), suffix="%")
+    table.add_row(opp1, "OPP WIN RATE", opp2)
+
+    console = Console()
+    typer.echo("")
+    console.print(table)
 
 
 def fight_impl(query: str, fmt: OutputFormat) -> None:

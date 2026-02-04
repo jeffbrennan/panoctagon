@@ -16,6 +16,7 @@ from panoctagon.api.models import (
     FighterFightSummary,
     FighterRecord,
     FighterSearchResult,
+    FighterStats,
     FightSummary,
     RankedFighter,
     RosterFighter,
@@ -29,6 +30,7 @@ from panoctagon.api.queries import (
     get_fight_detail,
     get_fighter_detail,
     get_fighter_fights,
+    get_fighter_stats,
     get_rankings,
     get_roster,
     get_upcoming_fights,
@@ -114,6 +116,26 @@ def get_fighter(fighter_uid: str) -> FighterDetail:
     ]
 
     return FighterDetail(bio=bio, record=record, recent_fights=recent_fights)
+
+
+@app.get("/fighter/{fighter_uid}/stats", response_model=FighterStats)
+def get_fighter_stats_endpoint(fighter_uid: str) -> FighterStats:
+    df = get_fighter_stats(fighter_uid)
+
+    if df is None:
+        raise HTTPException(status_code=404, detail=f"Fighter {fighter_uid} not found")
+
+    row = df.row(0, named=True)
+    return FighterStats(
+        avg_sig_strikes=row["avg_sig_strikes"],
+        strike_accuracy=row["strike_accuracy"],
+        avg_takedowns=row["avg_takedowns"],
+        total_knockdowns=row["total_knockdowns"],
+        ko_wins=row["ko_wins"],
+        sub_wins=row["sub_wins"],
+        dec_wins=row["dec_wins"],
+        avg_opp_win_rate=row["avg_opp_win_rate"],
+    )
 
 
 @app.get("/upcoming", response_model=list[UpcomingEvent])

@@ -108,6 +108,17 @@ class RankedFighter(BaseModel):
     opp_win_rate: float
 
 
+class FighterStats(BaseModel):
+    avg_sig_strikes: Optional[float]
+    strike_accuracy: Optional[float]
+    avg_takedowns: Optional[float]
+    total_knockdowns: int
+    ko_wins: int
+    sub_wins: int
+    dec_wins: int
+    avg_opp_win_rate: Optional[float]
+
+
 class RosterFighter(BaseModel):
     fighter_uid: str
     full_name: str

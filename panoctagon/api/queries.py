@@ -160,6 +160,80 @@ def get_fighter_detail(
         return bio_df, record_df, fights_df
 
 
+def get_fighter_stats(fighter_uid: str) -> Optional[pl.DataFrame]:
+    engine = get_engine()
+    with engine.connect() as conn:
+        query = f"""
+        with fighter_results as (
+            select
+                fighter_uid,
+                fight_uid,
+                opponent_uid,
+                result,
+                decision
+            from (
+                select fighter1_uid as fighter_uid, fight_uid, fighter2_uid as opponent_uid,
+                       fighter1_result as result, decision
+                from ufc_fights where fighter1_uid = '{fighter_uid}' and fighter1_result is not null
+                union all
+                select fighter2_uid as fighter_uid, fight_uid, fighter1_uid as opponent_uid,
+                       fighter2_result as result, decision
+                from ufc_fights where fighter2_uid = '{fighter_uid}' and fighter2_result is not null
+            )
+        ),
+        opponent_records as (
+            select
+                fighter_uid,
+                sum(case when result = 'WIN' then 1 else 0 end) as opp_wins,
+                sum(case when result = 'LOSS' then 1 else 0 end) as opp_losses
+            from (
+                select fighter1_uid as fighter_uid, fighter1_result as result
+                from ufc_fights where fighter1_result is not null
+                union all
+                select fighter2_uid as fighter_uid, fighter2_result as result
+                from ufc_fights where fighter2_result is not null
+            )
+            group by fighter_uid
+        ),
+        opp_strength as (
+            select
+                round(avg(opp.opp_wins * 100.0 / nullif(opp.opp_wins + opp.opp_losses, 0)), 1) as avg_opp_win_rate
+            from fighter_results fr
+            inner join opponent_records opp on fr.opponent_uid = opp.fighter_uid
+        ),
+        fight_stats as (
+            select
+                round(avg(sig_strikes_landed), 1) as avg_sig_strikes,
+                round(sum(sig_strikes_landed) * 100.0 / nullif(sum(sig_strikes_attempted), 0), 1) as strike_accuracy,
+                round(avg(takedowns_landed), 1) as avg_takedowns,
+                coalesce(sum(knockdowns), 0) as total_knockdowns
+            from ufc_fight_stats
+            where fighter_uid = '{fighter_uid}'
+        ),
+        win_types as (
+            select
+                sum(case when result = 'WIN' and decision = 'TKO' then 1 else 0 end) as ko_wins,
+                sum(case when result = 'WIN' and decision = 'SUB' then 1 else 0 end) as sub_wins,
+                sum(case when result = 'WIN' and decision in ('UNANIMOUS_DECISION', 'SPLIT_DECISION', 'MAJORITY_DECISION') then 1 else 0 end) as dec_wins
+            from fighter_results
+        )
+        select
+            fs.avg_sig_strikes,
+            fs.strike_accuracy,
+            fs.avg_takedowns,
+            fs.total_knockdowns,
+            wt.ko_wins,
+            wt.sub_wins,
+            wt.dec_wins,
+            os.avg_opp_win_rate
+        from fight_stats fs, win_types wt, opp_strength os
+        """
+        df = pl.read_database(query, connection=conn)
+        if df.height == 0:
+            return None
+        return df
+
+
 def get_upcoming_fights() -> pl.DataFrame:
     engine = get_engine()
     with engine.connect() as conn:
