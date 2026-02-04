@@ -55,7 +55,7 @@ def is_interactive() -> bool:
     return sys.stdin.isatty() and sys.stdout.isatty()
 
 
-def select_fighter(name: str, prompt: Optional[str] = None) -> dict[str, Any]:
+def select_fighter(name: str | None, prompt: Optional[str] = None) -> dict[str, Any]:
     fighters = api_request("/fighter", {"name": name, "limit": 20})
 
     if not fighters:
@@ -68,7 +68,11 @@ def select_fighter(name: str, prompt: Optional[str] = None) -> dict[str, Any]:
     if not is_interactive():
         return fighters[0]
 
-    prompt_text = prompt or f"Multiple fighters match '{name}'. Select one:"
+    if name is not None:
+        prompt_text = prompt or f"Multiple fighters match '{name}'. Select one:"
+    else:
+        prompt_text = prompt or "Select a fighter"
+
     choices = []
     for f in fighters:
         record = f"{f['wins']}-{f['losses']}-{f['draws']}"
