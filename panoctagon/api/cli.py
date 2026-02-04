@@ -627,7 +627,7 @@ def roster_impl(
     max_win_rate: Optional[float],
     limit: int,
     fmt: OutputFormat,
-    sort_by: SortBy = SortBy.win_rate,
+    sort_by: SortBy,
 ) -> None:
     data = api_request(
         "/roster",

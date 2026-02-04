@@ -4,6 +4,7 @@ from typing import Optional
 
 import polars as pl
 
+from panoctagon.api.cli import SortBy
 from panoctagon.common import get_engine
 
 
@@ -457,13 +458,12 @@ def get_rankings(
 
 
 def get_roster(
-    stance: Optional[str] = None,
     division: Optional[str] = None,
     min_fights: int = 5,
     min_win_rate: Optional[float] = None,
     max_win_rate: Optional[float] = None,
     limit: int = 100,
-    sort_by: str = "win_rate",
+    sort_by: str = SortBy.full_name,
 ) -> pl.DataFrame:
     sort_columns = {
         "win_rate": "fs.wins * 1.0 / fs.total_fights desc, fs.total_fights desc",
@@ -474,6 +474,7 @@ def get_roster(
         "ko_wins": "fs.ko_wins desc, fs.total_fights desc",
         "sub_wins": "fs.sub_wins desc, fs.total_fights desc",
         "opp_win_rate": "coalesce(fos.avg_opp_win_rate, 0) desc",
+        "full_name": "full_name",
     }
     order_by = sort_columns.get(sort_by, sort_columns["win_rate"])
 
@@ -581,8 +582,6 @@ def get_roster(
         where fs.total_fights >= {min_fights}
         """
 
-        if stance:
-            query += f" and lower(f.stance) = lower('{stance}')"
         if division:
             query += f" and lower(fdc.fight_division) = lower('{division}')"
         if min_win_rate is not None:

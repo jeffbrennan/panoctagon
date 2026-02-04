@@ -224,9 +224,6 @@ def list_rankings(
 
 @app.get("/roster", response_model=list[RosterFighter])
 def list_roster(
-    stance: Optional[str] = Query(
-        None, description="Filter by stance (Orthodox, Southpaw, Switch)"
-    ),
     division: Optional[str] = Query(None, description="Filter by weight class"),
     min_fights: int = Query(5, ge=1, description="Minimum UFC fights required"),
     min_win_rate: Optional[float] = Query(
@@ -242,7 +239,6 @@ def list_roster(
     ),
 ) -> list[RosterFighter]:
     df = get_roster(
-        stance=stance,
         division=division,
         min_fights=min_fights,
         min_win_rate=min_win_rate,
