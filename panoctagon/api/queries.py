@@ -75,7 +75,7 @@ def search_fighters(
 
 def get_fighter_detail(
     fighter_uid: str,
-) -> tuple[Optional[pl.DataFrame], Optional[pl.DataFrame], Optional[pl.DataFrame]]:
+) -> tuple[pl.DataFrame, pl.DataFrame, pl.DataFrame]:
     engine = get_engine()
     with engine.connect() as conn:
         bio_query = f"""
@@ -96,8 +96,6 @@ def get_fighter_detail(
         where fighter_uid = '{fighter_uid}'
         """
         bio_df = pl.read_database(bio_query, connection=conn)
-        if bio_df.height == 0:
-            return None, None, None
 
         record_query = f"""
         select
