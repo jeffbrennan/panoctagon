@@ -48,6 +48,7 @@ ignore = [ "dbt_packages" ]
 
 [project.scripts]
 panoctagon = "panoctagon.app:app"
+admin = "panoctagon.admin:app"
 
 [build-system]
 requires = ["hatchling"]
