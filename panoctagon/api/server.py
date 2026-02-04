@@ -170,8 +170,12 @@ def list_rankings(
     division: Optional[str] = Query(None, description="Filter by weight class"),
     min_fights: int = Query(5, ge=1, description="Minimum UFC fights required"),
     limit: int = Query(15, ge=1, le=50, description="Top N fighters per division"),
+    sort_by: str = Query(
+        "win_rate",
+        description="Sort by: win_rate, sig_strikes, strike_accuracy, takedowns, knockdowns, ko_wins, sub_wins, opp_win_rate",
+    ),
 ) -> list[RankedFighter]:
-    df = get_rankings(division=division, min_fights=min_fights, limit=limit)
+    df = get_rankings(division=division, min_fights=min_fights, limit=limit, sort_by=sort_by)
     return [
         RankedFighter(
             rank=row["rank"],

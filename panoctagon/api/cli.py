@@ -17,6 +17,17 @@ class OutputFormat(str, Enum):
     table = "table"
 
 
+class SortBy(str, Enum):
+    win_rate = "win_rate"
+    sig_strikes = "sig_strikes"
+    strike_accuracy = "strike_accuracy"
+    takedowns = "takedowns"
+    knockdowns = "knockdowns"
+    ko_wins = "ko_wins"
+    sub_wins = "sub_wins"
+    opp_win_rate = "opp_win_rate"
+
+
 def get_api_url() -> str:
     import os
 
@@ -260,12 +271,14 @@ def leaderboard_impl(
     limit: int,
     fmt: OutputFormat,
     interactive: bool = False,
+    sort_by: SortBy = SortBy.win_rate,
 ) -> None:
     if interactive and division is None and is_interactive():
         division = select_division()
 
     data = api_request(
-        "/rankings", {"division": division, "min_fights": min_fights, "limit": limit}
+        "/rankings",
+        {"division": division, "min_fights": min_fights, "limit": limit, "sort_by": sort_by.value},
     )
 
     if fmt == OutputFormat.json:

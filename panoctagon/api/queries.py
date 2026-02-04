@@ -228,8 +228,23 @@ def get_upcoming_fights() -> pl.DataFrame:
 
 
 def get_rankings(
-    division: Optional[str] = None, min_fights: int = 5, limit: int = 15
+    division: Optional[str] = None,
+    min_fights: int = 5,
+    limit: int = 15,
+    sort_by: str = "win_rate",
 ) -> pl.DataFrame:
+    sort_columns = {
+        "win_rate": "fs.wins * 1.0 / fs.total_fights desc, fs.total_fights desc",
+        "sig_strikes": "coalesce(fsa.avg_sig_strikes, 0) desc",
+        "strike_accuracy": "coalesce(fsa.strike_accuracy, 0) desc",
+        "takedowns": "coalesce(fsa.avg_takedowns, 0) desc",
+        "knockdowns": "coalesce(fsa.total_knockdowns, 0) desc",
+        "ko_wins": "fs.ko_wins desc, fs.total_fights desc",
+        "sub_wins": "fs.sub_wins desc, fs.total_fights desc",
+        "opp_win_rate": "coalesce(fos.avg_opp_win_rate, 0) desc",
+    }
+    order_by = sort_columns.get(sort_by, sort_columns["win_rate"])
+
     engine = get_engine()
     with engine.connect() as conn:
         query = f"""
@@ -324,7 +339,7 @@ def get_rankings(
                 coalesce(fos.avg_opp_win_rate, 0) as opp_win_rate,
                 row_number() over (
                     partition by fdc.fight_division
-                    order by fs.wins * 1.0 / fs.total_fights desc, fs.total_fights desc
+                    order by {order_by}
                 ) as rank
             from ufc_fighters f
             inner join fighter_division_counts fdc

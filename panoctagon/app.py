@@ -6,6 +6,7 @@ import panoctagon.one.one as one
 import panoctagon.ufc.app as ufc
 from panoctagon.api.cli import (
     OutputFormat,
+    SortBy,
     compare_impl,
     event_impl,
     fight_impl,
@@ -53,13 +54,14 @@ def leaderboard(
     division: Optional[str] = typer.Option(None, "--division", "-d", help="Filter by weight class"),
     min_fights: int = typer.Option(5, "--min-fights", "-m", help="Minimum UFC fights"),
     limit: int = typer.Option(15, "--limit", "-l", help="Top N per division"),
+    sort_by: SortBy = typer.Option(SortBy.win_rate, "--sort", "-s", help="Metric to sort by"),
     interactive: bool = typer.Option(
         False, "--interactive", "-i", help="Interactively select division"
     ),
     fmt: OutputFormat = typer.Option(OutputFormat.table, "--format", "-f", help="Output format"),
 ) -> None:
     """Show fighters ranked by win rate within each division."""
-    leaderboard_impl(division, min_fights, limit, fmt, interactive)
+    leaderboard_impl(division, min_fights, limit, fmt, interactive, sort_by)
 
 
 @app.command()
