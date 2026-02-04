@@ -251,15 +251,45 @@ def get_rankings(
         fighter_results as (
             select
                 fighter_uid,
+                fight_uid,
+                opponent_uid,
                 result,
                 decision
             from (
-                select fighter1_uid as fighter_uid, fighter1_result as result, decision
+                select fighter1_uid as fighter_uid, fight_uid, fighter2_uid as opponent_uid,
+                       fighter1_result as result, decision
                 from ufc_fights where fighter1_result is not null
                 union all
-                select fighter2_uid as fighter_uid, fighter2_result as result, decision
+                select fighter2_uid as fighter_uid, fight_uid, fighter1_uid as opponent_uid,
+                       fighter2_result as result, decision
                 from ufc_fights where fighter2_result is not null
             )
+        ),
+        opponent_records as (
+            select
+                fighter_uid,
+                sum(case when result = 'WIN' then 1 else 0 end) as opp_wins,
+                sum(case when result = 'LOSS' then 1 else 0 end) as opp_losses
+            from fighter_results
+            group by fighter_uid
+        ),
+        fighter_opp_strength as (
+            select
+                fr.fighter_uid,
+                round(avg(opp.opp_wins * 100.0 / nullif(opp.opp_wins + opp.opp_losses, 0)), 1) as avg_opp_win_rate
+            from fighter_results fr
+            inner join opponent_records opp on fr.opponent_uid = opp.fighter_uid
+            group by fr.fighter_uid
+        ),
+        fight_stats_agg as (
+            select
+                fighter_uid,
+                round(avg(sig_strikes_landed), 1) as avg_sig_strikes,
+                round(sum(sig_strikes_landed) * 100.0 / nullif(sum(sig_strikes_attempted), 0), 1) as strike_accuracy,
+                round(avg(takedowns_landed), 1) as avg_takedowns,
+                sum(knockdowns) as total_knockdowns
+            from ufc_fight_stats
+            group by fighter_uid
         ),
         fighter_stats as (
             select
@@ -287,6 +317,11 @@ def get_rankings(
                 fs.ko_wins,
                 fs.sub_wins,
                 fs.dec_wins,
+                coalesce(fsa.avg_sig_strikes, 0) as avg_sig_strikes,
+                coalesce(fsa.strike_accuracy, 0) as strike_accuracy,
+                coalesce(fsa.avg_takedowns, 0) as avg_takedowns,
+                coalesce(fsa.total_knockdowns, 0) as total_knockdowns,
+                coalesce(fos.avg_opp_win_rate, 0) as opp_win_rate,
                 row_number() over (
                     partition by fdc.fight_division
                     order by fs.wins * 1.0 / fs.total_fights desc, fs.total_fights desc
@@ -296,6 +331,10 @@ def get_rankings(
                 on f.fighter_uid = fdc.fighter_uid and fdc.rn = 1
             inner join fighter_stats fs
                 on f.fighter_uid = fs.fighter_uid
+            left join fight_stats_agg fsa
+                on f.fighter_uid = fsa.fighter_uid
+            left join fighter_opp_strength fos
+                on f.fighter_uid = fos.fighter_uid
             where fs.total_fights >= {min_fights}
         )
         select
@@ -310,7 +349,12 @@ def get_rankings(
             total_fights,
             ko_wins,
             sub_wins,
-            dec_wins
+            dec_wins,
+            avg_sig_strikes,
+            strike_accuracy,
+            avg_takedowns,
+            total_knockdowns,
+            opp_win_rate
         from ranked
         where 1=1
         """

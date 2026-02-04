@@ -11,7 +11,7 @@ from panoctagon.api.cli import (
     fight_impl,
     fighter_impl,
     history_impl,
-    rankings_impl,
+    leaderboard_impl,
     record_impl,
     roster_impl,
     search_impl,
@@ -49,7 +49,7 @@ def upcoming(
 
 
 @app.command()
-def rankings(
+def leaderboard(
     division: Optional[str] = typer.Option(None, "--division", "-d", help="Filter by weight class"),
     min_fights: int = typer.Option(5, "--min-fights", "-m", help="Minimum UFC fights"),
     limit: int = typer.Option(15, "--limit", "-l", help="Top N per division"),
@@ -58,8 +58,8 @@ def rankings(
     ),
     fmt: OutputFormat = typer.Option(OutputFormat.table, "--format", "-f", help="Output format"),
 ) -> None:
-    """Show fighter rankings by win rate within each division."""
-    rankings_impl(division, min_fights, limit, fmt, interactive)
+    """Show fighters ranked by win rate within each division."""
+    leaderboard_impl(division, min_fights, limit, fmt, interactive)
 
 
 @app.command()

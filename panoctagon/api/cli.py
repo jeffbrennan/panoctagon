@@ -254,7 +254,7 @@ def upcoming_impl(fmt: OutputFormat) -> None:
         typer.echo(format_table(rows))
 
 
-def rankings_impl(
+def leaderboard_impl(
     division: Optional[str],
     min_fights: int,
     limit: int,
@@ -297,6 +297,13 @@ def rankings_impl(
                 "fighter": f"[bold]{fighter['full_name']}[/bold]",
                 "record": record,
                 "win%": f"{fighter['win_rate']:.1f}",
+                "sig\nstrikes": f"{fighter['avg_sig_strikes']:.1f}",
+                "strike\nacc%": f"{fighter['strike_accuracy']:.1f}",
+                "TDs": f"{fighter['avg_takedowns']:.1f}",
+                "KOs": fighter["ko_wins"],
+                "subs": fighter["sub_wins"],
+                "KDs": fighter["total_knockdowns"],
+                "opp\nwin%": f"{fighter['opp_win_rate']:.1f}",
             }
         )
 

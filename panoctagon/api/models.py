@@ -101,6 +101,11 @@ class RankedFighter(BaseModel):
     ko_wins: int
     sub_wins: int
     dec_wins: int
+    avg_sig_strikes: float
+    strike_accuracy: float
+    avg_takedowns: float
+    total_knockdowns: int
+    opp_win_rate: float
 
 
 class RosterFighter(BaseModel):

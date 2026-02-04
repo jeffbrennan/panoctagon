@@ -186,6 +186,11 @@ def list_rankings(
             ko_wins=row["ko_wins"],
             sub_wins=row["sub_wins"],
             dec_wins=row["dec_wins"],
+            avg_sig_strikes=row["avg_sig_strikes"],
+            strike_accuracy=row["strike_accuracy"],
+            avg_takedowns=row["avg_takedowns"],
+            total_knockdowns=row["total_knockdowns"],
+            opp_win_rate=row["opp_win_rate"],
         )
         for row in df.iter_rows(named=True)
     ]
