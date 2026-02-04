@@ -9,6 +9,8 @@ import httpx
 import questionary
 import typer
 
+from panoctagon.enums import format_decision, format_division
+
 DEFAULT_API_URL = "http://localhost:8000"
 
 
@@ -243,12 +245,6 @@ def api_request(endpoint: str, params: Optional[dict[str, Any]] = None) -> Any:
         raise typer.Exit(1)
 
 
-def format_division(div: Optional[str]) -> str:
-    if not div:
-        return "Unknown"
-    return div.replace("_", " ").title()
-
-
 def upcoming_impl(fmt: OutputFormat) -> None:
     data = api_request("/upcoming")
 
@@ -434,7 +430,7 @@ def fighter_impl(name: str, fmt: OutputFormat, history_limit: Optional[int] = No
                     "date": fight.get("event_date"),
                     "opponent": f"[bold]{fight.get('opponent_name')}[/bold]",
                     "result": result_style,
-                    "decision": decision,
+                    "decision": format_decision(decision),
                     "round": rd,
                 }
             )
@@ -654,7 +650,7 @@ def roster_impl(
             {
                 "name": record["full_name"],
                 "stance": record["stance"],
-                "division": record["division"].replace("_", " ").title(),
+                "division": format_division(record["division"]),
                 "wins": record["wins"],
                 "losses": record["losses"],
                 "win rate": record["win_rate"],
