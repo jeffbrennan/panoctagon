@@ -9,14 +9,14 @@ from panoctagon.api.models import (
     EventFight,
     EventSummary,
     FightDetail,
-    FightFighterStats,
-    FightRoundStats,
     FighterBio,
     FighterDetail,
     FighterFightSummary,
     FighterRecord,
     FighterSearchResult,
     FighterStats,
+    FightFighterStats,
+    FightRoundStats,
     FightSummary,
     RankedFighter,
     RosterFighter,
@@ -236,6 +236,10 @@ def list_roster(
         None, ge=0, le=100, description="Maximum win rate percentage"
     ),
     limit: int = Query(100, ge=1, le=500, description="Maximum results to return"),
+    sort_by: str = Query(
+        "win_rate",
+        description="Sort by: win_rate, sig_strikes, strike_accuracy, takedowns, knockdowns, ko_wins, sub_wins, opp_win_rate",
+    ),
 ) -> list[RosterFighter]:
     df = get_roster(
         stance=stance,
@@ -244,6 +248,7 @@ def list_roster(
         min_win_rate=min_win_rate,
         max_win_rate=max_win_rate,
         limit=limit,
+        sort_by=sort_by,
     )
     return [
         RosterFighter(
@@ -256,11 +261,14 @@ def list_roster(
             draws=row["draws"],
             win_rate=row["win_rate"],
             total_fights=row["total_fights"],
-            avg_strikes_landed=row["avg_strikes_landed"],
-            avg_strikes_absorbed=row["avg_strikes_absorbed"],
-            head_strike_pct=row["head_strike_pct"],
-            body_strike_pct=row["body_strike_pct"],
-            leg_strike_pct=row["leg_strike_pct"],
+            ko_wins=row["ko_wins"],
+            sub_wins=row["sub_wins"],
+            dec_wins=row["dec_wins"],
+            avg_sig_strikes=row["avg_sig_strikes"],
+            strike_accuracy=row["strike_accuracy"],
+            avg_takedowns=row["avg_takedowns"],
+            total_knockdowns=row["total_knockdowns"],
+            opp_win_rate=row["opp_win_rate"],
         )
         for row in df.iter_rows(named=True)
     ]

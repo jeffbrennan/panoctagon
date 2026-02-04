@@ -84,16 +84,16 @@ def event(
 
 @app.command()
 def roster(
-    stance: Optional[str] = typer.Option(None, "--stance", "-s", help="Filter by stance"),
     division: Optional[str] = typer.Option(None, "--division", "-d", help="Filter by weight class"),
     min_fights: int = typer.Option(5, "--min-fights", "-m", help="Minimum UFC fights"),
     min_win_rate: Optional[float] = typer.Option(None, "--min-win-rate", help="Minimum win rate %"),
     max_win_rate: Optional[float] = typer.Option(None, "--max-win-rate", help="Maximum win rate %"),
     limit: int = typer.Option(50, "--limit", "-l", help="Maximum results"),
     fmt: OutputFormat = typer.Option(OutputFormat.table, "--format", "-f", help="Output format"),
+    sort_by: SortBy = typer.Option(SortBy.full_name, "--sort", "-s", help="Metric to sort by"),
 ) -> None:
     """Search the UFC roster with filters."""
-    roster_impl(stance, division, min_fights, min_win_rate, max_win_rate, limit, fmt)
+    roster_impl(division, min_fights, min_win_rate, max_win_rate, limit, fmt, sort_by)
 
 
 if __name__ == "__main__":

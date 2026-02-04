@@ -26,6 +26,7 @@ class SortBy(str, Enum):
     ko_wins = "ko_wins"
     sub_wins = "sub_wins"
     opp_win_rate = "opp_win_rate"
+    full_name = "full_name"
 
 
 def get_api_url() -> str:
@@ -289,7 +290,7 @@ def leaderboard_impl(
         return
 
     excluded_divisions = {"catch_weight", "open_weight"}
-    data = [f for f in data if f.get("division") not in excluded_divisions]
+    data = [f for f in data if f.get("division").lower() not in excluded_divisions]
 
     current_division = None
     rows: list[dict[str, Any]] = []
@@ -604,33 +605,47 @@ def event_impl(name: Optional[str], upcoming_only: bool, limit: int, fmt: Output
 
 
 def roster_impl(
-    stance: Optional[str],
     division: Optional[str],
     min_fights: int,
     min_win_rate: Optional[float],
     max_win_rate: Optional[float],
     limit: int,
     fmt: OutputFormat,
+    sort_by: SortBy = SortBy.win_rate,
 ) -> None:
     data = api_request(
         "/roster",
         {
-            "stance": stance,
             "division": division,
             "min_fights": min_fights,
             "min_win_rate": min_win_rate,
             "max_win_rate": max_win_rate,
             "limit": limit,
+            "sort_by": sort_by.value,
         },
     )
-    columns = [
-        "full_name",
-        "stance",
-        "division",
-        "wins",
-        "losses",
-        "win_rate",
-        "avg_strikes_landed",
-        "avg_strikes_absorbed",
-    ]
-    typer.echo(format_output(data, fmt, columns))
+    if fmt == OutputFormat.json:
+        typer.echo(format_output(data, fmt))
+        return
+
+    rows = []
+    for record in data:
+        rows.append(
+            {
+                "name": record["full_name"],
+                "stance": record["stance"],
+                "division": record["division"].replace("_", " ").title(),
+                "wins": record["wins"],
+                "losses": record["losses"],
+                "win rate": record["win_rate"],
+                "opponent\nwin rate": record["opp_win_rate"],
+                "strike\naccuracy": record["strike_accuracy"],
+                "average\nsig strikes": record["avg_sig_strikes"],
+                "total\nknockdowns": record["total_knockdowns"],
+                "average\ntakedowns": record["avg_takedowns"],
+                "ko\nwins": record["ko_wins"],
+                "sub\nwins": record["sub_wins"],
+            }
+        )
+
+    typer.echo(format_table(rows))

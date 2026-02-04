@@ -463,7 +463,20 @@ def get_roster(
     min_win_rate: Optional[float] = None,
     max_win_rate: Optional[float] = None,
     limit: int = 100,
+    sort_by: str = "win_rate",
 ) -> pl.DataFrame:
+    sort_columns = {
+        "win_rate": "fs.wins * 1.0 / fs.total_fights desc, fs.total_fights desc",
+        "sig_strikes": "coalesce(fsa.avg_sig_strikes, 0) desc",
+        "strike_accuracy": "coalesce(fsa.strike_accuracy, 0) desc",
+        "takedowns": "coalesce(fsa.avg_takedowns, 0) desc",
+        "knockdowns": "coalesce(fsa.total_knockdowns, 0) desc",
+        "ko_wins": "fs.ko_wins desc, fs.total_fights desc",
+        "sub_wins": "fs.sub_wins desc, fs.total_fights desc",
+        "opp_win_rate": "coalesce(fos.avg_opp_win_rate, 0) desc",
+    }
+    order_by = sort_columns.get(sort_by, sort_columns["win_rate"])
+
     engine = get_engine()
     with engine.connect() as conn:
         query = f"""
@@ -471,6 +484,7 @@ def get_roster(
             select
                 fighter_uid,
                 fight_division,
+                count(*) as fight_count,
                 row_number() over (partition by fighter_uid order by count(*) desc) as rn
             from (
                 select fighter1_uid as fighter_uid, fight_division from ufc_fights
@@ -481,65 +495,60 @@ def get_roster(
             )
             group by fighter_uid, fight_division
         ),
-        fight_results_long as (
-            select fight_uid, fighter1_uid as fighter_uid, fighter1_result as fighter_result
-            from ufc_fights
-            union
-            select fight_uid, fighter2_uid as fighter_uid, fighter2_result as fighter_result
-            from ufc_fights
-        ),
-        round_stats as (
+        fighter_results as (
             select
-                fs.fighter_uid,
-                fs.fight_uid,
-                fs.total_strikes_landed,
-                fs.sig_strikes_head_landed,
-                fs.sig_strikes_body_landed,
-                fs.sig_strikes_leg_landed
-            from ufc_fight_stats fs
+                fighter_uid,
+                fight_uid,
+                opponent_uid,
+                result,
+                decision
+            from (
+                select fighter1_uid as fighter_uid, fight_uid, fighter2_uid as opponent_uid,
+                       fighter1_result as result, decision
+                from ufc_fights where fighter1_result is not null
+                union all
+                select fighter2_uid as fighter_uid, fight_uid, fighter1_uid as opponent_uid,
+                       fighter2_result as result, decision
+                from ufc_fights where fighter2_result is not null
+            )
         ),
-        opponent_round_stats as (
+        opponent_records as (
             select
-                fs.fight_uid,
-                fs.fighter_uid as opponent_uid,
-                fs.round_num,
-                fs.total_strikes_landed as opponent_strikes_landed
-            from ufc_fight_stats fs
+                fighter_uid,
+                sum(case when result = 'WIN' then 1 else 0 end) as opp_wins,
+                sum(case when result = 'LOSS' then 1 else 0 end) as opp_losses
+            from fighter_results
+            group by fighter_uid
         ),
-        combined_rounds as (
+        fighter_opp_strength as (
             select
-                rs.fighter_uid,
-                rs.fight_uid,
-                fr.fighter_result,
-                rs.total_strikes_landed,
-                ors.opponent_strikes_landed,
-                rs.sig_strikes_head_landed,
-                rs.sig_strikes_body_landed,
-                rs.sig_strikes_leg_landed
-            from round_stats rs
-            inner join ufc_fight_stats fs
-                on rs.fight_uid = fs.fight_uid and rs.fighter_uid = fs.fighter_uid
-            inner join opponent_round_stats ors
-                on rs.fight_uid = ors.fight_uid
-                and fs.round_num = ors.round_num
-                and rs.fighter_uid != ors.opponent_uid
-            inner join fight_results_long fr
-                on rs.fight_uid = fr.fight_uid
-                and rs.fighter_uid = fr.fighter_uid
+                fr.fighter_uid,
+                round(avg(opp.opp_wins * 100.0 / nullif(opp.opp_wins + opp.opp_losses, 0)), 1) as avg_opp_win_rate
+            from fighter_results fr
+            inner join opponent_records opp on fr.opponent_uid = opp.fighter_uid
+            group by fr.fighter_uid
+        ),
+        fight_stats_agg as (
+            select
+                fighter_uid,
+                round(avg(sig_strikes_landed), 1) as avg_sig_strikes,
+                round(sum(sig_strikes_landed) * 100.0 / nullif(sum(sig_strikes_attempted), 0), 1) as strike_accuracy,
+                round(avg(takedowns_landed), 1) as avg_takedowns,
+                sum(knockdowns) as total_knockdowns
+            from ufc_fight_stats
+            group by fighter_uid
         ),
         fighter_stats as (
             select
                 fighter_uid,
-                count(distinct fight_uid) as total_fights,
-                count(distinct case when fighter_result = 'WIN' then fight_uid end) as wins,
-                count(distinct case when fighter_result = 'LOSS' then fight_uid end) as losses,
-                count(distinct case when fighter_result = 'DRAW' then fight_uid end) as draws,
-                percentile_cont(0.5) within group (order by total_strikes_landed) as avg_strikes_landed,
-                percentile_cont(0.5) within group (order by opponent_strikes_landed) as avg_strikes_absorbed,
-                sum(sig_strikes_head_landed) as total_head_strikes,
-                sum(sig_strikes_body_landed) as total_body_strikes,
-                sum(sig_strikes_leg_landed) as total_leg_strikes
-            from combined_rounds
+                count(*) as total_fights,
+                sum(case when result = 'WIN' then 1 else 0 end) as wins,
+                sum(case when result = 'LOSS' then 1 else 0 end) as losses,
+                sum(case when result = 'DRAW' then 1 else 0 end) as draws,
+                sum(case when result = 'WIN' and decision = 'TKO' then 1 else 0 end) as ko_wins,
+                sum(case when result = 'WIN' and decision = 'SUB' then 1 else 0 end) as sub_wins,
+                sum(case when result = 'WIN' and decision in ('UNANIMOUS_DECISION', 'SPLIT_DECISION', 'MAJORITY_DECISION') then 1 else 0 end) as dec_wins
+            from fighter_results
             group by fighter_uid
         )
         select
@@ -552,25 +561,23 @@ def get_roster(
             fs.draws,
             round(fs.wins * 100.0 / fs.total_fights, 1) as win_rate,
             fs.total_fights,
-            round(fs.avg_strikes_landed, 1) as avg_strikes_landed,
-            round(fs.avg_strikes_absorbed, 1) as avg_strikes_absorbed,
-            case when (fs.total_head_strikes + fs.total_body_strikes + fs.total_leg_strikes) > 0
-                then round(fs.total_head_strikes * 100.0 / (fs.total_head_strikes + fs.total_body_strikes + fs.total_leg_strikes), 1)
-                else null
-            end as head_strike_pct,
-            case when (fs.total_head_strikes + fs.total_body_strikes + fs.total_leg_strikes) > 0
-                then round(fs.total_body_strikes * 100.0 / (fs.total_head_strikes + fs.total_body_strikes + fs.total_leg_strikes), 1)
-                else null
-            end as body_strike_pct,
-            case when (fs.total_head_strikes + fs.total_body_strikes + fs.total_leg_strikes) > 0
-                then round(fs.total_leg_strikes * 100.0 / (fs.total_head_strikes + fs.total_body_strikes + fs.total_leg_strikes), 1)
-                else null
-            end as leg_strike_pct
+            fs.ko_wins,
+            fs.sub_wins,
+            fs.dec_wins,
+            coalesce(fsa.avg_sig_strikes, 0) as avg_sig_strikes,
+            coalesce(fsa.strike_accuracy, 0) as strike_accuracy,
+            coalesce(fsa.avg_takedowns, 0) as avg_takedowns,
+            coalesce(fsa.total_knockdowns, 0) as total_knockdowns,
+            coalesce(fos.avg_opp_win_rate, 0) as opp_win_rate
         from ufc_fighters f
-        left join fighter_division_counts fdc
+        inner join fighter_division_counts fdc
             on f.fighter_uid = fdc.fighter_uid and fdc.rn = 1
         inner join fighter_stats fs
             on f.fighter_uid = fs.fighter_uid
+        left join fight_stats_agg fsa
+            on f.fighter_uid = fsa.fighter_uid
+        left join fighter_opp_strength fos
+            on f.fighter_uid = fos.fighter_uid
         where fs.total_fights >= {min_fights}
         """
 
@@ -583,7 +590,7 @@ def get_roster(
         if max_win_rate is not None:
             query += f" and (fs.wins * 100.0 / fs.total_fights) <= {max_win_rate}"
 
-        query += f" order by fs.wins desc, fs.total_fights desc limit {limit}"
+        query += f" order by {order_by} limit {limit}"
 
         return pl.read_database(query, connection=conn)
 

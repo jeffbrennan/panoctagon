@@ -129,11 +129,14 @@ class RosterFighter(BaseModel):
     draws: int
     win_rate: float
     total_fights: int
-    avg_strikes_landed: Optional[float]
-    avg_strikes_absorbed: Optional[float]
-    head_strike_pct: Optional[float]
-    body_strike_pct: Optional[float]
-    leg_strike_pct: Optional[float]
+    ko_wins: int
+    sub_wins: int
+    dec_wins: int
+    avg_sig_strikes: float
+    strike_accuracy: float
+    avg_takedowns: float
+    total_knockdowns: int
+    opp_win_rate: float
 
 
 class EventSummary(BaseModel):
