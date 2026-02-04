@@ -313,9 +313,9 @@ def get_rankings(
                 sum(case when result = 'WIN' then 1 else 0 end) as wins,
                 sum(case when result = 'LOSS' then 1 else 0 end) as losses,
                 sum(case when result = 'DRAW' then 1 else 0 end) as draws,
-                sum(case when result = 'WIN' and decision in ('Knockout', 'Technical Knockout') then 1 else 0 end) as ko_wins,
-                sum(case when result = 'WIN' and decision = 'Submission' then 1 else 0 end) as sub_wins,
-                sum(case when result = 'WIN' and decision like 'Decision%' then 1 else 0 end) as dec_wins
+                sum(case when result = 'WIN' and decision = 'TKO' then 1 else 0 end) as ko_wins,
+                sum(case when result = 'WIN' and decision = 'SUB' then 1 else 0 end) as sub_wins,
+                sum(case when result = 'WIN' and decision in ('UNANIMOUS_DECISION', 'SPLIT_DECISION', 'MAJORITY_DECISION') then 1 else 0 end) as dec_wins
             from fighter_results
             group by fighter_uid
         ),
