@@ -396,21 +396,25 @@ def history_impl(name: str, limit: int, fmt: OutputFormat) -> None:
     fights = data["recent_fights"][:limit]
 
     typer.echo(f"\n{bio['full_name']} - Fight History")
-    typer.echo("=" * 70)
 
+    rows = []
     for fight in fights:
         result = fight.get("result") or "UPCOMING"
-        decision = fight.get("decision") or ""
-        rd = f"R{fight['decision_round']}" if fight.get("decision_round") else ""
+        decision = fight.get("decision") or "-"
+        rd = f"R{fight['decision_round']}" if fight.get("decision_round") else "-"
 
-        result_str = f"{result}"
-        if decision:
-            result_str += f" ({decision}"
-            if rd:
-                result_str += f" {rd}"
-            result_str += ")"
+        result_style = "[green]WIN[/green]" if result == "WIN" else "[red]LOSS[/red]" if result == "LOSS" else result
+        rows.append(
+            {
+                "date": fight["event_date"],
+                "opponent": f"[bold]{fight['opponent_name']}[/bold]",
+                "result": result_style,
+                "decision": decision,
+                "round": rd,
+            }
+        )
 
-        typer.echo(f"{fight['event_date']}  vs {fight['opponent_name']:<25} {result_str}")
+    typer.echo(format_table(rows))
 
 
 def compare_impl(fighter1: str, fighter2: str, fmt: OutputFormat) -> None:
