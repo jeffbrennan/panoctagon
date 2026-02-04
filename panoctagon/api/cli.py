@@ -324,103 +324,81 @@ def leaderboard_impl(
         typer.echo(format_table(rows))
 
 
-def search_impl(name: str, division: Optional[str], limit: int, fmt: OutputFormat) -> None:
-    data = api_request("/fighter", {"name": name, "division": division, "limit": limit})
-    columns = ["full_name", "nickname", "stance", "division", "wins", "losses", "draws"]
-    typer.echo(format_output(data, fmt, columns))
+def fighter_impl(name: str, fmt: OutputFormat, history_limit: Optional[int] = None) -> None:
+    from rich.console import Console
+    from rich.table import Table
 
-
-def fighter_impl(name: str, fmt: OutputFormat) -> None:
     fighter = select_fighter(name)
-    data = api_request(f"/fighter/{fighter['fighter_uid']}")
+    fighter_uid = fighter["fighter_uid"]
+    data = api_request(f"/fighter/{fighter_uid}")
+
+    if history_limit:
+        fights = api_request(f"/fighter/{fighter_uid}/fights", {"limit": history_limit})
+    else:
+        fights = data["recent_fights"]
 
     if fmt == OutputFormat.json:
-        typer.echo(format_output(data, fmt))
+        if history_limit:
+            typer.echo(format_output({"fighter": data, "fights": fights}, fmt))
+        else:
+            typer.echo(format_output(data, fmt))
         return
 
     bio = data["bio"]
     record = data["record"]
-    fights = data["recent_fights"]
 
-    typer.echo(f"\n{bio['full_name']}")
+    console = Console()
+
+    typer.echo(f"\n[bold]{bio['full_name']}[/bold]")
     if bio.get("nickname"):
         typer.echo(f'"{bio["nickname"]}"')
-    typer.echo("-" * 40)
 
-    typer.echo(f"Record: {record['wins']}-{record['losses']}-{record['draws']}")
+    info_table = Table(show_header=False, box=None, padding=(0, 2))
+    info_table.add_column(style="dim")
+    info_table.add_column()
+
+    info_table.add_row("Record", f"{record['wins']}-{record['losses']}-{record['draws']}")
     if record.get("no_contests"):
-        typer.echo(f"No Contests: {record['no_contests']}")
-
-    typer.echo(f"\nStance: {bio.get('stance') or '-'}")
-    typer.echo(f"Height: {bio.get('height_inches') or '-'} in")
-    typer.echo(f"Reach: {bio.get('reach_inches') or '-'} in")
+        info_table.add_row("No Contests", str(record["no_contests"]))
+    info_table.add_row("Stance", bio.get("stance") or "-")
+    info_table.add_row("Height", f"{bio.get('height_inches') or '-'} in")
+    info_table.add_row("Reach", f"{bio.get('reach_inches') or '-'} in")
     if bio.get("dob"):
-        typer.echo(f"DOB: {bio['dob']}")
+        info_table.add_row("DOB", bio["dob"])
     if bio.get("place_of_birth"):
-        typer.echo(f"From: {bio['place_of_birth']}")
+        info_table.add_row("From", bio["place_of_birth"])
+
+    console.print(info_table)
+
+    if history_limit:
+        typer.echo(f"\nFight History ({len(fights)} fights):")
+    else:
+        typer.echo("\nRecent Fights:")
 
     if fights:
-        typer.echo("\nRecent Fights:")
-        typer.echo("-" * 40)
-        columns = ["event_date", "opponent_name", "result", "decision"]
-        typer.echo(format_table(fights, columns))
+        rows = []
+        for fight in fights:
+            result = fight.get("result") or "UPCOMING"
+            decision = fight.get("decision") or "-"
+            rd = f"R{fight.get('decision_round')}" if fight.get("decision_round") else "-"
 
-
-def record_impl(name: str, fmt: OutputFormat) -> None:
-    fighter = select_fighter(name)
-
-    if fmt == OutputFormat.json:
-        record_data = {
-            "name": fighter["full_name"],
-            "record": f"{fighter['wins']}-{fighter['losses']}-{fighter['draws']}",
-            "wins": fighter["wins"],
-            "losses": fighter["losses"],
-            "draws": fighter["draws"],
-        }
-        typer.echo(json.dumps(record_data, indent=2))
-        return
-
-    record = f"{fighter['wins']}-{fighter['losses']}-{fighter['draws']}"
-    typer.echo(f"{fighter['full_name']}: {record}")
-
-
-def history_impl(name: str, limit: int, fmt: OutputFormat) -> None:
-    fighter = select_fighter(name)
-    data = api_request(f"/fighter/{fighter['fighter_uid']}")
-
-    if fmt == OutputFormat.json:
-        typer.echo(json.dumps(data["recent_fights"][:limit], indent=2, default=str))
-        return
-
-    bio = data["bio"]
-    fights = data["recent_fights"][:limit]
-
-    typer.echo(f"\n{bio['full_name']} - Fight History")
-
-    rows = []
-    for fight in fights:
-        result = fight.get("result") or "UPCOMING"
-        decision = fight.get("decision") or "-"
-        rd = f"R{fight['decision_round']}" if fight.get("decision_round") else "-"
-
-        result_style = (
-            "[green]WIN[/green]"
-            if result == "WIN"
-            else "[red]LOSS[/red]"
-            if result == "LOSS"
-            else result
-        )
-        rows.append(
-            {
-                "date": fight["event_date"],
-                "opponent": f"[bold]{fight['opponent_name']}[/bold]",
-                "result": result_style,
-                "decision": decision,
-                "round": rd,
-            }
-        )
-
-    typer.echo(format_table(rows))
+            result_style = (
+                "[green]WIN[/green]"
+                if result == "WIN"
+                else "[red]LOSS[/red]"
+                if result == "LOSS"
+                else result
+            )
+            rows.append(
+                {
+                    "date": fight.get("event_date"),
+                    "opponent": f"[bold]{fight.get('opponent_name')}[/bold]",
+                    "result": result_style,
+                    "decision": decision,
+                    "round": rd,
+                }
+            )
+        typer.echo(format_table(rows))
 
 
 def compare_impl(fighter1: str, fighter2: str, fmt: OutputFormat) -> None:

@@ -11,11 +11,8 @@ from panoctagon.api.cli import (
     event_impl,
     fight_impl,
     fighter_impl,
-    history_impl,
     leaderboard_impl,
-    record_impl,
     roster_impl,
-    search_impl,
     upcoming_impl,
 )
 
@@ -65,42 +62,15 @@ def leaderboard(
 
 
 @app.command()
-def search(
-    name: str = typer.Argument(..., help="Fighter name to search"),
-    division: Optional[str] = typer.Option(None, "--division", "-d", help="Filter by weight class"),
-    limit: int = typer.Option(20, "--limit", "-l", help="Maximum results"),
-    fmt: OutputFormat = typer.Option(OutputFormat.table, "--format", "-f", help="Output format"),
-) -> None:
-    """Search for fighters by name."""
-    search_impl(name, division, limit, fmt)
-
-
-@app.command()
 def fighter(
     name: str = typer.Argument(..., help="Fighter name"),
+    history: int = typer.Option(
+        None, "--history", "-H", help="Show extended fight history (specify number of fights)"
+    ),
     fmt: OutputFormat = typer.Option(OutputFormat.table, "--format", "-f", help="Output format"),
 ) -> None:
-    """Get detailed information about a fighter."""
-    fighter_impl(name, fmt)
-
-
-@app.command()
-def record(
-    name: str = typer.Argument(..., help="Fighter name"),
-    fmt: OutputFormat = typer.Option(OutputFormat.table, "--format", "-f", help="Output format"),
-) -> None:
-    """Get a fighter's win-loss-draw record."""
-    record_impl(name, fmt)
-
-
-@app.command()
-def history(
-    name: str = typer.Argument(..., help="Fighter name"),
-    limit: int = typer.Option(10, "--limit", "-l", help="Number of fights to show"),
-    fmt: OutputFormat = typer.Option(OutputFormat.table, "--format", "-f", help="Output format"),
-) -> None:
-    """Show a fighter's fight history."""
-    history_impl(name, limit, fmt)
+    """Get detailed information about a fighter. Use --history to see extended fight history."""
+    fighter_impl(name, fmt, history)
 
 
 @app.command()
