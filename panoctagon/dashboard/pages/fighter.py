@@ -15,6 +15,7 @@ from panoctagon.dashboard.common import (
     get_headshot_base64,
     get_main_data,
 )
+from panoctagon.enums import format_decision, format_result
 
 
 def get_fighter_uid_map(df: pl.DataFrame) -> dict[str, str]:
@@ -276,33 +277,6 @@ def update_career_timeline(fighter: str):
     )
 
     return apply_figure_styling(fig)
-
-
-def format_decision(decision: str) -> str:
-    decision_map = {
-        "UNANIMOUS_DECISION": "Unanimous Decision",
-        "SPLIT_DECISION": "Split Decision",
-        "MAJORITY_DECISION": "Majority Decision",
-        "TKO": "TKO",
-        "KO": "KO",
-        "SUB": "Submission",
-        "DQ": "DQ",
-        "DOC": "Doctor Stoppage",
-        "OVERTURNED": "Overturned",
-        "COULD_NOT_CONTINUE": "Could Not Continue",
-        "OTHER": "Other",
-    }
-    return decision_map.get(decision, decision)
-
-
-def format_result(result: str) -> str:
-    result_map = {
-        "WIN": "W",
-        "LOSS": "L",
-        "DRAW": "D",
-        "NO_CONTEST": "NC",
-    }
-    return result_map.get(result, result)
 
 
 @callback(

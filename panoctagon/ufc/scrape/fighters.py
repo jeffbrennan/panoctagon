@@ -41,7 +41,9 @@ def get_all_fighter_uids() -> list[str]:
     return sorted(set(f1_uids + f2_uids))
 
 
-def scrape_fighter(fighter: FighterToScrape, session: Optional[requests.Session] = None) -> FighterScrapingResult:
+def scrape_fighter(
+    fighter: FighterToScrape, session: Optional[requests.Session] = None
+) -> FighterScrapingResult:
     title = f"[{fighter.i + 1:04d}/{fighter.n_fighters:04d}] {fighter.uid}"
     print(create_header(80, title, False, "."))
     base_url = "http://ufcstats.com/fighter-details"
