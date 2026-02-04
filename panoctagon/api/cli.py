@@ -403,7 +403,13 @@ def history_impl(name: str, limit: int, fmt: OutputFormat) -> None:
         decision = fight.get("decision") or "-"
         rd = f"R{fight['decision_round']}" if fight.get("decision_round") else "-"
 
-        result_style = "[green]WIN[/green]" if result == "WIN" else "[red]LOSS[/red]" if result == "LOSS" else result
+        result_style = (
+            "[green]WIN[/green]"
+            if result == "WIN"
+            else "[red]LOSS[/red]"
+            if result == "LOSS"
+            else result
+        )
         rows.append(
             {
                 "date": fight["event_date"],
@@ -477,12 +483,8 @@ def compare_impl(fighter1: str, fighter2: str, fmt: OutputFormat) -> None:
 
     r1_str = f"{r1['wins']}-{r1['losses']}-{r1['draws']}"
     r2_str = f"{r2['wins']}-{r2['losses']}-{r2['draws']}"
-    if r1["wins"] > r2["wins"]:
-        r1_str, r2_str = f"[green]{r1_str}[/green]", f"[red]{r2_str}[/red]"
-    elif r2["wins"] > r1["wins"]:
-        r1_str, r2_str = f"[red]{r1_str}[/red]", f"[green]{r2_str}[/green]"
-    table.add_row(r1_str, "RECORD", r2_str)
 
+    table.add_row(r1_str, "RECORD", r2_str)
     table.add_row(str(b1.get("stance") or "-"), "STANCE", str(b2.get("stance") or "-"))
 
     h1, h2 = compare_vals(b1.get("height_inches"), b2.get("height_inches"), suffix=" in")
