@@ -37,6 +37,7 @@ dependencies = [
     "uvicorn==0.34.2",
     "httpx==0.28.1",
     "questionary==2.1.0",
+    "rich==14.0.0",
 ]
 
 [tool.pyright]

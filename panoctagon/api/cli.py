@@ -149,6 +149,9 @@ def select_division() -> str:
 
 
 def format_table(data: list[dict[str, Any]], columns: Optional[list[str]] = None) -> str:
+    from rich.console import Console
+    from rich.table import Table
+
     if not data:
         return "No data found."
 
@@ -157,30 +160,23 @@ def format_table(data: list[dict[str, Any]], columns: Optional[list[str]] = None
 
     headers = list(data[0].keys())
 
-    col_widths = {}
+    table = Table(show_header=True, header_style="bold", show_lines=True, padding=(0, 1))
+
     for header in headers:
-        max_width = len(str(header))
-        for row in data:
-            val = row.get(header)
-            val_str = "-" if val is None else str(val)
-            max_width = max(max_width, len(val_str))
-        col_widths[header] = min(max_width, 40)
+        table.add_column(header)
 
-    header_row = "| " + " | ".join(str(h).ljust(col_widths[h]) for h in headers) + " |"
-    separator = "|-" + "-|-".join("-" * col_widths[h] for h in headers) + "-|"
-
-    rows = []
     for row in data:
         cells = []
         for h in headers:
             val = row.get(h)
-            val_str = "-" if val is None else str(val)
-            if len(val_str) > 40:
-                val_str = val_str[:37] + "..."
-            cells.append(val_str.ljust(col_widths[h]))
-        rows.append("| " + " | ".join(cells) + " |")
+            cells.append("-" if val is None else str(val))
+        table.add_row(*cells)
 
-    return "\n".join([header_row, separator] + rows)
+    console = Console()
+    with console.capture() as capture:
+        console.print(table)
+
+    return capture.get().rstrip()
 
 
 def format_output(data: Any, fmt: OutputFormat, columns: Optional[list[str]] = None) -> str:
@@ -236,22 +232,26 @@ def upcoming_impl(fmt: OutputFormat) -> None:
     for event in data:
         typer.echo(f"\n{event['event_title']}")
         typer.echo(f"{event['event_date']} - {event['event_location']}")
-        typer.echo("=" * 60)
 
+        rows = []
         for fight in event["fights"]:
             division = format_division(fight.get("fight_division"))
-            fight_type = (
-                " [TITLE]"
+            title_marker = (
+                " \\[TITLE]"
                 if fight.get("fight_type") and "title" in fight["fight_type"].lower()
                 else ""
             )
+            rows.append(
+                {
+                    "fighter 1": f"[bold]{fight['fighter1_name']}[/bold]",
+                    "f1\nrecord": fight["fighter1_record"],
+                    "fighter 2": f"[bold]{fight['fighter2_name']}[/bold]",
+                    "f2\nrecord": fight["fighter2_record"],
+                    "division": f"{division}{title_marker}",
+                }
+            )
 
-            typer.echo(f"\n{division}{fight_type}")
-            f1 = f"{fight['fighter1_name']} ({fight['fighter1_record']})"
-            f2 = f"{fight['fighter2_name']} ({fight['fighter2_record']})"
-            typer.echo(f"  {f1}")
-            typer.echo("    vs")
-            typer.echo(f"  {f2}")
+        typer.echo(format_table(rows))
 
 
 def rankings_impl(
