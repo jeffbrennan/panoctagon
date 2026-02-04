@@ -133,10 +133,7 @@ def select_division() -> str:
     if not is_interactive():
         return divisions[0]
 
-    choices = [
-        questionary.Choice(title=format_division(d), value=d)
-        for d in divisions
-    ]
+    choices = [questionary.Choice(title=format_division(d), value=d) for d in divisions]
 
     selected = questionary.select(
         "Select a division:",
@@ -243,21 +240,33 @@ def upcoming_impl(fmt: OutputFormat) -> None:
 
         for fight in event["fights"]:
             division = format_division(fight.get("fight_division"))
-            fight_type = " [TITLE]" if fight.get("fight_type") and "title" in fight["fight_type"].lower() else ""
+            fight_type = (
+                " [TITLE]"
+                if fight.get("fight_type") and "title" in fight["fight_type"].lower()
+                else ""
+            )
 
             typer.echo(f"\n{division}{fight_type}")
             f1 = f"{fight['fighter1_name']} ({fight['fighter1_record']})"
             f2 = f"{fight['fighter2_name']} ({fight['fighter2_record']})"
             typer.echo(f"  {f1}")
-            typer.echo(f"    vs")
+            typer.echo("    vs")
             typer.echo(f"  {f2}")
 
 
-def rankings_impl(division: Optional[str], min_fights: int, limit: int, fmt: OutputFormat, interactive: bool = False) -> None:
+def rankings_impl(
+    division: Optional[str],
+    min_fights: int,
+    limit: int,
+    fmt: OutputFormat,
+    interactive: bool = False,
+) -> None:
     if interactive and division is None and is_interactive():
         division = select_division()
 
-    data = api_request("/rankings", {"division": division, "min_fights": min_fights, "limit": limit})
+    data = api_request(
+        "/rankings", {"division": division, "min_fights": min_fights, "limit": limit}
+    )
 
     if fmt == OutputFormat.json:
         typer.echo(format_output(data, fmt))
@@ -278,7 +287,9 @@ def rankings_impl(division: Optional[str], min_fights: int, limit: int, fmt: Out
             typer.echo("-" * 50)
 
         record = f"{fighter['wins']}-{fighter['losses']}-{fighter['draws']}"
-        typer.echo(f"{fighter['rank']:<5} {fighter['full_name']:<25} {record:<12} {fighter['win_rate']:<6.1f}")
+        typer.echo(
+            f"{fighter['rank']:<5} {fighter['full_name']:<25} {record:<12} {fighter['win_rate']:<6.1f}"
+        )
 
 
 def search_impl(name: str, division: Optional[str], limit: int, fmt: OutputFormat) -> None:
@@ -378,15 +389,17 @@ def compare_impl(fighter1: str, fighter2: str, fmt: OutputFormat) -> None:
     f2_detail = api_request(f"/fighter/{f2['fighter_uid']}")
 
     if fmt == OutputFormat.json:
-        typer.echo(json.dumps({"fighter1": f1_detail, "fighter2": f2_detail}, indent=2, default=str))
+        typer.echo(
+            json.dumps({"fighter1": f1_detail, "fighter2": f2_detail}, indent=2, default=str)
+        )
         return
 
     b1, r1 = f1_detail["bio"], f1_detail["record"]
     b2, r2 = f2_detail["bio"], f2_detail["record"]
 
-    typer.echo(f"\n{'='*60}")
+    typer.echo(f"\n{'=' * 60}")
     typer.echo(f"{'TALE OF THE TAPE':^60}")
-    typer.echo(f"{'='*60}")
+    typer.echo(f"{'=' * 60}")
 
     def compare_row(label: str, v1: Any, v2: Any) -> None:
         v1_str = str(v1) if v1 is not None else "-"
@@ -394,16 +407,24 @@ def compare_impl(fighter1: str, fighter2: str, fmt: OutputFormat) -> None:
         typer.echo(f"{v1_str:>25}  {label:^8}  {v2_str:<25}")
 
     compare_row("NAME", b1["full_name"], b2["full_name"])
-    compare_row("RECORD", f"{r1['wins']}-{r1['losses']}-{r1['draws']}", f"{r2['wins']}-{r2['losses']}-{r2['draws']}")
+    compare_row(
+        "RECORD",
+        f"{r1['wins']}-{r1['losses']}-{r1['draws']}",
+        f"{r2['wins']}-{r2['losses']}-{r2['draws']}",
+    )
     compare_row("STANCE", b1.get("stance"), b2.get("stance"))
-    compare_row("HEIGHT", f"{b1.get('height_inches') or '-'} in", f"{b2.get('height_inches') or '-'} in")
-    compare_row("REACH", f"{b1.get('reach_inches') or '-'} in", f"{b2.get('reach_inches') or '-'} in")
+    compare_row(
+        "HEIGHT", f"{b1.get('height_inches') or '-'} in", f"{b2.get('height_inches') or '-'} in"
+    )
+    compare_row(
+        "REACH", f"{b1.get('reach_inches') or '-'} in", f"{b2.get('reach_inches') or '-'} in"
+    )
 
     win_pct_1 = round(r1["wins"] * 100 / r1["total_fights"], 1) if r1["total_fights"] > 0 else 0
     win_pct_2 = round(r2["wins"] * 100 / r2["total_fights"], 1) if r2["total_fights"] > 0 else 0
     compare_row("WIN %", f"{win_pct_1}%", f"{win_pct_2}%")
 
-    typer.echo(f"{'='*60}")
+    typer.echo(f"{'=' * 60}")
 
 
 def fight_impl(query: str, fmt: OutputFormat) -> None:
@@ -424,7 +445,9 @@ def fight_impl(query: str, fmt: OutputFormat) -> None:
     f1 = data["fighter1"]
     f2 = data["fighter2"]
 
-    typer.echo(f"\n{f1['fighter_name']} ({f1['result'] or 'TBD'}) vs {f2['fighter_name']} ({f2['result'] or 'TBD'})")
+    typer.echo(
+        f"\n{f1['fighter_name']} ({f1['result'] or 'TBD'}) vs {f2['fighter_name']} ({f2['result'] or 'TBD'})"
+    )
 
     if data.get("decision"):
         typer.echo(f"Result: {data['decision']}")
@@ -445,7 +468,9 @@ def fight_impl(query: str, fmt: OutputFormat) -> None:
                     tds = f"{rd.get('takedowns_landed') or 0}/{rd.get('takedowns_attempted') or 0}"
                     ctrl = rd.get("control_time_seconds") or 0
                     ctrl_str = f"{ctrl // 60}:{ctrl % 60:02d}" if ctrl else "-"
-                    typer.echo(f"  {fighter['fighter_name']}: Strikes {strikes}, TD {tds}, Ctrl {ctrl_str}")
+                    typer.echo(
+                        f"  {fighter['fighter_name']}: Strikes {strikes}, TD {tds}, Ctrl {ctrl_str}"
+                    )
 
 
 def event_impl(name: Optional[str], upcoming_only: bool, limit: int, fmt: OutputFormat) -> None:
@@ -463,7 +488,11 @@ def event_impl(name: Optional[str], upcoming_only: bool, limit: int, fmt: Output
 
         for fight in data["fights"]:
             division = format_division(fight.get("fight_division"))
-            fight_type = " [TITLE]" if fight.get("fight_type") and "title" in fight["fight_type"].lower() else ""
+            fight_type = (
+                " [TITLE]"
+                if fight.get("fight_type") and "title" in fight["fight_type"].lower()
+                else ""
+            )
 
             r1 = fight.get("fighter1_result") or "TBD"
             r2 = fight.get("fighter2_result") or "TBD"
@@ -471,7 +500,7 @@ def event_impl(name: Optional[str], upcoming_only: bool, limit: int, fmt: Output
 
             typer.echo(f"\n{division}{fight_type}")
             typer.echo(f"  {fight['fighter1_name']} ({r1})")
-            typer.echo(f"    vs")
+            typer.echo("    vs")
             typer.echo(f"  {fight['fighter2_name']} ({r2})")
             if decision:
                 rd = f" R{fight['decision_round']}" if fight.get("decision_round") else ""

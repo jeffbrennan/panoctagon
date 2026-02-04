@@ -53,7 +53,9 @@ def rankings(
     division: Optional[str] = typer.Option(None, "--division", "-d", help="Filter by weight class"),
     min_fights: int = typer.Option(5, "--min-fights", "-m", help="Minimum UFC fights"),
     limit: int = typer.Option(15, "--limit", "-l", help="Top N per division"),
-    interactive: bool = typer.Option(False, "--interactive", "-i", help="Interactively select division"),
+    interactive: bool = typer.Option(
+        False, "--interactive", "-i", help="Interactively select division"
+    ),
     fmt: OutputFormat = typer.Option(OutputFormat.table, "--format", "-f", help="Output format"),
 ) -> None:
     """Show fighter rankings by win rate within each division."""

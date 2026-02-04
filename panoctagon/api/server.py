@@ -193,11 +193,17 @@ def list_rankings(
 
 @app.get("/roster", response_model=list[RosterFighter])
 def list_roster(
-    stance: Optional[str] = Query(None, description="Filter by stance (Orthodox, Southpaw, Switch)"),
+    stance: Optional[str] = Query(
+        None, description="Filter by stance (Orthodox, Southpaw, Switch)"
+    ),
     division: Optional[str] = Query(None, description="Filter by weight class"),
     min_fights: int = Query(5, ge=1, description="Minimum UFC fights required"),
-    min_win_rate: Optional[float] = Query(None, ge=0, le=100, description="Minimum win rate percentage"),
-    max_win_rate: Optional[float] = Query(None, ge=0, le=100, description="Maximum win rate percentage"),
+    min_win_rate: Optional[float] = Query(
+        None, ge=0, le=100, description="Minimum win rate percentage"
+    ),
+    max_win_rate: Optional[float] = Query(
+        None, ge=0, le=100, description="Maximum win rate percentage"
+    ),
     limit: int = Query(100, ge=1, le=500, description="Maximum results to return"),
 ) -> list[RosterFighter]:
     df = get_roster(
@@ -256,7 +262,9 @@ def get_fight(fight_uid: str) -> FightDetail:
 
     fight_row = fight_df.row(0, named=True)
 
-    def build_fighter_stats(fighter_uid: str, fighter_name: str, result: Optional[str]) -> FightFighterStats:
+    def build_fighter_stats(
+        fighter_uid: str, fighter_name: str, result: Optional[str]
+    ) -> FightFighterStats:
         rounds = []
         if stats_df is not None:
             fighter_stats = stats_df.filter(stats_df["fighter_uid"] == fighter_uid)

@@ -72,7 +72,9 @@ def search_fighters(
         return pl.read_database(query, connection=conn)
 
 
-def get_fighter_detail(fighter_uid: str) -> tuple[Optional[pl.DataFrame], Optional[pl.DataFrame], Optional[pl.DataFrame]]:
+def get_fighter_detail(
+    fighter_uid: str,
+) -> tuple[Optional[pl.DataFrame], Optional[pl.DataFrame], Optional[pl.DataFrame]]:
     engine = get_engine()
     with engine.connect() as conn:
         bio_query = f"""
@@ -225,7 +227,9 @@ def get_upcoming_fights() -> pl.DataFrame:
         )
 
 
-def get_rankings(division: Optional[str] = None, min_fights: int = 5, limit: int = 15) -> pl.DataFrame:
+def get_rankings(
+    division: Optional[str] = None, min_fights: int = 5, limit: int = 15
+) -> pl.DataFrame:
     engine = get_engine()
     with engine.connect() as conn:
         query = f"""

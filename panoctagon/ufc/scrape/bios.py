@@ -258,8 +258,6 @@ def scrape_fighter_bios_parallel(
     base_dir: Path,
     max_workers: int = 3,
 ) -> list[FighterBioScrapingResult]:
-
-
     total_fighters = len(fighters)
     results = []
     completed_count = 0
