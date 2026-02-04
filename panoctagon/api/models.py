@@ -209,3 +209,4 @@ class FighterFightSummary(BaseModel):
     opponent_name: str
     result: Optional[str]
     decision: Optional[str]
+    decision_round: Optional[int]

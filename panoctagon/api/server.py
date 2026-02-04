@@ -420,6 +420,7 @@ def get_fighter_fights_endpoint(
             opponent_name=row["opponent_name"],
             result=row["result"],
             decision=row["decision"],
+            decision_round=row["decision_round"],
         )
         for row in df.iter_rows(named=True)
     ]

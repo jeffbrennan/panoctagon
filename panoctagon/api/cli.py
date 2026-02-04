@@ -331,6 +331,7 @@ def fighter_impl(name: str, fmt: OutputFormat, history_limit: Optional[int] = No
     fighter = select_fighter(name)
     fighter_uid = fighter["fighter_uid"]
     data = api_request(f"/fighter/{fighter_uid}")
+    stats = api_request(f"/fighter/{fighter_uid}/stats")
 
     if history_limit:
         fights = api_request(f"/fighter/{fighter_uid}/fights", {"limit": history_limit})
@@ -338,10 +339,10 @@ def fighter_impl(name: str, fmt: OutputFormat, history_limit: Optional[int] = No
         fights = data["recent_fights"]
 
     if fmt == OutputFormat.json:
+        output = {**data, "stats": stats}
         if history_limit:
-            typer.echo(format_output({"fighter": data, "fights": fights}, fmt))
-        else:
-            typer.echo(format_output(data, fmt))
+            output["fights"] = fights
+        typer.echo(format_output(output, fmt))
         return
 
     bio = data["bio"]
@@ -349,9 +350,9 @@ def fighter_impl(name: str, fmt: OutputFormat, history_limit: Optional[int] = No
 
     console = Console()
 
-    typer.echo(f"\n[bold]{bio['full_name']}[/bold]")
+    console.print(f"\n[bold]{bio['full_name']}[/bold]")
     if bio.get("nickname"):
-        typer.echo(f'"{bio["nickname"]}"')
+        console.print(f'[dim]"{bio["nickname"]}"[/dim]')
 
     info_table = Table(show_header=False, box=None, padding=(0, 2))
     info_table.add_column(style="dim")
@@ -370,10 +371,29 @@ def fighter_impl(name: str, fmt: OutputFormat, history_limit: Optional[int] = No
 
     console.print(info_table)
 
+    def stat_val(v: Any, suffix: str = "") -> str:
+        return f"{v}{suffix}" if v is not None else "-"
+
+    console.print("\n[bold]Career Stats:[/bold]")
+    stats_table = Table(show_header=False, box=None, padding=(0, 2))
+    stats_table.add_column(style="dim")
+    stats_table.add_column()
+
+    stats_table.add_row("Sig Strikes/Rd", stat_val(stats.get("avg_sig_strikes")))
+    stats_table.add_row("Strike Accuracy", stat_val(stats.get("strike_accuracy"), "%"))
+    stats_table.add_row("Takedowns/Rd", stat_val(stats.get("avg_takedowns")))
+    stats_table.add_row("KO Wins", str(stats.get("ko_wins", 0)))
+    stats_table.add_row("Sub Wins", str(stats.get("sub_wins", 0)))
+    stats_table.add_row("Dec Wins", str(stats.get("dec_wins", 0)))
+    stats_table.add_row("Knockdowns", str(stats.get("total_knockdowns", 0)))
+    stats_table.add_row("Opp Win Rate", stat_val(stats.get("avg_opp_win_rate"), "%"))
+
+    console.print(stats_table)
+
     if history_limit:
-        typer.echo(f"\nFight History ({len(fights)} fights):")
+        console.print(f"\n[bold]Fight History[/bold] ({len(fights)} fights):")
     else:
-        typer.echo("\nRecent Fights:")
+        console.print("\n[bold]Recent Fights:[/bold]")
 
     if fights:
         rows = []

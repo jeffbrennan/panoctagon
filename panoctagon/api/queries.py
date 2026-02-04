@@ -694,7 +694,8 @@ def get_fighter_fights(fighter_uid: str, limit: int = 10) -> pl.DataFrame:
                 ff.fight_division,
                 opp.first_name || ' ' || opp.last_name as opponent_name,
                 ff.result,
-                ff.decision
+                ff.decision,
+                ff.decision_round
             from fighter_fights ff
             inner join ufc_events e on ff.event_uid = e.event_uid
             inner join ufc_fighters opp on ff.opponent_uid = opp.fighter_uid
