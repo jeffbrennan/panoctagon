@@ -276,20 +276,32 @@ def rankings_impl(
         typer.echo("No rankings found.")
         return
 
+    excluded_divisions = {"catch_weight", "open_weight"}
+    data = [f for f in data if f.get("division") not in excluded_divisions]
+
     current_division = None
+    rows: list[dict[str, Any]] = []
     for fighter in data:
         if fighter["division"] != current_division:
+            if rows:
+                typer.echo(format_table(rows))
             current_division = fighter["division"]
             div_display = format_division(current_division)
             typer.echo(f"\n{div_display}")
-            typer.echo("-" * 50)
-            typer.echo(f"{'Rank':<5} {'Fighter':<25} {'Record':<12} {'Win%':<6}")
-            typer.echo("-" * 50)
+            rows = []
 
         record = f"{fighter['wins']}-{fighter['losses']}-{fighter['draws']}"
-        typer.echo(
-            f"{fighter['rank']:<5} {fighter['full_name']:<25} {record:<12} {fighter['win_rate']:<6.1f}"
+        rows.append(
+            {
+                "rank": fighter["rank"],
+                "fighter": f"[bold]{fighter['full_name']}[/bold]",
+                "record": record,
+                "win%": f"{fighter['win_rate']:.1f}",
+            }
         )
+
+    if rows:
+        typer.echo(format_table(rows))
 
 
 def search_impl(name: str, division: Optional[str], limit: int, fmt: OutputFormat) -> None:
