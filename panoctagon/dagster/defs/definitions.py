@@ -11,6 +11,7 @@ from panoctagon.dagster.defs.assets import (
     dagster_scrape_events,
     dagster_scrape_fighter_bio,
     dagster_scrape_fighters,
+    dagster_scrape_betting_odds,
     dagster_scrape_fights,
     panoctagon_dbt_assets,
 )
@@ -28,6 +29,7 @@ defs = Definitions(
         dagster_parse_fighters,
         dagster_scrape_fighter_bio,
         dagster_parse_fighter_bio,
+        dagster_scrape_betting_odds,
         dagster_promotions,
         dagster_divisions,
     ],

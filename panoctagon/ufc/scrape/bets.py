@@ -8,11 +8,10 @@ from typing import Optional
 
 import bs4
 import requests
-from sqlmodel import Session, col, select
+from sqlmodel import Session, SQLModel, col, select
 
 from panoctagon.common import create_header, get_engine
 from panoctagon.tables import UFCBettingOdds, UFCEvent, UFCFight, UFCFighter
-
 
 BASE_URL = "https://www.bestfightodds.com"
 USER_AGENT = (
@@ -45,57 +44,109 @@ def get_session() -> requests.Session:
             "User-Agent": USER_AGENT,
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.5",
-            "Accept-Encoding": "gzip, deflate, br",
+            "Accept-Encoding": "gzip, deflate",
             "Connection": "keep-alive",
         }
     )
     return session
 
 
-def slugify_event_title(title: str) -> str:
-    slug = title.lower()
-    slug = re.sub(r"[^a-z0-9\s-]", "", slug)
-    slug = re.sub(r"\s+", "-", slug)
-    slug = re.sub(r"-+", "-", slug)
-    return slug.strip("-")
+@dataclass
+class BFOEvent:
+    date: datetime.date
+    name: str
+    url: str
 
 
-def search_event(
-    session: requests.Session, event_title: str
-) -> Optional[str]:
-    search_url = f"{BASE_URL}/search"
-    params = {"query": event_title}
+def parse_bfo_date(date_str: str) -> datetime.date:
+    cleaned = re.sub(r"(\d+)(st|nd|rd|th)", r"\1", date_str.strip())
+    return datetime.datetime.strptime(cleaned, "%b %d %Y").date()
 
-    try:
-        response = session.get(search_url, params=params, timeout=30)
+
+def fetch_bfo_upcoming(session: requests.Session) -> dict[str, str]:
+    """Fetch upcoming event URLs from BFO homepage. Returns {event_name: url}."""
+    response = session.get(BASE_URL, timeout=30)
+    if response.status_code != 200:
+        return {}
+
+    soup = bs4.BeautifulSoup(response.text, "html.parser")
+    results: dict[str, str] = {}
+    for link in soup.find_all("a", href=re.compile(r"/events/")):
+        href = str(link.get("href", ""))
+        name = link.get_text(strip=True)
+        if name and href and "future-events" not in href:
+            url = f"{BASE_URL}{href}" if href.startswith("/") else href
+            results[name] = url
+    return results
+
+
+def fetch_bfo_archive(session: requests.Session, oldest_date: str) -> list[BFOEvent]:
+    events: list[BFOEvent] = []
+    page = 1
+
+    while True:
+        response = session.get(f"{BASE_URL}/archive", params={"page": page}, timeout=30)
         if response.status_code != 200:
-            return None
-
-        if "/events/" in response.url:
-            return response.url
+            break
 
         soup = bs4.BeautifulSoup(response.text, "html.parser")
-        event_links = soup.find_all("a", href=re.compile(r"/events/"))
+        rows = soup.select("table tr")
 
-        for link in event_links:
+        page_has_events = False
+        for row in rows:
+            date_cell = row.find("td", class_="content-list-date")
+            title_cell = row.find("td", class_="content-list-title")
+            if not date_cell or not title_cell:
+                continue
+
+            link = title_cell.find("a", href=re.compile(r"/events/"))
+            if not link:
+                continue
+
+            page_has_events = True
+            event_date = parse_bfo_date(date_cell.get_text(strip=True))
+            event_name = link.get_text(strip=True)
             href = link.get("href", "")
-            link_text = link.get_text(strip=True).lower()
-            event_slug = slugify_event_title(event_title)
+            url = f"{BASE_URL}{href}" if href.startswith("/") else href
 
-            if event_slug in href.lower() or event_slug in link_text:
-                if href.startswith("/"):
-                    return f"{BASE_URL}{href}"
-                return href
+            events.append(BFOEvent(date=event_date, name=event_name, url=url))
 
-        if event_links:
-            href = event_links[0].get("href", "")
-            if href.startswith("/"):
-                return f"{BASE_URL}{href}"
-            return href
+            if event_date < datetime.date.fromisoformat(oldest_date):
+                return events
 
-        return None
-    except (requests.RequestException, Exception):
-        return None
+        if not page_has_events:
+            break
+
+        page += 1
+        time.sleep(random.uniform(0.5, 1.5))
+
+    return events
+
+
+def find_bfo_event_url(
+    event: UFCEvent, archive: list[BFOEvent], upcoming: dict[str, str]
+) -> Optional[str]:
+    numbered_match = re.search(r"UFC (\d+)", event.title)
+
+    if numbered_match:
+        number = numbered_match.group(1)
+        for bfo in archive:
+            if re.search(rf"UFC {number}\b", bfo.name):
+                return bfo.url
+        for name, url in upcoming.items():
+            if re.search(rf"UFC {number}\b", name):
+                return url
+    else:
+        for bfo in archive:
+            if bfo.date == datetime.date.fromisoformat(event.event_date) and bfo.name == "UFC":
+                return bfo.url
+        if "UFC Fight Night" in upcoming:
+            return upcoming["UFC Fight Night"]
+        for name, url in upcoming.items():
+            if name == "UFC" or (name.startswith("UFC ") and not re.search(r"UFC \d+", name)):
+                return url
+
+    return None
 
 
 def parse_american_odds(odds_str: str) -> Optional[int]:
@@ -119,9 +170,7 @@ def get_fighters_for_event(event_uid: str) -> dict[str, FighterMatch]:
     fighters_map: dict[str, FighterMatch] = {}
 
     with Session(engine) as session:
-        fights = session.exec(
-            select(UFCFight).where(col(UFCFight.event_uid) == event_uid)
-        ).all()
+        fights = session.exec(select(UFCFight).where(col(UFCFight.event_uid) == event_uid)).all()
 
         fighter_uids = set()
         for fight in fights:
@@ -143,9 +192,7 @@ def get_fighters_for_event(event_uid: str) -> dict[str, FighterMatch]:
     return fighters_map
 
 
-def match_fighter_name(
-    bfo_name: str, fighters: dict[str, FighterMatch]
-) -> Optional[str]:
+def match_fighter_name(bfo_name: str, fighters: dict[str, FighterMatch]) -> Optional[str]:
     bfo_name_lower = bfo_name.lower().strip()
 
     for fighter_uid, fighter in fighters.items():
@@ -265,9 +312,7 @@ def parse_event_odds(
                 if not fighter1_uid or not fighter2_uid:
                     continue
 
-                fight_uid = get_fight_uid_for_fighters(
-                    event_uid, fighter1_uid, fighter2_uid
-                )
+                fight_uid = get_fight_uid_for_fighters(event_uid, fighter1_uid, fighter2_uid)
                 if not fight_uid:
                     continue
 
@@ -281,16 +326,12 @@ def parse_event_odds(
                         closing_span = cell.find("span", class_="closing")
 
                         if opening_span:
-                            opening = parse_american_odds(
-                                opening_span.get_text(strip=True)
-                            )
+                            opening = parse_american_odds(opening_span.get_text(strip=True))
                         else:
                             opening = None
 
                         if closing_span:
-                            closing = parse_american_odds(
-                                closing_span.get_text(strip=True)
-                            )
+                            closing = parse_american_odds(closing_span.get_text(strip=True))
                         else:
                             closing = parse_american_odds(cell.get_text(strip=True))
 
@@ -312,16 +353,12 @@ def parse_event_odds(
                         closing_span = cell.find("span", class_="closing")
 
                         if opening_span:
-                            opening = parse_american_odds(
-                                opening_span.get_text(strip=True)
-                            )
+                            opening = parse_american_odds(opening_span.get_text(strip=True))
                         else:
                             opening = None
 
                         if closing_span:
-                            closing = parse_american_odds(
-                                closing_span.get_text(strip=True)
-                            )
+                            closing = parse_american_odds(closing_span.get_text(strip=True))
                         else:
                             closing = parse_american_odds(cell.get_text(strip=True))
 
@@ -348,6 +385,7 @@ def scrape_event_odds(
     event_num: int,
     total_events: int,
     session: requests.Session,
+    event_url: Optional[str],
     delay_range: tuple[float, float] = (1.0, 3.0),
 ) -> EventOddsResult:
     title = f"[{event_num + 1:04d}/{total_events:04d}] {event.title}"
@@ -356,7 +394,6 @@ def scrape_event_odds(
     delay = random.uniform(delay_range[0], delay_range[1])
     time.sleep(delay)
 
-    event_url = search_event(session, event.title)
     if not event_url:
         return EventOddsResult(
             event_uid=event.event_uid,
@@ -392,19 +429,13 @@ def get_events_to_scrape(force: bool = False) -> list[UFCEvent]:
 
     with Session(engine) as session:
         if force:
-            events = session.exec(
-                select(UFCEvent).order_by(col(UFCEvent.event_date).desc())
-            ).all()
+            events = session.exec(select(UFCEvent).order_by(col(UFCEvent.event_date).desc())).all()
             return list(events)
 
-        scraped_fight_uids = session.exec(
-            select(UFCBettingOdds.fight_uid).distinct()
-        ).all()
+        scraped_fight_uids = session.exec(select(UFCBettingOdds.fight_uid).distinct()).all()
         scraped_fight_uids_set = set(scraped_fight_uids)
 
-        all_events = session.exec(
-            select(UFCEvent).order_by(col(UFCEvent.event_date).desc())
-        ).all()
+        all_events = session.exec(select(UFCEvent).order_by(col(UFCEvent.event_date).desc())).all()
 
         events_to_scrape = []
         for event in all_events:
@@ -421,13 +452,16 @@ def get_events_to_scrape(force: bool = False) -> list[UFCEvent]:
 
 def scrape_odds_sequential(
     events: list[UFCEvent],
+    archive: list[BFOEvent],
+    upcoming: dict[str, str],
     delay_range: tuple[float, float] = (1.0, 3.0),
 ) -> list[EventOddsResult]:
     results: list[EventOddsResult] = []
     session = get_session()
 
     for i, event in enumerate(events):
-        result = scrape_event_odds(event, i, len(events), session, delay_range)
+        event_url = find_bfo_event_url(event, archive, upcoming)
+        result = scrape_event_odds(event, i, len(events), session, event_url, delay_range)
         results.append(result)
 
     return results
@@ -435,6 +469,8 @@ def scrape_odds_sequential(
 
 def scrape_odds_parallel(
     events: list[UFCEvent],
+    archive: list[BFOEvent],
+    upcoming: dict[str, str],
     max_workers: int = 2,
     delay_range: tuple[float, float] = (2.0, 5.0),
 ) -> list[EventOddsResult]:
@@ -444,8 +480,9 @@ def scrape_odds_parallel(
         future_to_event = {}
         for i, event in enumerate(events):
             session = get_session()
+            event_url = find_bfo_event_url(event, archive, upcoming)
             future = executor.submit(
-                scrape_event_odds, event, i, len(events), session, delay_range
+                scrape_event_odds, event, i, len(events), session, event_url, delay_range
             )
             future_to_event[future] = event
 
@@ -478,9 +515,14 @@ def scrape_betting_odds(
 ) -> dict[str, int]:
     print(create_header(80, "SCRAPING BETTING ODDS", True, "="))
 
+    engine = get_engine()
+    SQLModel.metadata.create_all(engine, tables=[UFCBettingOdds.__table__])  # pyright: ignore[reportAttributeAccessIssue]
+
     events = get_events_to_scrape(force)
-    if n > 0:
-        events = events[:n]
+    # if n > 0:
+    #     events = events[:n]
+
+    events = events[0:3]
 
     print(f"[n={len(events):5,d}] events to scrape")
 
@@ -488,10 +530,17 @@ def scrape_betting_odds(
         print("No events to scrape")
         return {"success": 0, "failed": 0, "odds_saved": 0}
 
+    oldest_date = min(e.event_date for e in events)
+    http_session = get_session()
+    print("Fetching BFO event listings...")
+    upcoming = fetch_bfo_upcoming(http_session)
+    archive = fetch_bfo_archive(http_session, oldest_date)
+    print(f"[n={len(archive):5,d}] archive events, [{len(upcoming):5,d}] upcoming events")
+
     if sequential:
-        results = scrape_odds_sequential(events, delay_range)
+        results = scrape_odds_sequential(events, archive, upcoming, delay_range)
     else:
-        results = scrape_odds_parallel(events, max_workers, delay_range)
+        results = scrape_odds_parallel(events, archive, upcoming, max_workers, delay_range)
 
     total_odds: list[UFCBettingOdds] = []
     success_count = 0
@@ -520,16 +569,10 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Scrape UFC betting odds")
     parser.add_argument("--force", action="store_true", help="Re-scrape all events")
-    parser.add_argument(
-        "--sequential", action="store_true", default=True, help="Run sequentially"
-    )
-    parser.add_argument(
-        "--parallel", action="store_true", help="Run with limited parallelism"
-    )
+    parser.add_argument("--sequential", action="store_true", default=True, help="Run sequentially")
+    parser.add_argument("--parallel", action="store_true", help="Run with limited parallelism")
     parser.add_argument("-n", type=int, default=0, help="Limit number of events")
-    parser.add_argument(
-        "--max-workers", type=int, default=2, help="Max parallel workers"
-    )
+    parser.add_argument("--max-workers", type=int, default=2, help="Max parallel workers")
     parser.add_argument(
         "--min-delay", type=float, default=1.0, help="Min delay between requests (s)"
     )
