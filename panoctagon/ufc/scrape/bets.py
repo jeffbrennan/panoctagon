@@ -11,7 +11,7 @@ import requests
 from sqlmodel import Session, select
 
 from panoctagon.common import create_header, get_engine
-from panoctagon.tables import UFCEvent
+from panoctagon.tables import UFCEvent, UFCFighter
 
 BASE_URL = "https://www.bestfightodds.com"
 RAW_ODDS_DIR = Path(__file__).parents[3] / "data" / "raw" / "ufc" / "betting_odds"
@@ -82,16 +82,12 @@ def _get_max_ufc_event_number() -> int:
     return max(numbers) if numbers else 325
 
 
-def search_bfo_events(
+def _run_searches(
+    search_terms: list[str],
     session: requests.Session,
-    delay_range: tuple[float, float] = (1.0, 3.0),
-    max_searches: int | None = None,
+    delay_range: tuple[float, float],
+    max_searches: int | None,
 ) -> list[BFOEvent]:
-    max_event_num = _get_max_ufc_event_number()
-    search_terms = []
-    for i in range(1, max_event_num + 1):
-        search_terms.extend([f"UFC {i}", f"UFC Fight Night {i}"])
-
     state = _load_search_state()
     completed_terms = set(state["completed_terms"])
     all_events: dict[str, dict[str, str]] = {
@@ -103,21 +99,22 @@ def search_bfo_events(
     if max_searches is not None:
         pending_terms = pending_terms[:max_searches]
     if not pending_terms:
-        print(f"  all {len(search_terms)} search terms already completed")
+        print(f"  all terms already completed ({len(completed_terms)} done)")
     else:
         print(
             f"  {len(pending_terms)} search terms remaining ({len(completed_terms)} already done)"
         )
 
-    for term in pending_terms:
+    total = len(pending_terms)
+    for i, term in enumerate(pending_terms, 1):
         time.sleep(random.uniform(*delay_range))
         try:
             response = session.get(f"{BASE_URL}/search", params={"query": term}, timeout=30)
             if response.status_code != 200:
-                print(f"  search failed for '{term}': HTTP {response.status_code}")
+                print(f"  [{i}/{total}] search failed for '{term}': HTTP {response.status_code}")
                 continue
         except requests.RequestException as e:
-            print(f"  search error for '{term}': {e}")
+            print(f"  [{i}/{total}] search error for '{term}': {e}")
             continue
 
         soup = bs4.BeautifulSoup(response.text, "html.parser")
@@ -147,7 +144,7 @@ def search_bfo_events(
         state["discovered_events"] = list(all_events.values())  # type: ignore[assignment]
         _save_search_state(state)
 
-        print(f"  searched '{term}': {len(all_events)} total events found")
+        print(f"  [{i}/{total}] searched '{term}': {len(all_events)} total events")
 
     results: list[BFOEvent] = []
     for e in all_events.values():
@@ -162,10 +159,46 @@ def search_bfo_events(
     return results
 
 
+def _get_fighter_search_terms() -> list[str]:
+    engine = get_engine()
+    with Session(engine) as session:
+        fighters = session.exec(select(UFCFighter.first_name, UFCFighter.last_name)).all()
+    names = [f"{first} {last}" for first, last in fighters]
+    random.shuffle(names)
+    return names
+
+
+def search_bfo_events(
+    session: requests.Session,
+    delay_range: tuple[float, float] = (0.4, 0.8),
+    max_searches: int | None = None,
+) -> list[BFOEvent]:
+    max_event_num = _get_max_ufc_event_number()
+    search_terms: list[str] = []
+    for i in range(1, max_event_num + 1):
+        search_terms.extend([f"UFC {i}", f"UFC Fight Night {i}"])
+
+    random.shuffle(search_terms)
+
+    print(create_header(80, "EVENT NAME SEARCHES", True, "-"))
+    return _run_searches(search_terms, session, delay_range, max_searches)
+
+
+def search_bfo_fighters(
+    session: requests.Session,
+    delay_range: tuple[float, float] = (0.5, 1.0),
+    max_searches: int | None = None,
+) -> list[BFOEvent]:
+    search_terms = _get_fighter_search_terms()
+
+    print(create_header(80, "FIGHTER NAME SEARCHES", True, "-"))
+    return _run_searches(search_terms, session, delay_range, max_searches)
+
+
 def download_bfo_event_pages(
     events: list[BFOEvent],
     session: requests.Session,
-    delay_range: tuple[float, float] = (1.0, 3.0),
+    delay_range: tuple[float, float] = (0.3, 0.8),
 ) -> int:
     RAW_ODDS_DIR.mkdir(exist_ok=True, parents=True)
     downloaded = 0
@@ -197,11 +230,16 @@ def download_bfo_event_pages(
 def download_bfo_pages(
     delay_range: tuple[float, float] = (1.0, 3.0),
     max_searches: int | None = None,
+    search_fighters: bool = False,
 ) -> dict[str, int]:
     print(create_header(80, "SEARCHING BFO EVENTS", True, "="))
     session = get_session()
 
     events = search_bfo_events(session, delay_range, max_searches=max_searches)
+
+    if search_fighters:
+        events = search_bfo_fighters(session, delay_range, max_searches=max_searches)
+
     print(f"\n[n={len(events):5,d}] total events discovered")
 
     print(create_header(80, "DOWNLOADING EVENT PAGES", True, "="))

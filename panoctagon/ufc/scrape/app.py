@@ -245,10 +245,15 @@ def odds_download_events(
     min_delay: float = 1.0,
     max_delay: float = 3.0,
     max_searches: Optional[int] = None,
+    search_fighters: bool = False,
 ) -> int:
     setup = setup_panoctagon(title="BFO Step 1: Download Event Pages")
 
-    result = download_bfo_pages(delay_range=(min_delay, max_delay), max_searches=max_searches)
+    result = download_bfo_pages(
+        delay_range=(min_delay, max_delay),
+        max_searches=max_searches,
+        search_fighters=search_fighters,
+    )
 
     report_stats(
         RunStats(
