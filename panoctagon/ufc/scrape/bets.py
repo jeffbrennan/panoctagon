@@ -126,25 +126,17 @@ def fetch_bfo_archive(session: requests.Session, oldest_date: str) -> list[BFOEv
 def find_bfo_event_url(
     event: UFCEvent, archive: list[BFOEvent], upcoming: dict[str, str]
 ) -> Optional[str]:
-    numbered_match = re.search(r"UFC (\d+)", event.title)
+    event_date = datetime.date.fromisoformat(event.event_date)
 
-    if numbered_match:
-        number = numbered_match.group(1)
-        for bfo in archive:
-            if re.search(rf"UFC {number}\b", bfo.name):
-                return bfo.url
-        for name, url in upcoming.items():
-            if re.search(rf"UFC {number}\b", name):
-                return url
-    else:
-        for bfo in archive:
-            if bfo.date == datetime.date.fromisoformat(event.event_date) and bfo.name == "UFC":
-                return bfo.url
-        if "UFC Fight Night" in upcoming:
-            return upcoming["UFC Fight Night"]
-        for name, url in upcoming.items():
-            if name == "UFC" or (name.startswith("UFC ") and not re.search(r"UFC \d+", name)):
-                return url
+    for bfo in archive:
+        if bfo.date == event_date and "UFC" in bfo.name:
+            return bfo.url
+
+    if "UFC Fight Night" in upcoming:
+        return upcoming["UFC Fight Night"]
+    for name, url in upcoming.items():
+        if name == "UFC" or (name.startswith("UFC ") and not re.search(r"UFC \d+", name)):
+            return url
 
     return None
 
