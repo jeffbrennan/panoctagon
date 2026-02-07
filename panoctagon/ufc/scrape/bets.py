@@ -184,16 +184,12 @@ def _run_searches(
             result = future.result()
             processed += 1
 
-            if result.status == 503:
+            if result.status != 200:
                 rate_limited += 1
                 if rate_limited == 1:
-                    print(f"  [{processed}/{total}] 503 rate limited, backing off...")
+                    msg = f"HTTP {result.status}" if not result.error else result.error
+                    print(f"  [{processed}/{total}] '{result.term}': {msg}, backing off...")
                     limiter._min_interval = min(limiter._min_interval * 2, 5.0)
-                continue
-
-            if result.status != 200:
-                msg = f"HTTP {result.status}" if not result.error else result.error
-                print(f"  [{processed}/{total}] '{result.term}': {msg}")
                 continue
 
             new_in_batch = 0
@@ -218,7 +214,7 @@ def _run_searches(
                 unsaved_count = 0
 
     if rate_limited > 0:
-        print(f"  {rate_limited} requests were rate limited (503) and will retry next run")
+        print(f"  {rate_limited} requests failed (rate limited/connection error), will retry next run")
 
     results: list[BFOEvent] = []
     for e in all_events.values():
