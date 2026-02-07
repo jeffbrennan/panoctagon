@@ -56,10 +56,6 @@ def parse_bfo_date(date_str: str) -> datetime.date:
     return datetime.datetime.strptime(cleaned, "%b %d %Y").date()
 
 
-# ---------------------------------------------------------------------------
-# Step 1: Search for events + download event HTML pages
-# ---------------------------------------------------------------------------
-
 SEARCH_STATE_PATH = RAW_ODDS_DIR / "search_state.json"
 
 
@@ -92,7 +88,9 @@ def search_bfo_events(
     max_searches: int | None = None,
 ) -> list[BFOEvent]:
     max_event_num = _get_max_ufc_event_number()
-    search_terms = [f"UFC {i}" for i in range(1, max_event_num + 1)] + ["UFC Fight Night"]
+    search_terms = []
+    for i in range(1, max_event_num + 1):
+        search_terms.extend([f"UFC {i}", f"UFC Fight Night {i}"])
 
     state = _load_search_state()
     completed_terms = set(state["completed_terms"])
