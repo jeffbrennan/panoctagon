@@ -4,6 +4,7 @@
 *.jpg
 *.html
 *.parquet
+*.txt
 
 *.tmp
 *pyc
