@@ -242,15 +242,12 @@ def fights(force: bool = False, max_workers: int = 8) -> int:
 
 @app.command()
 def odds_download_events(
-    min_delay: float = 1.0,
-    max_delay: float = 3.0,
     max_searches: Optional[int] = None,
     search_fighters: bool = False,
 ) -> int:
     setup = setup_panoctagon(title="BFO Step 1: Download Event Pages")
 
     result = download_bfo_pages(
-        delay_range=(min_delay, max_delay),
         max_searches=max_searches,
         search_fighters=search_fighters,
     )
@@ -272,15 +269,11 @@ def odds_download_events(
 
 @app.command()
 def odds_download_fights(
-    min_delay: float = 0.2,
-    max_delay: float = 0.5,
     max_downloads: Optional[int] = None,
 ) -> int:
     setup = setup_panoctagon(title="BFO Step 2: Download Fight Odds")
 
-    result = download_fight_odds(
-        delay_range=(min_delay, max_delay), max_downloads=max_downloads
-    )
+    result = download_fight_odds(max_downloads=max_downloads)
 
     report_stats(
         RunStats(
