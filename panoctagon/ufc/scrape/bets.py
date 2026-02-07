@@ -5,38 +5,22 @@ import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 import bs4
 import requests
 from sqlmodel import Session, select
 
 from panoctagon.common import create_header, get_engine
-from panoctagon.tables import UFCBettingOdds, UFCEvent
+from panoctagon.tables import UFCEvent
 
 BASE_URL = "https://www.bestfightodds.com"
 RAW_ODDS_DIR = Path(__file__).parents[3] / "data" / "raw" / "ufc" / "betting_odds"
+RAW_API_DIR = RAW_ODDS_DIR / "api"
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
     "Chrome/120.0.0.0 Safari/537.36"
 )
-
-
-@dataclass
-class EventOddsResult:
-    event_uid: str
-    event_title: str
-    success: bool
-    odds: list[UFCBettingOdds]
-    error: Optional[str] = None
-
-
-@dataclass
-class FighterMatch:
-    fighter_uid: str
-    first_name: str
-    last_name: str
 
 
 def get_session() -> requests.Session:
@@ -60,88 +44,21 @@ class BFOEvent:
     url: str
 
 
+@dataclass
+class BFOMatchup:
+    match_id: int
+    fighter1_name: str
+    fighter2_name: str
+
+
 def parse_bfo_date(date_str: str) -> datetime.date:
     cleaned = re.sub(r"(\d+)(st|nd|rd|th)", r"\1", date_str.strip())
     return datetime.datetime.strptime(cleaned, "%b %d %Y").date()
 
 
-def fetch_bfo_upcoming(session: requests.Session) -> dict[str, str]:
-    """Fetch upcoming event URLs from BFO homepage. Returns {event_name: url}."""
-    response = session.get(BASE_URL, timeout=30)
-    if response.status_code != 200:
-        return {}
-
-    soup = bs4.BeautifulSoup(response.text, "html.parser")
-    results: dict[str, str] = {}
-    for link in soup.find_all("a", href=re.compile(r"/events/")):
-        href = str(link.get("href", ""))
-        name = link.get_text(strip=True)
-        if name and href and "future-events" not in href:
-            url = f"{BASE_URL}{href}" if href.startswith("/") else href
-            results[name] = url
-    return results
-
-
-def fetch_bfo_archive(session: requests.Session, oldest_date: str) -> list[BFOEvent]:
-    events: list[BFOEvent] = []
-    page = 1
-
-    while True:
-        response = session.get(f"{BASE_URL}/archive", params={"page": page}, timeout=30)
-        if response.status_code != 200:
-            break
-
-        soup = bs4.BeautifulSoup(response.text, "html.parser")
-        rows = soup.select("table tr")
-
-        page_has_events = False
-        for row in rows:
-            date_cell = row.find("td", class_="content-list-date")
-            title_cell = row.find("td", class_="content-list-title")
-            if not date_cell or not title_cell:
-                continue
-
-            link = title_cell.find("a", href=re.compile(r"/events/"))
-            if not link:
-                continue
-
-            page_has_events = True
-            event_date = parse_bfo_date(date_cell.get_text(strip=True))
-            event_name = link.get_text(strip=True)
-            href = link.get("href", "")
-            url = f"{BASE_URL}{href}" if href.startswith("/") else href
-
-            events.append(BFOEvent(date=event_date, name=event_name, url=url))
-
-            if event_date < datetime.date.fromisoformat(oldest_date):
-                return events
-
-        if not page_has_events:
-            break
-
-        page += 1
-        time.sleep(random.uniform(0.5, 1.5))
-
-    return events
-
-
-def find_bfo_event_url(
-    event: UFCEvent, archive: list[BFOEvent], upcoming: dict[str, str]
-) -> Optional[str]:
-    event_date = datetime.date.fromisoformat(event.event_date)
-
-    for bfo in archive:
-        if bfo.date == event_date and "UFC" in bfo.name:
-            return bfo.url
-
-    if "UFC Fight Night" in upcoming:
-        return upcoming["UFC Fight Night"]
-    for name, url in upcoming.items():
-        if name == "UFC" or (name.startswith("UFC ") and not re.search(r"UFC \d+", name)):
-            return url
-
-    return None
-
+# ---------------------------------------------------------------------------
+# Step 1: Search for events + download event HTML pages
+# ---------------------------------------------------------------------------
 
 SEARCH_STATE_PATH = RAW_ODDS_DIR / "search_state.json"
 
@@ -297,3 +214,93 @@ def download_bfo_pages(
     print(f"[n={existing:5,d}] total on disk")
 
     return {"discovered": len(events), "downloaded": downloaded, "total_on_disk": existing}
+
+
+def parse_matchups_from_html(html: str) -> list[BFOMatchup]:
+    soup = bs4.BeautifulSoup(html, "html.parser")
+    matchups: list[BFOMatchup] = []
+
+    rows = soup.find_all("tr", id=re.compile(r"^mu-\d+$"))
+    for row in rows:
+        match_id = int(row["id"].replace("mu-", ""))  # type: ignore[arg-type]
+        name1_tag = row.find("span", class_="t-b-fcc")
+        if not name1_tag:
+            continue
+        fighter1 = name1_tag.get_text(strip=True)
+
+        next_row = row.find_next_sibling("tr")
+        if not next_row:
+            continue
+        name2_tag = next_row.find("span", class_="t-b-fcc")
+        if not name2_tag:
+            continue
+        fighter2 = name2_tag.get_text(strip=True)
+
+        matchups.append(
+            BFOMatchup(match_id=match_id, fighter1_name=fighter1, fighter2_name=fighter2)
+        )
+
+    return matchups
+
+
+def _api_response_path(match_id: int, player: int) -> Path:
+    return RAW_API_DIR / f"m{match_id}_p{player}.txt"
+
+
+def download_fight_odds(
+    delay_range: tuple[float, float] = (0.5, 1.5),
+    max_downloads: int | None = None,
+) -> dict[str, int]:
+    print(create_header(80, "DOWNLOADING FIGHT ODDS API RESPONSES", True, "="))
+    RAW_API_DIR.mkdir(exist_ok=True, parents=True)
+    session = get_session()
+
+    event_htmls = sorted(RAW_ODDS_DIR.glob("*.html"))
+    print(f"  {len(event_htmls)} event pages on disk")
+
+    pending: list[tuple[int, int, str]] = []
+    for html_path in event_htmls:
+        html = html_path.read_text(encoding="utf-8")
+        matchups = parse_matchups_from_html(html)
+        for matchup in matchups:
+            for player in (1, 2):
+                if not _api_response_path(matchup.match_id, player).exists():
+                    name = matchup.fighter1_name if player == 1 else matchup.fighter2_name
+                    pending.append((matchup.match_id, player, name))
+
+    print(f"  {len(pending)} API responses to download")
+
+    if max_downloads is not None:
+        pending = pending[:max_downloads]
+
+    downloaded = 0
+    failed = 0
+    for match_id, player, name in pending:
+        time.sleep(random.uniform(*delay_range))
+        try:
+            response = session.get(
+                f"{BASE_URL}/api/ggd",
+                params={"m": match_id, "p": player},
+                headers={"X-Requested-With": "XMLHttpRequest"},
+                timeout=30,
+            )
+            if response.status_code != 200:
+                print(f"  failed m={match_id} p={player} ({name}): HTTP {response.status_code}")
+                failed += 1
+                continue
+        except requests.RequestException as e:
+            print(f"  error m={match_id} p={player} ({name}): {e}")
+            failed += 1
+            continue
+
+        _api_response_path(match_id, player).write_text(response.text, encoding="utf-8")
+        downloaded += 1
+        if downloaded % 50 == 0:
+            print(f"  [{downloaded}] downloaded (latest: m={match_id} p={player} {name})")
+
+    existing = len(list(RAW_API_DIR.glob("*.txt")))
+    print(f"\n[n={downloaded:5,d}] newly downloaded")
+    print(f"[n={failed:5,d}] failed")
+    print(f"[n={existing:5,d}] total on disk")
+
+    return {"downloaded": downloaded, "failed": failed, "total_on_disk": existing}

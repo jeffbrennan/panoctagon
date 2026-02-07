@@ -14,6 +14,7 @@ from panoctagon.common import (
 )
 from panoctagon.models import FightParsingType
 from panoctagon.tables import UFCEvent, UFCFight, UFCFighter
+from panoctagon.ufc.parse.bets import parse_and_store_odds
 from panoctagon.ufc.parse.bios import (
     parse_headshot,
     write_headshot_results_to_db,
@@ -142,3 +143,12 @@ def fights(force: bool = False) -> int:
 
     print(setup.footer)
     return len(results)
+
+@app.command(name="odds")
+def odds() -> int:
+    setup = setup_panoctagon(title="BFO Odds Parser")
+
+    result = parse_and_store_odds()
+
+    print(setup.footer)
+    return result["total_saved"]
