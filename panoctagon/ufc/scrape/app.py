@@ -17,6 +17,7 @@ from panoctagon.common import (
 )
 from panoctagon.models import RunStats
 from panoctagon.tables import UFCEvent
+from panoctagon.ufc.scrape.bets import download_bfo_pages
 from panoctagon.ufc.scrape.bios import (
     get_fighters_to_download,
     get_unparsed_fighters,
@@ -33,7 +34,6 @@ from panoctagon.ufc.scrape.fights import (
     read_event_uids,
     scrape_fights_parallel,
 )
-from panoctagon.ufc.scrape.bets import scrape_betting_odds
 
 app = typer.Typer()
 
@@ -241,34 +241,25 @@ def fights(force: bool = False, max_workers: int = 8) -> int:
 
 
 @app.command()
-def betting_odds(
-    force: bool = False,
-    n: Optional[int] = None,
-    sequential: bool = True,
-    max_workers: int = 2,
+def odds(
     min_delay: float = 1.0,
     max_delay: float = 3.0,
+    max_searches: Optional[int] = None,
 ) -> int:
-    setup = setup_panoctagon(title="Panoctagon UFC Betting Odds Scraper")
+    setup = setup_panoctagon(title="Panoctagon BFO Page Downloader")
 
-    result = scrape_betting_odds(
-        force=force,
-        sequential=sequential,
-        n=n or 0,
-        max_workers=max_workers,
-        delay_range=(min_delay, max_delay),
-    )
+    result = download_bfo_pages(delay_range=(min_delay, max_delay), max_searches=max_searches)
 
     report_stats(
         RunStats(
             start=setup.start_time,
             end=time.time(),
-            n_ops=result["success"] + result["failed"],
-            op_name="event",
-            successes=result["success"],
-            failures=result["failed"],
+            n_ops=result["discovered"],
+            op_name="event page",
+            successes=result["downloaded"],
+            failures=0,
         )
     )
 
     print(setup.footer)
-    return result["odds_saved"]
+    return result["downloaded"]
