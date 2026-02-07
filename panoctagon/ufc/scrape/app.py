@@ -267,8 +267,8 @@ def odds_download_events(
 
 @app.command()
 def odds_download_fights(
-    min_delay: float = 0.5,
-    max_delay: float = 1.5,
+    min_delay: float = 0.2,
+    max_delay: float = 0.5,
     max_downloads: Optional[int] = None,
 ) -> int:
     setup = setup_panoctagon(title="BFO Step 2: Download Fight Odds")

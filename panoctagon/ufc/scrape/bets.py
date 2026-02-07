@@ -248,7 +248,7 @@ def _api_response_path(match_id: int, player: int) -> Path:
 
 
 def download_fight_odds(
-    delay_range: tuple[float, float] = (0.5, 1.5),
+    delay_range: tuple[float, float] = (0.2, 0.5),
     max_downloads: int | None = None,
 ) -> dict[str, int]:
     print(create_header(80, "DOWNLOADING FIGHT ODDS API RESPONSES", True, "="))
@@ -275,7 +275,8 @@ def download_fight_odds(
 
     downloaded = 0
     failed = 0
-    for match_id, player, name in pending:
+    total = len(pending)
+    for i, (match_id, player, name) in enumerate(pending, 1):
         time.sleep(random.uniform(*delay_range))
         try:
             response = session.get(
@@ -295,8 +296,7 @@ def download_fight_odds(
 
         _api_response_path(match_id, player).write_text(response.text, encoding="utf-8")
         downloaded += 1
-        if downloaded % 50 == 0:
-            print(f"  [{downloaded}] downloaded (latest: m={match_id} p={player} {name})")
+        print(f"  [{i}/{total}] m={match_id} p={player} {name}")
 
     existing = len(list(RAW_API_DIR.glob("*.txt")))
     print(f"\n[n={downloaded:5,d}] newly downloaded")
