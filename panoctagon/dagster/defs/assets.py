@@ -68,6 +68,30 @@ def dagster_parse_fighter_bio(context: AssetExecutionContext) -> None:
     context.add_output_metadata({"n_records": n_bios})
 
 
+@asset(compute_kind="python", key=["scrape_bfo_events"], deps=["ufc_events"])
+def dagster_scrape_bfo_events(context: AssetExecutionContext) -> None:
+    n_downloaded = scrape.event_odds()
+    context.add_output_metadata({"n_records": n_downloaded})
+
+
+@asset(compute_kind="python", key=["bfo_raw_odds"], deps=["scrape_bfo_events"])
+def dagster_scrape_bfo_odds(context: AssetExecutionContext) -> None:
+    n_downloaded = scrape.fight_odds()
+    context.add_output_metadata({"n_records": n_downloaded})
+
+
+@asset(compute_kind="python", key=["bfo_parsed_odds"], deps=["bfo_raw_odds"])
+def dagster_parse_bfo_odds(context: AssetExecutionContext) -> None:
+    n_saved = parse.odds()
+    context.add_output_metadata({"n_records": n_saved})
+
+
+@asset(compute_kind="python", key=["bfo_ufc_link"], deps=["bfo_parsed_odds", "ufc_fights", "ufc_fighters"])
+def dagster_link_bfo_odds(context: AssetExecutionContext) -> None:
+    n_matched = parse.link_odds()
+    context.add_output_metadata({"n_records": n_matched})
+
+
 @asset(compute_kind="python", key=["divisions"], deps=["promotions"])
 def dagster_divisions():
     setup_divisions()

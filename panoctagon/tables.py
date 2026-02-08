@@ -110,6 +110,37 @@ class UFCFightStats(SQLModel, table=True):
     sig_strikes_grounded_attempted: Optional[int] = None
 
 
+
+class BFORawOdds(SQLModel, table=True):
+    __tablename__ = "bfo_raw_odds"  # pyright: ignore [reportAssignmentType]
+    match_id: int = Field(primary_key=True)
+    fighter: str = Field(primary_key=True)
+    slug: str
+    value: str
+    downloaded_ts: str
+
+
+class BFOParsedOdds(SQLModel, table=True):
+    __tablename__ = "bfo_parsed_odds"  # pyright: ignore [reportAssignmentType]
+    match_id: int = Field(primary_key=True)
+    fighter: str = Field(primary_key=True)
+    slug: str
+    event_title: str
+    event_date: str
+    fighter_name: str
+    opening_odds: Optional[int] = None
+    closing_odds: Optional[int] = None
+
+
+class BFOUFCLink(SQLModel, table=True):
+    __tablename__ = "bfo_ufc_link"  # pyright: ignore [reportAssignmentType]
+    match_id: int = Field(primary_key=True)
+    fighter: str = Field(primary_key=True)
+    fight_uid: str
+    fighter_uid: str
+    event_uid: str
+
+
 class TempBulkDeleteTest(SQLModel, table=True):
     uid: str = Field(primary_key=True)
     another_col: str
