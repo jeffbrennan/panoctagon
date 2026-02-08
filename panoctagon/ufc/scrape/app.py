@@ -185,7 +185,7 @@ def fights(force: bool = False, max_workers: int = 8) -> int:
     output_dir = Path(__file__).parents[3] / "data" / "raw" / "ufc" / "fights"
     output_dir.mkdir(exist_ok=True, parents=True)
 
-    event_uids = read_event_uids(force)
+    event_uids = read_event_uids(force, output_dir)
     n_events = len(event_uids)
     if n_events == 0:
         print("No events to parse. Exiting!")

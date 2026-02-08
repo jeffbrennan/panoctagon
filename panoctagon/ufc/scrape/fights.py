@@ -1,3 +1,4 @@
+import datetime
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -6,7 +7,7 @@ from typing import Optional
 
 import bs4
 import requests
-from sqlmodel import Session, col, select
+from sqlmodel import Session, col, select, text
 
 from panoctagon.common import (
     create_header,
@@ -36,7 +37,33 @@ class FightScrapingResult:
     message: Optional[str]
 
 
-def read_event_uids(force_run: bool) -> list[str]:
+def get_events_needing_refresh(base_dir: Path, months: int = 6) -> list[str]:
+    today = datetime.date.today()
+    cutoff = (today - datetime.timedelta(days=months * 30)).isoformat()
+    engine = get_engine()
+    query = text("""
+        SELECT e.event_uid
+        FROM ufc_events e
+        JOIN ufc_fights f ON e.event_uid = f.event_uid
+        WHERE e.event_date >= :cutoff
+          AND e.event_date <= :today
+        GROUP BY e.event_uid
+        HAVING avg(CASE WHEN f.fighter1_result IS NOT NULL THEN 1.0 ELSE 0.0 END) < 0.5
+    """)
+    with Session(engine) as session:
+        uids = [row[0] for row in session.execute(query, params={"cutoff": cutoff, "today": today.isoformat()}).all()]
+
+    for uid in uids:
+        for html_file in base_dir.glob(f"{uid}_*.html"):
+            html_file.unlink()
+
+    if uids:
+        print(f"Found {len(uids)} completed events needing refresh (scraped while upcoming)")
+
+    return uids
+
+
+def read_event_uids(force_run: bool, base_dir: Path) -> list[str]:
     if force_run:
         cmd = select(UFCEvent.event_uid)
     else:
@@ -45,7 +72,13 @@ def read_event_uids(force_run: bool) -> list[str]:
     engine = get_engine()
     with Session(engine) as session:
         uids = session.exec(cmd).all()
-    return list(uids)
+
+    all_uids = list(uids)
+    if not force_run:
+        refresh_uids = get_events_needing_refresh(base_dir)
+        all_uids = list(dict.fromkeys(all_uids + refresh_uids))
+
+    return all_uids
 
 
 def get_list_of_fights(soup: bs4.BeautifulSoup) -> list[str]:
