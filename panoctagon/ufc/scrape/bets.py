@@ -187,7 +187,7 @@ def _run_searches(
                 rate_limited += 1
                 if rate_limited == 1:
                     msg = f"HTTP {result.status}" if not result.error else result.error
-                    print(f"  [{processed}/{total}] '{result.term}': {msg}, backing off...")
+                    print(f"[{processed}/{total}] '{result.term}': {msg}, backing off...")
                     limiter._min_interval = min(limiter._min_interval * 2, 5.0)
                 continue
 
@@ -202,8 +202,8 @@ def _run_searches(
 
             if new_in_batch > 0:
                 print(
-                    f"  [{processed}/{total}] '{result.term}': "
-                    f"+{new_in_batch} new, {len(all_events)} total"
+                    f" | +{new_in_batch} [n={len(all_events):04d}]"
+                    f" - [{processed:04d}/{total:04d}] '{result.term}'"
                 )
 
             if unsaved_count >= SAVE_BATCH_SIZE or processed == total:
@@ -214,7 +214,7 @@ def _run_searches(
 
     if rate_limited > 0:
         print(
-            f"  {rate_limited} requests failed (rate limited/connection error), will retry next run"
+            f"{rate_limited} requests failed (rate limited/connection error), will retry next run"
         )
 
     results: list[BFOEvent] = []
@@ -305,9 +305,9 @@ def download_bfo_event_pages(
             slug, success = future.result()
             if success:
                 downloaded += 1
-                print(f"  [{downloaded}] downloaded {slug}")
+                print(f"[n={downloaded:04d}] downloaded {slug}")
             else:
-                print(f"  failed {slug}")
+                print(f"failed {slug}")
 
     return downloaded
 
