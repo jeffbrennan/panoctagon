@@ -260,8 +260,10 @@ def link_bfo_to_ufc(force: bool = False) -> dict[str, int]:
         return f"{f.first_name} {f.last_name}".strip()
 
     bfo_event_to_ufc: dict[str, str] = {}
+    unmatched_bfo_events: list[tuple[str, str, str]] = []
     for slug, bfo_title, bfo_date in bfo_events:
         if not bfo_date:
+            unmatched_bfo_events.append((slug, bfo_title, bfo_date))
             continue
         candidates = ufc_events_by_date.get(bfo_date, [])
         if not candidates:
@@ -270,6 +272,21 @@ def link_bfo_to_ufc(force: bool = False) -> dict[str, int]:
         best_event = None
         best_ratio = 0.0
         for candidate in candidates:
+            ratio = _fuzzy_ratio(norm_bfo, _normalize_title(candidate.title))
+            if ratio > best_ratio:
+                best_ratio = ratio
+                best_event = candidate
+        if best_event and best_ratio >= MATCH_THRESHOLD:
+            bfo_event_to_ufc[slug] = best_event.event_uid
+
+    all_ufc_events = list(ufc_events.values())
+    for slug, bfo_title, _ in unmatched_bfo_events:
+        if slug in bfo_event_to_ufc:
+            continue
+        norm_bfo = _normalize_title(bfo_title)
+        best_event = None
+        best_ratio = 0.0
+        for candidate in all_ufc_events:
             ratio = _fuzzy_ratio(norm_bfo, _normalize_title(candidate.title))
             if ratio > best_ratio:
                 best_ratio = ratio

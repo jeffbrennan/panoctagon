@@ -77,13 +77,21 @@ def parse_bfo_date(date_str: str) -> datetime.date:
 SEARCH_STATE_PATH = RAW_ODDS_DIR / "search_state.json"
 
 
-def _load_search_state() -> dict[str, list[str]]:
+def _load_search_state() -> dict:
     if not SEARCH_STATE_PATH.exists():
-        return {"completed_terms": [], "discovered_events": []}
-    return json.loads(SEARCH_STATE_PATH.read_text(encoding="utf-8"))
+        return {
+            "completed_terms": [],
+            "discovered_events": [],
+            "discovered_fighters": [],
+            "scraped_fighter_urls": [],
+        }
+    state = json.loads(SEARCH_STATE_PATH.read_text(encoding="utf-8"))
+    state.setdefault("discovered_fighters", [])
+    state.setdefault("scraped_fighter_urls", [])
+    return state
 
 
-def _save_search_state(state: dict[str, list[str]]) -> None:
+def _save_search_state(state: dict) -> None:
     SEARCH_STATE_PATH.parent.mkdir(exist_ok=True, parents=True)
     SEARCH_STATE_PATH.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
 
@@ -106,6 +114,7 @@ class SearchResult:
     events: list[dict[str, str]]
     status: int
     error: str | None = None
+    fighters: list[dict[str, str]] | None = None
 
 
 def _fetch_search(
@@ -141,7 +150,84 @@ def _fetch_search(
 
         found.append({"slug": slug, "name": name, "url": url, "date_str": date_str})
 
-    return SearchResult(term=term, events=found, status=200)
+    fighters: list[dict[str, str]] = []
+    for link in soup.find_all("a", href=re.compile(r"/fighters/")):
+        href = str(link.get("href", ""))
+        name = link.get_text(strip=True)
+        if not name or not href:
+            continue
+        url = f"{BASE_URL}{href}" if href.startswith("/") else href
+        fighters.append({"name": name, "url": url})
+
+    return SearchResult(term=term, events=found, status=200, fighters=fighters)
+
+
+def _fetch_fighter_events(
+    session: requests.Session,
+    fighter_url: str,
+    limiter: RateLimiter,
+) -> list[dict[str, str]]:
+    limiter.wait()
+    try:
+        response = session.get(fighter_url, timeout=30)
+        if response.status_code != 200:
+            return []
+    except requests.RequestException:
+        return []
+
+    soup = bs4.BeautifulSoup(response.text, "html.parser")
+    events: list[dict[str, str]] = []
+    for link in soup.find_all("a", href=re.compile(r"/events/")):
+        href = str(link.get("href", ""))
+        name = link.get_text(strip=True)
+        if not name or not href or "future-events" in href:
+            continue
+        slug = href.rstrip("/").split("/")[-1]
+        url = f"{BASE_URL}{href}" if href.startswith("/") else href
+        events.append({"slug": slug, "name": name, "url": url, "date_str": ""})
+    return events
+
+
+def _scrape_fighter_pages(
+    session: requests.Session,
+    limiter: RateLimiter,
+) -> int:
+    state = _load_search_state()
+    discovered_fighters: list[dict[str, str]] = state["discovered_fighters"]
+    scraped_urls: set[str] = set(state["scraped_fighter_urls"])
+    all_events: dict[str, dict[str, str]] = {
+        e["slug"]: e for e in state.get("discovered_events", [])
+    }
+
+    pending = [f for f in discovered_fighters if f["url"] not in scraped_urls]
+    if not pending:
+        return 0
+
+    print(f"  {len(pending)} fighter pages to scrape ({len(scraped_urls)} already done)")
+
+    new_events_total = 0
+    for i, fighter in enumerate(pending, 1):
+        events = _fetch_fighter_events(session, fighter["url"], limiter)
+        new_count = 0
+        for event in events:
+            if event["slug"] not in all_events:
+                all_events[event["slug"]] = event
+                new_count += 1
+        new_events_total += new_count
+        scraped_urls.add(fighter["url"])
+
+        if new_count > 0:
+            print(
+                f" | +{new_count} [n={len(all_events):04d}]"
+                f" - [{i:04d}/{len(pending):04d}] {fighter['name']}"
+            )
+
+        if i % SAVE_BATCH_SIZE == 0 or i == len(pending):
+            state["scraped_fighter_urls"] = sorted(scraped_urls)
+            state["discovered_events"] = list(all_events.values())
+            _save_search_state(state)
+
+    return new_events_total
 
 
 def _run_searches(
@@ -156,6 +242,9 @@ def _run_searches(
     all_events: dict[str, dict[str, str]] = {
         e["slug"]: e
         for e in state.get("discovered_events", [])  # type: ignore[union-attr]
+    }
+    all_fighters: dict[str, dict[str, str]] = {
+        f["url"]: f for f in state.get("discovered_fighters", [])
     }
 
     pending_terms = [t for t in search_terms if t not in completed_terms]
@@ -196,6 +285,11 @@ def _run_searches(
                     all_events[event["slug"]] = event
                     new_in_batch += 1
 
+            if result.fighters:
+                for fighter in result.fighters:
+                    if fighter["url"] not in all_fighters:
+                        all_fighters[fighter["url"]] = fighter
+
             completed_terms.add(result.term)
             unsaved_count += 1
 
@@ -208,6 +302,7 @@ def _run_searches(
             if unsaved_count >= SAVE_BATCH_SIZE or processed == total:
                 state["completed_terms"] = sorted(completed_terms)
                 state["discovered_events"] = list(all_events.values())  # type: ignore[assignment]
+                state["discovered_fighters"] = list(all_fighters.values())
                 _save_search_state(state)
                 unsaved_count = 0
 
@@ -215,6 +310,13 @@ def _run_searches(
         print(
             f"{rate_limited} requests failed (rate limited/connection error), will retry next run"
         )
+
+    print(create_header(80, "FIGHTER PAGE SCRAPING", True, "-"))
+    new_from_fighters = _scrape_fighter_pages(session, limiter)
+    if new_from_fighters > 0:
+        print(f"  +{new_from_fighters} events discovered from fighter pages")
+        state = _load_search_state()
+        all_events = {e["slug"]: e for e in state.get("discovered_events", [])}
 
     results: list[BFOEvent] = []
     for e in all_events.values():
