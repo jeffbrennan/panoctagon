@@ -206,13 +206,13 @@ def get_main_data() -> pl.DataFrame:
                 fs.fight_uid,
                 fs.round_num,
                 fs.fighter_uid,
-                fighter_name,
+                fs.fighter_name,
                 fs.nickname,
                 fs.stance,
                 fs.style,
-                fighter_result,
-                height_inches,
-                reach_inches,
+                fs.fighter_result,
+                fs.height_inches,
+                fs.reach_inches,
                 total_strikes_landed,
                 total_strikes_attempted,
                 takedowns_landed,
@@ -230,7 +230,8 @@ def get_main_data() -> pl.DataFrame:
                 opponent_strikes_attempted,
                 opponent_strikes_landed,
                 opponent_takedowns_attempted,
-                opponent_takedowns_landed
+                opponent_takedowns_landed,
+                odds.closing_odds
             from fs
             inner join event_details
                 on fs.fight_uid = event_details.fight_uid
@@ -239,7 +240,26 @@ def get_main_data() -> pl.DataFrame:
             inner join opp_fs
                 on fs.fight_uid = opp_fs.fight_uid
                 and fs.round_num = opp_fs.round_num
-                and fs.fighter_uid != opp_fs.opponent_uid;
+                and fs.fighter_uid != opp_fs.opponent_uid
+            left join (
+                select fight_uid, fighter_uid, closing_odds
+                from (
+                    select
+                        bl.fight_uid,
+                        bl.fighter_uid,
+                        bo.closing_odds,
+                        row_number() over (
+                            partition by bl.fight_uid, bl.fighter_uid
+                            order by bo.event_date desc, bo.slug desc
+                        ) as rn
+                    from bfo_ufc_link bl
+                    join bfo_parsed_odds bo
+                        on bl.match_id = bo.match_id and bl.fighter = bo.fighter
+                )
+                where rn = 1
+            ) odds
+                on fs.fight_uid = odds.fight_uid
+                and fs.fighter_uid = odds.fighter_uid;
             """,
             connection=conn,
         )
