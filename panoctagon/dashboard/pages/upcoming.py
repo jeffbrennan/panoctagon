@@ -111,6 +111,7 @@ def get_upcoming_fights() -> pl.DataFrame:
                 where rn = 1
             ) odds2 on f.fight_uid = odds2.fight_uid and f.fighter2_uid = odds2.fighter_uid
             where f.fighter1_result is null
+            and e.event_date::date >= current_date
             order by e.event_date asc, f.fight_order asc nulls last
             """,
             connection=conn,
