@@ -12,12 +12,11 @@ import bs4
 import requests
 from sqlmodel import Session, select
 
-from panoctagon.common import create_header, get_engine
-from panoctagon.tables import UFCEvent, UFCFighter
+from panoctagon.common import create_header, get_engine, get_current_time, write_data_to_db
+from panoctagon.tables import BFORawOdds, UFCEvent, UFCFighter
 
 BASE_URL = "https://www.bestfightodds.com"
 RAW_ODDS_DIR = Path(__file__).parents[3] / "data" / "raw" / "ufc" / "betting_odds"
-RAW_API_DIR = RAW_ODDS_DIR / "api"
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -356,16 +355,12 @@ def parse_matchups_from_html(html: str) -> list[BFOMatchup]:
     return matchups
 
 
-def _api_response_path(match_id: int, player: int) -> Path:
-    return RAW_API_DIR / f"m{match_id}_p{player}.txt"
-
-
 def _fetch_api(
     session: requests.Session,
     match_id: int,
     player: int,
     limiter: RateLimiter,
-) -> tuple[int, int, bool]:
+) -> tuple[int, int, str | None]:
     limiter.wait()
     try:
         response = session.get(
@@ -375,12 +370,18 @@ def _fetch_api(
             timeout=30,
         )
         if response.status_code != 200:
-            return match_id, player, False
+            return match_id, player, None
     except requests.RequestException:
-        return match_id, player, False
+        return match_id, player, None
 
-    _api_response_path(match_id, player).write_text(response.text, encoding="utf-8")
-    return match_id, player, True
+    return match_id, player, response.text
+
+
+def _get_existing_odds_keys() -> set[tuple[int, str]]:
+    engine = get_engine()
+    with Session(engine) as session:
+        rows = session.exec(select(BFORawOdds.match_id, BFORawOdds.fighter)).all()
+    return {(row[0], row[1]) for row in rows}
 
 
 def download_fight_odds(
@@ -389,21 +390,25 @@ def download_fight_odds(
     min_interval: float = 0.15,
 ) -> dict[str, int]:
     print(create_header(80, "DOWNLOADING FIGHT ODDS API RESPONSES", True, "="))
-    RAW_API_DIR.mkdir(exist_ok=True, parents=True)
     session = get_session()
 
     event_htmls = sorted(RAW_ODDS_DIR.glob("*.html"))
     print(f"  {len(event_htmls)} event pages on disk")
 
-    pending: list[tuple[int, int, str]] = []
+    existing_keys = _get_existing_odds_keys()
+    print(f"  {len(existing_keys)} API responses already in db")
+
+    pending: list[tuple[int, int, str, str]] = []
     for html_path in event_htmls:
+        slug = html_path.stem
         html = html_path.read_text(encoding="utf-8")
         matchups = parse_matchups_from_html(html)
         for matchup in matchups:
             for player in (1, 2):
-                if not _api_response_path(matchup.match_id, player).exists():
+                fighter = f"f{player}"
+                if (matchup.match_id, fighter) not in existing_keys:
                     name = matchup.fighter1_name if player == 1 else matchup.fighter2_name
-                    pending.append((matchup.match_id, player, name))
+                    pending.append((matchup.match_id, player, name, slug))
 
     print(f"  {len(pending)} API responses to download")
 
@@ -414,6 +419,7 @@ def download_fight_odds(
     failed = 0
     total = len(pending)
     limiter = RateLimiter(min_interval)
+    records: list[BFORawOdds] = []
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
@@ -421,22 +427,40 @@ def download_fight_odds(
                 match_id,
                 player,
                 name,
+                slug,
             )
-            for match_id, player, name in pending
+            for match_id, player, name, slug in pending
         }
         for future in as_completed(futures):
-            match_id, player, success = future.result()
+            match_id, player, response_text = future.result()
             name = futures[future][2]
-            if success:
+            slug = futures[future][3]
+            if response_text is not None:
                 downloaded += 1
-                print(f"  [{downloaded}/{total}] m={match_id} p={player} {name}")
+                records.append(
+                    BFORawOdds(
+                        match_id=match_id,
+                        fighter=f"f{player}",
+                        slug=slug,
+                        value=response_text,
+                        downloaded_ts=get_current_time().isoformat(timespec="seconds"),
+                    )
+                )
+                print(f"[{downloaded}/{total}] m={match_id} p={player} {name}")
             else:
                 failed += 1
-                print(f"  [{downloaded}/{total}] FAILED m={match_id} p={player} {name}")
+                print(f"[{downloaded}/{total}] FAILED m={match_id} p={player} {name}")
 
-    existing = len(list(RAW_API_DIR.glob("*.txt")))
+            if len(records) >= SAVE_BATCH_SIZE:
+                write_data_to_db(records)
+                records = []
+
+    if records:
+        write_data_to_db(records)
+
+    total_in_db = len(_get_existing_odds_keys())
     print(f"\n[n={downloaded:5,d}] newly downloaded")
     print(f"[n={failed:5,d}] failed")
-    print(f"[n={existing:5,d}] total on disk")
+    print(f"[n={total_in_db:5,d}] total in db")
 
-    return {"downloaded": downloaded, "failed": failed, "total_on_disk": existing}
+    return {"downloaded": downloaded, "failed": failed, "total_in_db": total_in_db}

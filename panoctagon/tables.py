@@ -126,6 +126,15 @@ class UFCBettingOdds(SQLModel, table=True):
     scraped_ts: Optional[str] = None
 
 
+class BFORawOdds(SQLModel, table=True):
+    __tablename__ = "bfo_raw_odds"  # pyright: ignore [reportAssignmentType]
+    match_id: int = Field(primary_key=True)
+    fighter: str = Field(primary_key=True)
+    slug: str
+    value: str
+    downloaded_ts: str
+
+
 class TempBulkDeleteTest(SQLModel, table=True):
     uid: str = Field(primary_key=True)
     another_col: str
