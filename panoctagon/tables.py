@@ -135,6 +135,18 @@ class BFORawOdds(SQLModel, table=True):
     downloaded_ts: str
 
 
+class BFOParsedOdds(SQLModel, table=True):
+    __tablename__ = "bfo_parsed_odds"  # pyright: ignore [reportAssignmentType]
+    match_id: int = Field(primary_key=True)
+    fighter: str = Field(primary_key=True)
+    slug: str
+    event_title: str
+    event_date: str
+    fighter_name: str
+    opening_odds: Optional[int] = None
+    closing_odds: Optional[int] = None
+
+
 class TempBulkDeleteTest(SQLModel, table=True):
     uid: str = Field(primary_key=True)
     another_col: str
