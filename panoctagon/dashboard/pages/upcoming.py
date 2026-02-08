@@ -58,6 +58,7 @@ def get_upcoming_fights() -> pl.DataFrame:
                 coalesce(fr1.wins, 0) as fighter1_wins,
                 coalesce(fr1.losses, 0) as fighter1_losses,
                 coalesce(fr1.draws, 0) as fighter1_draws,
+                odds1.closing_odds as fighter1_closing_odds,
                 f.fighter2_uid,
                 f2.fighter_name as fighter2_name,
                 f2.dob as fighter2_dob,
@@ -67,13 +68,48 @@ def get_upcoming_fights() -> pl.DataFrame:
                 coalesce(fr2.total_fights, 0) as fighter2_total_fights,
                 coalesce(fr2.wins, 0) as fighter2_wins,
                 coalesce(fr2.losses, 0) as fighter2_losses,
-                coalesce(fr2.draws, 0) as fighter2_draws
+                coalesce(fr2.draws, 0) as fighter2_draws,
+                odds2.closing_odds as fighter2_closing_odds
             from ufc_fights f
             inner join ufc_events e on f.event_uid = e.event_uid
             inner join fighter_info f1 on f.fighter1_uid = f1.fighter_uid
             inner join fighter_info f2 on f.fighter2_uid = f2.fighter_uid
             left join fighter_records fr1 on f.fighter1_uid = fr1.fighter_uid
             left join fighter_records fr2 on f.fighter2_uid = fr2.fighter_uid
+            left join (
+                select fight_uid, fighter_uid, closing_odds
+                from (
+                    select
+                        bl.fight_uid,
+                        bl.fighter_uid,
+                        bo.closing_odds,
+                        row_number() over (
+                            partition by bl.fight_uid, bl.fighter_uid
+                            order by bo.event_date desc, bo.slug desc
+                        ) as rn
+                    from bfo_ufc_link bl
+                    join bfo_parsed_odds bo
+                        on bl.match_id = bo.match_id and bl.fighter = bo.fighter
+                )
+                where rn = 1
+            ) odds1 on f.fight_uid = odds1.fight_uid and f.fighter1_uid = odds1.fighter_uid
+            left join (
+                select fight_uid, fighter_uid, closing_odds
+                from (
+                    select
+                        bl.fight_uid,
+                        bl.fighter_uid,
+                        bo.closing_odds,
+                        row_number() over (
+                            partition by bl.fight_uid, bl.fighter_uid
+                            order by bo.event_date desc, bo.slug desc
+                        ) as rn
+                    from bfo_ufc_link bl
+                    join bfo_parsed_odds bo
+                        on bl.match_id = bo.match_id and bl.fighter = bo.fighter
+                )
+                where rn = 1
+            ) odds2 on f.fight_uid = odds2.fight_uid and f.fighter2_uid = odds2.fighter_uid
             where f.fighter1_result is null
             order by e.event_date asc, f.fight_order asc nulls last
             """,
@@ -108,6 +144,7 @@ def create_matchup_card(
     fighter_reach = fight[f"fighter{fighter_num}_reach"]
     fighter_height = fight[f"fighter{fighter_num}_height"]
     fighter_stance = fight[f"fighter{fighter_num}_stance"]
+    fighter_closing_odds = fight.get(f"fighter{fighter_num}_closing_odds")
 
     opponent_reach = fight[f"fighter{opponent_num}_reach"]
     opponent_height = fight[f"fighter{opponent_num}_height"]
@@ -131,6 +168,26 @@ def create_matchup_card(
 
     headshot_src = get_headshot_base64(fighter_uid)
 
+    def format_odds(odds: float | int | None) -> str | None:
+        if odds is None:
+            return None
+        odds_int = int(odds)
+        return f"+{odds_int}" if odds_int > 0 else str(odds_int)
+
+    odds_str = format_odds(fighter_closing_odds)
+    is_favorite = fighter_closing_odds is not None and fighter_closing_odds < 0
+
+    name_children: list = [dmc.Text(fighter_name, fw="bold", size="xl", c="dark")]
+    if odds_str is not None:
+        name_children.append(
+            dmc.Badge(
+                odds_str,
+                color="dark" if is_favorite else "gray",
+                variant="filled" if is_favorite else "outline",
+                size="lg",
+            )
+        )
+
     return dmc.Card(
         [
             dmc.Group(
@@ -146,7 +203,7 @@ def create_matchup_card(
                     ),
                     html.Div(
                         [
-                            dmc.Text(fighter_name, fw="bold", size="xl", c="dark"),
+                            dmc.Group(name_children, gap="xs"),
                             dmc.Text(fighter_record, size="md", c="gray"),
                         ]
                     ),

@@ -184,6 +184,7 @@ def update_career_timeline(fighter: str):
                 "title",
                 "opponent_name",
                 "decision",
+                "closing_odds",
             ]
         )
         .agg(pl.col("opponent_strikes_landed").sum())
@@ -232,11 +233,18 @@ def update_career_timeline(fighter: str):
         "DOC": "DOC",
     }
 
+    def format_odds_hover(odds: int | None) -> str:
+        if odds is None:
+            return ""
+        odds_str = f"+{odds}" if odds > 0 else str(odds)
+        return f"<br>Odds: {odds_str}"
+
     hover_text = [
         f"<b>{row['title']}</b> | {row['event_date']}"
         f"<br>{result_map.get(row['fighter_result'])} <b>{row['opponent_name']}</b>"
         f" ({decision_abbrev.get(row['decision'], row['decision'])})"
         f"<br>+{row['opponent_strikes_landed']:,} strikes ({row['cumulative_absorbed']:,} total)"
+        f"{format_odds_hover(row['closing_odds'])}"
         for row in fight_timeline.iter_rows(named=True)
     ]
 
@@ -255,6 +263,19 @@ def update_career_timeline(fighter: str):
             hoverinfo="text",
         )
     )
+
+    for row in fight_timeline.iter_rows(named=True):
+        odds = row["closing_odds"]
+        if odds is not None:
+            label = "FAV" if odds < 0 else "DOG"
+            fig.add_annotation(
+                x=row["event_date"],
+                y=row["cumulative_absorbed"],
+                text=label,
+                showarrow=False,
+                yshift=18,
+                font=dict(size=9, color=PLOT_COLORS["l4"]),
+            )
 
     for result in fight_timeline["fighter_result"].unique().to_list():
         fig.add_trace(
@@ -412,16 +433,24 @@ def update_fight_history(fighter: str):
                 pl.col("total_strikes_landed").sum(),
                 pl.col("total_strikes_attempted").sum(),
                 pl.col("takedowns_landed").sum(),
+                pl.col("closing_odds").first(),
             ]
         )
         .sort("event_date", descending=True)
     )
+
+    def format_odds(odds: float | None) -> str:
+        if odds is None:
+            return "-"
+        odds_int = int(odds)
+        return f"+{odds_int}" if odds_int > 0 else str(odds_int)
 
     table_df = table_df.with_columns(
         [
             pl.col("event_date").dt.to_string("%Y-%m-%d"),
             pl.col("decision").map_elements(format_decision, return_dtype=pl.String),
             pl.col("fighter_result").map_elements(format_result, return_dtype=pl.String),
+            pl.col("closing_odds").map_elements(format_odds, return_dtype=pl.String).alias("closing_odds"),
         ]
     )
 
@@ -435,6 +464,7 @@ def update_fight_history(fighter: str):
             "total_strikes_landed": "Strikes Landed",
             "total_strikes_attempted": "Strikes Attempted",
             "takedowns_landed": "Takedowns",
+            "closing_odds": "Odds",
         }
     )
 
@@ -442,6 +472,7 @@ def update_fight_history(fighter: str):
         "",
         "Date",
         "Opponent",
+        "Odds",
         "Method",
         "Round",
         "Strikes Landed",
