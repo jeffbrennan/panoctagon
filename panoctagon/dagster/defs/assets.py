@@ -85,7 +85,13 @@ def dagster_scrape_bfo_odds(context: AssetExecutionContext) -> None:
     context.add_output_metadata({"n_records": n_downloaded})
 
 
-@asset(compute_kind="python", key=["bfo_parsed_odds"], deps=["bfo_raw_odds"])
+@asset(compute_kind="python", key=["bfo_fighter_odds"], deps=["scrape_bfo_fighters"])
+def dagster_scrape_bfo_fighter_odds(context: AssetExecutionContext) -> None:
+    n_downloaded = scrape.fighter_odds()
+    context.add_output_metadata({"n_records": n_downloaded})
+
+
+@asset(compute_kind="python", key=["bfo_parsed_odds"], deps=["bfo_raw_odds", "bfo_fighter_odds"])
 def dagster_parse_bfo_odds(context: AssetExecutionContext) -> None:
     n_saved = parse.odds()
     context.add_output_metadata({"n_records": n_saved})

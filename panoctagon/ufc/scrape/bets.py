@@ -13,7 +13,7 @@ import requests
 from sqlmodel import Session, select
 
 from panoctagon.common import create_header, get_current_time, get_engine, write_data_to_db
-from panoctagon.tables import BFORawOdds, UFCEvent, UFCFighter
+from panoctagon.tables import BFOFighterPageParsed, BFORawOdds, UFCEvent, UFCFighter
 
 BASE_URL = "https://www.bestfightodds.com"
 RAW_ODDS_DIR = Path(__file__).parents[3] / "data" / "raw" / "ufc" / "betting_odds"
@@ -552,6 +552,154 @@ def download_fight_odds(
 
     if records:
         write_data_to_db(records)
+
+    total_in_db = len(_get_existing_odds_keys())
+    print(f"\n[n={downloaded:5,d}] newly downloaded")
+    print(f"[n={failed:5,d}] failed")
+    print(f"[n={total_in_db:5,d}] total in db")
+
+    return {"downloaded": downloaded, "failed": failed, "total_in_db": total_in_db}
+
+
+def parse_matchups_from_fighter_html(html: str) -> list[BFOMatchup]:
+    soup = bs4.BeautifulSoup(html, "html.parser")
+    matchups: list[BFOMatchup] = []
+
+    for row in soup.find_all("tr", class_="main-row"):
+        chart_cell = row.find("td", class_="chart-cell", attrs={"data-li": True})
+        if not chart_cell:
+            continue
+
+        data_li = json.loads(str(chart_cell["data-li"]))
+        match_id = int(data_li[0])
+
+        event_header = row.find_previous_sibling("tr", class_="event-header")
+        if event_header:
+            event_link = event_header.find("a", href=True)
+            if event_link and "future-events" in event_link["href"]:
+                continue
+
+        fighter1_tag = row.find("th", class_="oppcell")
+        if not fighter1_tag:
+            continue
+        fighter1_link = fighter1_tag.find("a")
+        if not fighter1_link:
+            continue
+        fighter1 = fighter1_link.get_text(strip=True)
+
+        next_row = row.find_next_sibling("tr")
+        if not next_row:
+            continue
+        fighter2_tag = next_row.find("th", class_="oppcell")
+        if not fighter2_tag:
+            continue
+        fighter2_link = fighter2_tag.find("a")
+        if not fighter2_link:
+            continue
+        fighter2 = fighter2_link.get_text(strip=True)
+
+        matchups.append(
+            BFOMatchup(match_id=match_id, fighter1_name=fighter1, fighter2_name=fighter2)
+        )
+
+    return matchups
+
+
+def download_fighter_page_odds(
+    max_downloads: int | None = None,
+    max_workers: int = 3,
+    min_interval: float = 0.15,
+) -> dict[str, int]:
+    print(create_header(80, "DOWNLOADING FIGHTER PAGE ODDS API RESPONSES", True, "="))
+    session = get_session()
+
+    fighter_dir = RAW_ODDS_DIR / "fighters"
+    fighter_htmls = sorted(fighter_dir.glob("*.html"))
+    print(f"  {len(fighter_htmls)} fighter pages on disk")
+
+    engine = get_engine()
+    with Session(engine) as db_session:
+        parsed_slugs = set(db_session.exec(select(BFOFighterPageParsed.slug)).all())
+    print(f"  {len(parsed_slugs)} fighter pages already parsed")
+
+    unparsed_htmls = [p for p in fighter_htmls if p.stem not in parsed_slugs]
+    print(f"  {len(unparsed_htmls)} fighter pages to parse")
+
+    existing_keys = _get_existing_odds_keys()
+    print(f"  {len(existing_keys)} API responses already in db")
+
+    pending: list[tuple[int, int, str, str]] = []
+    slugs_with_pending: set[str] = set()
+    all_unparsed_slugs: list[str] = []
+
+    for html_path in unparsed_htmls:
+        slug = html_path.stem
+        all_unparsed_slugs.append(slug)
+        html = html_path.read_text(encoding="utf-8")
+        matchups = parse_matchups_from_fighter_html(html)
+        for matchup in matchups:
+            for player in (1, 2):
+                fighter = f"f{player}"
+                if (matchup.match_id, fighter) not in existing_keys:
+                    name = matchup.fighter1_name if player == 1 else matchup.fighter2_name
+                    pending.append((matchup.match_id, player, name, slug))
+                    slugs_with_pending.add(slug)
+
+    print(f"  {len(pending)} new API responses to download")
+
+    if max_downloads is not None:
+        pending = pending[:max_downloads]
+
+    downloaded = 0
+    failed = 0
+    total = len(pending)
+    limiter = RateLimiter(min_interval)
+    records: list[BFORawOdds] = []
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(_fetch_api, session, match_id, player, limiter): (
+                match_id,
+                player,
+                name,
+                slug,
+            )
+            for match_id, player, name, slug in pending
+        }
+        for future in as_completed(futures):
+            match_id, player, response_text = future.result()
+            name = futures[future][2]
+            slug = futures[future][3]
+            if response_text is not None:
+                downloaded += 1
+                records.append(
+                    BFORawOdds(
+                        match_id=match_id,
+                        fighter=f"f{player}",
+                        slug=slug,
+                        value=response_text,
+                        downloaded_ts=get_current_time().isoformat(timespec="seconds"),
+                    )
+                )
+                print(f"[{downloaded}/{total}] m={match_id} p={player} {name}")
+            else:
+                failed += 1
+                print(f"[{downloaded}/{total}] FAILED m={match_id} p={player} {name}")
+
+            if len(records) >= SAVE_BATCH_SIZE:
+                write_data_to_db(records)
+                records = []
+
+    if records:
+        write_data_to_db(records)
+
+    now = get_current_time().isoformat(timespec="seconds")
+    completed_slugs = [s for s in all_unparsed_slugs if s not in slugs_with_pending]
+    parsed_records = [
+        BFOFighterPageParsed(slug=slug, parsed_ts=now) for slug in completed_slugs
+    ]
+    if parsed_records:
+        write_data_to_db(parsed_records)
 
     total_in_db = len(_get_existing_odds_keys())
     print(f"\n[n={downloaded:5,d}] newly downloaded")

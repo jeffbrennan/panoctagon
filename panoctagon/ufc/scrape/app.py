@@ -20,6 +20,7 @@ from panoctagon.tables import UFCEvent
 from panoctagon.ufc.scrape.bets import (
     download_bfo_pages,
     download_fight_odds,
+    download_fighter_page_odds,
     scrape_bfo_fighter_pages,
 )
 from panoctagon.ufc.scrape.bios import (
@@ -279,6 +280,27 @@ def fighter_pages(max_downloads: Optional[int] = None) -> int:
             op_name="event page",
             successes=result["downloaded"],
             failures=0,
+        )
+    )
+
+    print(setup.footer)
+    return result["downloaded"]
+
+
+@app.command()
+def fighter_odds(max_downloads: Optional[int] = None) -> int:
+    setup = setup_panoctagon(title="BFO Step 2b: Download Fighter Page Odds")
+
+    result = download_fighter_page_odds(max_downloads=max_downloads)
+
+    report_stats(
+        RunStats(
+            start=setup.start_time,
+            end=time.time(),
+            n_ops=result["downloaded"] + result["failed"],
+            op_name="API response",
+            successes=result["downloaded"],
+            failures=result["failed"],
         )
     )
 
