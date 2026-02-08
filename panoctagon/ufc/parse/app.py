@@ -14,7 +14,7 @@ from panoctagon.common import (
 )
 from panoctagon.models import FightParsingType
 from panoctagon.tables import UFCEvent, UFCFight, UFCFighter
-from panoctagon.ufc.parse.bets import parse_and_store_odds
+from panoctagon.ufc.parse.bets import link_bfo_to_ufc, parse_and_store_odds
 from panoctagon.ufc.parse.bios import (
     parse_headshot,
     write_headshot_results_to_db,
@@ -152,3 +152,13 @@ def odds(force: bool = False) -> int:
 
     print(setup.footer)
     return result["total_saved"]
+
+
+@app.command(name="link-odds")
+def link_odds(force: bool = False) -> int:
+    setup = setup_panoctagon(title="BFO-UFC Odds Linker")
+
+    result = link_bfo_to_ufc(force=force)
+
+    print(setup.footer)
+    return result["matched"]

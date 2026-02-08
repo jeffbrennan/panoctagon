@@ -147,6 +147,15 @@ class BFOParsedOdds(SQLModel, table=True):
     closing_odds: Optional[int] = None
 
 
+class BFOUFCLink(SQLModel, table=True):
+    __tablename__ = "bfo_ufc_link"  # pyright: ignore [reportAssignmentType]
+    match_id: int = Field(primary_key=True)
+    fighter: str = Field(primary_key=True)
+    fight_uid: str
+    fighter_uid: str
+    event_uid: str
+
+
 class TempBulkDeleteTest(SQLModel, table=True):
     uid: str = Field(primary_key=True)
     another_col: str
