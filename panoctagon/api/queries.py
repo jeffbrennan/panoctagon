@@ -294,6 +294,7 @@ def get_upcoming_fights() -> pl.DataFrame:
             left join fighter_records fr1 on f.fighter1_uid = fr1.fighter_uid
             left join fighter_records fr2 on f.fighter2_uid = fr2.fighter_uid
             where f.fighter1_result is null
+            and e.event_date::date >= current_date
             order by e.event_date asc, f.fight_order asc nulls last
             """,
             connection=conn,
@@ -607,7 +608,7 @@ def get_events(upcoming_only: bool = False, limit: int = 20) -> pl.DataFrame:
         """
 
         if upcoming_only:
-            query += " where exists (select 1 from ufc_fights uf where uf.event_uid = e.event_uid and uf.fighter1_result is null)"
+            query += " where exists (select 1 from ufc_fights uf where uf.event_uid = e.event_uid and uf.fighter1_result is null) and e.event_date::date >= current_date"
 
         query += f" group by e.event_uid, e.title, e.event_date, e.event_location order by e.event_date desc limit {limit}"
 
