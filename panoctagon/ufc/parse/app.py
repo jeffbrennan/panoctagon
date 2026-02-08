@@ -145,10 +145,10 @@ def fights(force: bool = False) -> int:
     return len(results)
 
 @app.command(name="odds")
-def odds() -> int:
+def odds(force: bool = False) -> int:
     setup = setup_panoctagon(title="BFO Odds Parser")
 
-    result = parse_and_store_odds()
+    result = parse_and_store_odds(force=force)
 
     print(setup.footer)
     return result["total_saved"]

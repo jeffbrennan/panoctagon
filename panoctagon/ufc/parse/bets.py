@@ -6,7 +6,7 @@ from pathlib import Path
 
 import bs4
 from dateutil import parser as dateparser
-from sqlmodel import Session, SQLModel, select
+from sqlmodel import Session, SQLModel, col, select
 
 from panoctagon.common import create_header, get_engine
 from panoctagon.tables import BFOParsedOdds, BFORawOdds
@@ -119,7 +119,7 @@ def _extract_mean_odds(value: str) -> tuple[int | None, int | None]:
     return None, None
 
 
-def parse_and_store_odds() -> dict[str, int]:
+def parse_and_store_odds(force: bool = False) -> dict[str, int]:
     print(create_header(80, "PARSING BFO ODDS", True, "="))
 
     engine = get_engine()
@@ -129,12 +129,20 @@ def parse_and_store_odds() -> dict[str, int]:
 
     with Session(engine) as session:
         raw_odds_rows = session.exec(select(BFORawOdds)).all()
+        existing_slugs: set[str] = set()
+        if not force:
+            rows = session.exec(
+                select(col(BFOParsedOdds.slug)).distinct()
+            ).all()
+            existing_slugs = set(rows)
 
     raw_odds_index: dict[tuple[int, str], str] = {}
     for row in raw_odds_rows:
         raw_odds_index[(row.match_id, row.fighter)] = row.value
 
     event_htmls = sorted(RAW_ODDS_DIR.glob("*.html"))
+    if not force:
+        event_htmls = [p for p in event_htmls if p.stem not in existing_slugs]
     print(f"  {len(event_htmls)} event pages to parse")
 
     total_saved = 0
