@@ -241,16 +241,10 @@ def fights(force: bool = False, max_workers: int = 8) -> int:
 
 
 @app.command()
-def odds_download_events(
-    max_searches: Optional[int] = None,
-    search_fighters: bool = False,
-) -> int:
+def event_odds(max_searches: Optional[int] = None) -> int:
     setup = setup_panoctagon(title="BFO Step 1: Download Event Pages")
 
-    result = download_bfo_pages(
-        max_searches=max_searches,
-        search_fighters=search_fighters,
-    )
+    result = download_bfo_pages(max_searches=max_searches)
 
     report_stats(
         RunStats(
@@ -268,9 +262,7 @@ def odds_download_events(
 
 
 @app.command()
-def odds_download_fights(
-    max_downloads: Optional[int] = None,
-) -> int:
+def fight_odds(max_downloads: Optional[int] = None) -> int:
     setup = setup_panoctagon(title="BFO Step 2: Download Fight Odds")
 
     result = download_fight_odds(max_downloads=max_downloads)
@@ -288,5 +280,3 @@ def odds_download_fights(
 
     print(setup.footer)
     return result["downloaded"]
-
-

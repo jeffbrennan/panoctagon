@@ -177,8 +177,7 @@ def _run_searches(
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
-            executor.submit(_fetch_search, session, term, limiter): term
-            for term in pending_terms
+            executor.submit(_fetch_search, session, term, limiter): term for term in pending_terms
         }
         for future in as_completed(futures):
             result = future.result()
@@ -214,7 +213,9 @@ def _run_searches(
                 unsaved_count = 0
 
     if rate_limited > 0:
-        print(f"  {rate_limited} requests failed (rate limited/connection error), will retry next run")
+        print(
+            f"  {rate_limited} requests failed (rate limited/connection error), will retry next run"
+        )
 
     results: list[BFOEvent] = []
     for e in all_events.values():
@@ -311,17 +312,10 @@ def download_bfo_event_pages(
     return downloaded
 
 
-def download_bfo_pages(
-    max_searches: int | None = None,
-    search_fighters: bool = False,
-) -> dict[str, int]:
+def download_bfo_pages(max_searches: int | None = None) -> dict[str, int]:
     print(create_header(80, "SEARCHING BFO EVENTS", True, "="))
     session = get_session()
-
-    events = search_bfo_events(session, max_searches=max_searches)
-
-    if search_fighters:
-        events = search_bfo_fighters(session, max_searches=max_searches)
+    events = search_bfo_fighters(session, max_searches=max_searches)
 
     print(f"\n[n={len(events):5,d}] total events discovered")
 
