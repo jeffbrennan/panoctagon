@@ -12,7 +12,7 @@ import bs4
 import requests
 from sqlmodel import Session, select
 
-from panoctagon.common import create_header, get_engine, get_current_time, write_data_to_db
+from panoctagon.common import create_header, get_current_time, get_engine, write_data_to_db
 from panoctagon.tables import BFORawOdds, UFCEvent, UFCFighter
 
 BASE_URL = "https://www.bestfightodds.com"
@@ -58,6 +58,12 @@ def get_session() -> requests.Session:
 @dataclass
 class BFOEvent:
     date: datetime.date
+    name: str
+    url: str
+
+
+@dataclass
+class BFOFighter:
     name: str
     url: str
 
@@ -123,6 +129,7 @@ def _fetch_search(
     limiter: RateLimiter,
 ) -> SearchResult:
     limiter.wait()
+    print(term)
     try:
         response = session.get(f"{BASE_URL}/search", params={"query": term}, timeout=30)
         if response.status_code != 200:
@@ -223,6 +230,7 @@ def _scrape_fighter_pages(
             )
 
         if i % SAVE_BATCH_SIZE == 0 or i == len(pending):
+            print("saving...", i)
             state["scraped_fighter_urls"] = sorted(scraped_urls)
             state["discovered_events"] = list(all_events.values())
             _save_search_state(state)
@@ -234,8 +242,8 @@ def _run_searches(
     search_terms: list[str],
     session: requests.Session,
     max_searches: int | None,
-    max_workers: int = 3,
-    min_interval: float = 0.15,
+    max_workers: int = 2,
+    min_interval: float = 0.4,
 ) -> list[BFOEvent]:
     state = _load_search_state()
     completed_terms = set(state["completed_terms"])
@@ -365,6 +373,54 @@ def search_bfo_fighters(
     return _run_searches(search_terms, session, max_searches)
 
 
+def download_bfo_fighter_pages(
+    fighters: list[BFOFighter],
+    session: requests.Session,
+    min_interval: float = 0.15,
+    max_workers: int = 3,
+) -> int:
+    RAW_ODDS_DIR.mkdir(exist_ok=True, parents=True)
+
+    pending = []
+    for fighter in fighters:
+        slug = fighter.url.rstrip("/").split("/")[-1]
+        filepath = RAW_ODDS_DIR / "fighters" / f"{slug}.html"
+        if not filepath.exists():
+            pending.append((fighter, slug, filepath))
+
+    if not pending:
+        return 0
+
+    limiter = RateLimiter(min_interval)
+    downloaded = 0
+
+    def _download(event: BFOEvent, slug: str, filepath: Path) -> tuple[str, bool]:
+        limiter.wait()
+        try:
+            response = session.get(event.url, timeout=30)
+            if response.status_code != 200:
+                return slug, False
+        except requests.RequestException:
+            return slug, False
+        filepath.write_text(response.text, encoding="utf-8")
+        return slug, True
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(_download, event, slug, filepath): slug
+            for event, slug, filepath in pending
+        }
+        for future in as_completed(futures):
+            slug, success = future.result()
+            if success:
+                downloaded += 1
+                print(f"[n={downloaded:04d}] downloaded {slug}")
+            else:
+                print(f"failed {slug}")
+
+    return downloaded
+
+
 def download_bfo_event_pages(
     events: list[BFOEvent],
     session: requests.Session,
@@ -376,7 +432,7 @@ def download_bfo_event_pages(
     pending = []
     for event in events:
         slug = event.url.rstrip("/").split("/")[-1]
-        filepath = RAW_ODDS_DIR / f"{slug}.html"
+        filepath = RAW_ODDS_DIR / "events" / f"{slug}.html"
         if not filepath.exists():
             pending.append((event, slug, filepath))
 
@@ -413,8 +469,37 @@ def download_bfo_event_pages(
     return downloaded
 
 
+# TODO:
+def scrape_bfo_fighter_pages(max_downloads: int | None = None) -> dict[str, int]:
+    fighter_dir = RAW_ODDS_DIR / "fighter"
+    search_state = RAW_ODDS_DIR / "search_state.json"
+    session = get_session()
+
+    with search_state.open("r") as f:
+        searches = json.load(f)
+
+    fighters: list[BFOFighter] = [
+        BFOFighter(entry["name"], entry["url"]) for entry in searches["discovered_fighters"]
+    ]
+
+    scraped_slugs = [i.stem for i in fighter_dir.glob("*.html")]
+    unscraped_fighters = [
+        fighter
+        for fighter in fighters
+        if fighter.url.rstrip("/").split("/")[-1].lower() not in scraped_slugs
+    ]
+
+    if max_downloads is not None:
+        unscraped_fighters = unscraped_fighters[0 : min(len(unscraped_fighters), max_downloads)]
+
+    downloaded = download_bfo_fighter_pages(unscraped_fighters, session)
+    total_on_disk = len(list(fighter_dir.glob("*html")))
+    return {"downloaded": downloaded, "total_on_disk": total_on_disk}
+
+
 def download_bfo_pages(max_searches: int | None = None) -> dict[str, int]:
     print(create_header(80, "SEARCHING BFO EVENTS", True, "="))
+    event_dir = RAW_ODDS_DIR / "events"
     session = get_session()
     events = search_bfo_fighters(session, max_searches=max_searches)
 
@@ -423,7 +508,7 @@ def download_bfo_pages(max_searches: int | None = None) -> dict[str, int]:
     print(create_header(80, "DOWNLOADING EVENT PAGES", True, "="))
     downloaded = download_bfo_event_pages(events, session)
 
-    existing = len(list(RAW_ODDS_DIR.glob("*.html")))
+    existing = len(list(event_dir.glob("*.html")))
     print(f"\n[n={downloaded:5,d}] newly downloaded")
     print(f"[n={existing:5,d}] total on disk")
 

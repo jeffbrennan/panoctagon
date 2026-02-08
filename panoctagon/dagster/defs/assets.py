@@ -5,10 +5,9 @@ from dagster_dbt import DbtCliResource, dbt_assets
 import panoctagon.ufc.parse.app as parse
 import panoctagon.ufc.scrape.app as scrape
 from dagster import AssetExecutionContext, AssetSpec, asset, multi_asset
+from panoctagon.dagster.project import panoctagon_project
 from panoctagon.divisions import setup_divisions
 from panoctagon.promotions import setup_promotions
-
-from panoctagon.dagster.project import panoctagon_project
 
 db_path = panoctagon_project.project_dir.joinpath("data/panoctagon_orm.duckdb")
 
@@ -70,11 +69,17 @@ def dagster_parse_fighter_bio(context: AssetExecutionContext) -> None:
 
 @asset(compute_kind="python", key=["scrape_bfo_events"], deps=["ufc_events"])
 def dagster_scrape_bfo_events(context: AssetExecutionContext) -> None:
-    n_downloaded = scrape.event_odds()
+    n_downloaded = scrape.event_pages()
     context.add_output_metadata({"n_records": n_downloaded})
 
 
-@asset(compute_kind="python", key=["bfo_raw_odds"], deps=["scrape_bfo_events"])
+@asset(compute_kind="python", key=["scrape_bfo_fighters"], deps=["scrape_bfo_events"])
+def dagster_scrape_bfo_fighters(context: AssetExecutionContext) -> None:
+    n_downloaded = scrape.fighter_pages()
+    context.add_output_metadata({"n_records": n_downloaded})
+
+
+@asset(compute_kind="python", key=["bfo_raw_odds"], deps=["scrape_bfo_fighters"])
 def dagster_scrape_bfo_odds(context: AssetExecutionContext) -> None:
     n_downloaded = scrape.fight_odds()
     context.add_output_metadata({"n_records": n_downloaded})
@@ -86,7 +91,11 @@ def dagster_parse_bfo_odds(context: AssetExecutionContext) -> None:
     context.add_output_metadata({"n_records": n_saved})
 
 
-@asset(compute_kind="python", key=["bfo_ufc_link"], deps=["bfo_parsed_odds", "ufc_fights", "ufc_fighters"])
+@asset(
+    compute_kind="python",
+    key=["bfo_ufc_link"],
+    deps=["bfo_parsed_odds", "ufc_fights", "ufc_fighters"],
+)
 def dagster_link_bfo_odds(context: AssetExecutionContext) -> None:
     n_matched = parse.link_odds()
     context.add_output_metadata({"n_records": n_matched})
