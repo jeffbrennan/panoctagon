@@ -242,8 +242,8 @@ def _run_searches(
     search_terms: list[str],
     session: requests.Session,
     max_searches: int | None,
-    max_workers: int = 2,
-    min_interval: float = 0.4,
+    max_workers: int = 3,
+    min_interval: float = 0.3,
 ) -> list[BFOEvent]:
     state = _load_search_state()
     completed_terms = set(state["completed_terms"])
@@ -308,6 +308,7 @@ def _run_searches(
                 )
 
             if unsaved_count >= SAVE_BATCH_SIZE or processed == total:
+                print("saving...", processed)
                 state["completed_terms"] = sorted(completed_terms)
                 state["discovered_events"] = list(all_events.values())  # type: ignore[assignment]
                 state["discovered_fighters"] = list(all_fighters.values())
