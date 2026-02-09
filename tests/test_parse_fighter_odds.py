@@ -80,6 +80,29 @@ NO_DATA_LI_HTML = """
 """
 
 
+PLAYER2_HTML = """
+<table class="team-stats-table">
+<tbody>
+<tr class="main-row">
+  <th class="oppcell"><a href="/fighters/Fighter-A-100">Fighter A</a></th>
+  <td class="chart-cell" data-li="[55555,2]" rowspan="2"></td>
+</tr>
+<tr>
+  <th class="oppcell"><a href="/fighters/Fighter-B-200">Fighter B</a></th>
+</tr>
+</tbody>
+</table>
+"""
+
+
+def test_player2_swaps_fighter_order():
+    matchups = parse_matchups_from_fighter_html(PLAYER2_HTML)
+    assert len(matchups) == 1
+    assert matchups[0] == BFOMatchup(
+        match_id=55555, fighter1_name="Fighter B", fighter2_name="Fighter A"
+    )
+
+
 def test_rows_without_data_li_skipped():
     matchups = parse_matchups_from_fighter_html(NO_DATA_LI_HTML)
     assert len(matchups) == 0
@@ -144,3 +167,13 @@ def test_full_page():
         print(matchup)
 
     assert len(matchups) == 13
+    by_id = {m.match_id: m for m in matchups}
+    assert by_id[28832] == BFOMatchup(
+        match_id=28832, fighter1_name="Bryce Mitchell", fighter2_name="Ilia Topuria"
+    )
+    assert by_id[41453] == BFOMatchup(
+        match_id=41453, fighter1_name="Ilia Topuria", fighter2_name="Justin Gaethje"
+    )
+    assert by_id[39265] == BFOMatchup(
+        match_id=39265, fighter1_name="Arman Tsarukyan", fighter2_name="Ilia Topuria"
+    )

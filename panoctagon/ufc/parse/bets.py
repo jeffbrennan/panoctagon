@@ -11,6 +11,7 @@ from sqlmodel import Session, SQLModel, col, select
 
 from panoctagon.common import create_header, get_engine
 from panoctagon.tables import BFOParsedOdds, BFORawOdds, BFOUFCLink, UFCEvent, UFCFight, UFCFighter
+from panoctagon.ufc.scrape.bets import parse_matchups_from_fighter_html
 
 RAW_ODDS_DIR = Path(__file__).parents[3] / "data" / "raw" / "ufc" / "betting_odds"
 SEARCH_STATE_PATH = RAW_ODDS_DIR / "search_state.json"
@@ -158,7 +159,12 @@ def parse_and_store_odds(force: bool = False) -> dict[str, int]:
         soup = bs4.BeautifulSoup(html, "html.parser")
         event_title = _parse_event_title(soup) or slug
 
-        matchups = parse_matchups_from_html(html)
+        is_fighter_page = html_path.parent.name == "fighters"
+        matchups = (
+            parse_matchups_from_fighter_html(html)
+            if is_fighter_page
+            else parse_matchups_from_html(html)
+        )
         event_odds: list[BFOParsedOdds] = []
 
         for matchup in matchups:
@@ -239,7 +245,9 @@ def link_bfo_to_ufc(force: bool = False) -> dict[str, int]:
                 col(BFOParsedOdds.slug),
                 col(BFOParsedOdds.event_title),
                 col(BFOParsedOdds.event_date),
-            ).distinct()
+            )
+            .where(col(BFOParsedOdds.match_id) == 28832)
+            .distinct()
         ).all()
 
         bfo_rows = session.exec(select(BFOParsedOdds)).all()

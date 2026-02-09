@@ -572,25 +572,31 @@ def parse_matchups_from_fighter_html(html: str) -> list[BFOMatchup]:
 
         data_li = json.loads(str(chart_cell["data-li"]))
         match_id = int(data_li[0])
+        player = int(data_li[1])
 
-        fighter1_tag = row.find("th", class_="oppcell")
-        if not fighter1_tag:
+        main_tag = row.find("th", class_="oppcell")
+        if not main_tag:
             continue
-        fighter1_link = fighter1_tag.find("a")
-        if not fighter1_link:
+        main_link = main_tag.find("a")
+        if not main_link:
             continue
-        fighter1 = fighter1_link.get_text(strip=True)
+        main_fighter = main_link.get_text(strip=True)
 
         next_row = row.find_next_sibling("tr")
         if not next_row:
             continue
-        fighter2_tag = next_row.find("th", class_="oppcell")
-        if not fighter2_tag:
+        sibling_tag = next_row.find("th", class_="oppcell")
+        if not sibling_tag:
             continue
-        fighter2_link = fighter2_tag.find("a")
-        if not fighter2_link:
+        sibling_link = sibling_tag.find("a")
+        if not sibling_link:
             continue
-        fighter2 = fighter2_link.get_text(strip=True)
+        sibling_fighter = sibling_link.get_text(strip=True)
+
+        if player == 1:
+            fighter1, fighter2 = main_fighter, sibling_fighter
+        else:
+            fighter1, fighter2 = sibling_fighter, main_fighter
 
         matchups.append(
             BFOMatchup(match_id=match_id, fighter1_name=fighter1, fighter2_name=fighter2)
