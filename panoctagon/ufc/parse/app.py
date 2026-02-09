@@ -1,6 +1,7 @@
 import random
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
+from typing import Optional
 
 import typer
 from sqlalchemy.sql.operators import is_not
@@ -155,10 +156,10 @@ def odds(force: bool = False) -> int:
 
 
 @app.command(name="link-odds")
-def link_odds(force: bool = False) -> int:
+def link_odds(force: bool = False, match_id: Optional[int] = None) -> int:
     setup = setup_panoctagon(title="BFO-UFC Odds Linker")
 
-    result = link_bfo_to_ufc(force=force)
+    result = link_bfo_to_ufc(force=force, match_id=match_id)
 
     print(setup.footer)
     return result["matched"]

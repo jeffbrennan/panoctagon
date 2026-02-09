@@ -164,7 +164,7 @@ def report_stats(stats: RunStats):
     elapsed_time_seconds = stats.end - stats.start
     print(f"elapsed time: {elapsed_time_seconds:.2f} seconds")
 
-    if stats.n_ops is not None:
+    if stats.n_ops is not None and stats.n_ops > 0:
         elapsed_time_seconds_per_event = elapsed_time_seconds / stats.n_ops
         print(f"elapsed time per {stats.op_name}: {elapsed_time_seconds_per_event:.2f} seconds")
 

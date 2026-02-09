@@ -141,6 +141,12 @@ class BFOUFCLink(SQLModel, table=True):
     event_uid: str
 
 
+class BFOFighterPageParsed(SQLModel, table=True):
+    __tablename__ = "bfo_fighter_page_parsed"  # pyright: ignore [reportAssignmentType]
+    slug: str = Field(primary_key=True)
+    parsed_ts: str
+
+
 class TempBulkDeleteTest(SQLModel, table=True):
     uid: str = Field(primary_key=True)
     another_col: str

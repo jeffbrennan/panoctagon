@@ -17,7 +17,12 @@ from panoctagon.common import (
 )
 from panoctagon.models import RunStats
 from panoctagon.tables import UFCEvent
-from panoctagon.ufc.scrape.bets import download_bfo_pages, download_fight_odds
+from panoctagon.ufc.scrape.bets import (
+    download_bfo_pages,
+    download_fight_odds,
+    download_fighter_page_odds,
+    scrape_bfo_fighter_pages,
+)
 from panoctagon.ufc.scrape.bios import (
     get_fighters_to_download,
     get_unparsed_fighters,
@@ -241,7 +246,7 @@ def fights(force: bool = False, max_workers: int = 8) -> int:
 
 
 @app.command()
-def event_odds(max_searches: Optional[int] = None) -> int:
+def event_pages(max_searches: Optional[int] = None) -> int:
     setup = setup_panoctagon(title="BFO Step 1: Download Event Pages")
 
     result = download_bfo_pages(max_searches=max_searches)
@@ -254,6 +259,48 @@ def event_odds(max_searches: Optional[int] = None) -> int:
             op_name="event page",
             successes=result["downloaded"],
             failures=0,
+        )
+    )
+
+    print(setup.footer)
+    return result["downloaded"]
+
+
+@app.command()
+def fighter_pages(max_downloads: Optional[int] = None) -> int:
+    setup = setup_panoctagon(title="BFO Step 1.5: Download Fighter Pages")
+
+    result = scrape_bfo_fighter_pages(max_downloads)
+
+    report_stats(
+        RunStats(
+            start=setup.start_time,
+            end=time.time(),
+            n_ops=result["downloaded"],
+            op_name="event page",
+            successes=result["downloaded"],
+            failures=0,
+        )
+    )
+
+    print(setup.footer)
+    return result["downloaded"]
+
+
+@app.command()
+def fighter_odds(max_downloads: Optional[int] = None) -> int:
+    setup = setup_panoctagon(title="BFO Step 2b: Download Fighter Page Odds")
+
+    result = download_fighter_page_odds(max_downloads=max_downloads)
+
+    report_stats(
+        RunStats(
+            start=setup.start_time,
+            end=time.time(),
+            n_ops=result["downloaded"] + result["failed"],
+            op_name="API response",
+            successes=result["downloaded"],
+            failures=result["failed"],
         )
     )
 

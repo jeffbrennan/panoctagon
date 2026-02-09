@@ -12,8 +12,8 @@ import bs4
 import requests
 from sqlmodel import Session, select
 
-from panoctagon.common import create_header, get_engine, get_current_time, write_data_to_db
-from panoctagon.tables import BFORawOdds, UFCEvent, UFCFighter
+from panoctagon.common import create_header, get_current_time, get_engine, write_data_to_db
+from panoctagon.tables import BFOFighterPageParsed, BFORawOdds, UFCEvent, UFCFighter
 
 BASE_URL = "https://www.bestfightodds.com"
 RAW_ODDS_DIR = Path(__file__).parents[3] / "data" / "raw" / "ufc" / "betting_odds"
@@ -23,7 +23,7 @@ USER_AGENT = (
     "Chrome/120.0.0.0 Safari/537.36"
 )
 
-SAVE_BATCH_SIZE = 25
+SAVE_BATCH_SIZE = 100
 
 
 class RateLimiter:
@@ -63,6 +63,12 @@ class BFOEvent:
 
 
 @dataclass
+class BFOFighter:
+    name: str
+    url: str
+
+
+@dataclass
 class BFOMatchup:
     match_id: int
     fighter1_name: str
@@ -77,13 +83,20 @@ def parse_bfo_date(date_str: str) -> datetime.date:
 SEARCH_STATE_PATH = RAW_ODDS_DIR / "search_state.json"
 
 
-def _load_search_state() -> dict[str, list[str]]:
+def _load_search_state() -> dict:
     if not SEARCH_STATE_PATH.exists():
-        return {"completed_terms": [], "discovered_events": []}
-    return json.loads(SEARCH_STATE_PATH.read_text(encoding="utf-8"))
+        return {
+            "completed_terms": [],
+            "discovered_events": [],
+            "discovered_fighters": [],
+            "scraped_fighter_urls": [],
+        }
+    state = json.loads(SEARCH_STATE_PATH.read_text(encoding="utf-8"))
+    state.setdefault("discovered_fighters", [])
+    return state
 
 
-def _save_search_state(state: dict[str, list[str]]) -> None:
+def _save_search_state(state: dict) -> None:
     SEARCH_STATE_PATH.parent.mkdir(exist_ok=True, parents=True)
     SEARCH_STATE_PATH.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
 
@@ -106,6 +119,7 @@ class SearchResult:
     events: list[dict[str, str]]
     status: int
     error: str | None = None
+    fighters: list[dict[str, str]] | None = None
 
 
 def _fetch_search(
@@ -114,6 +128,7 @@ def _fetch_search(
     limiter: RateLimiter,
 ) -> SearchResult:
     limiter.wait()
+    print(term)
     try:
         response = session.get(f"{BASE_URL}/search", params={"query": term}, timeout=30)
         if response.status_code != 200:
@@ -141,21 +156,59 @@ def _fetch_search(
 
         found.append({"slug": slug, "name": name, "url": url, "date_str": date_str})
 
-    return SearchResult(term=term, events=found, status=200)
+    fighters: list[dict[str, str]] = []
+    for link in soup.find_all("a", href=re.compile(r"/fighters/")):
+        href = str(link.get("href", ""))
+        name = link.get_text(strip=True)
+        if not name or not href:
+            continue
+        url = f"{BASE_URL}{href}" if href.startswith("/") else href
+        fighters.append({"name": name, "url": url})
+
+    return SearchResult(term=term, events=found, status=200, fighters=fighters)
+
+
+def _fetch_fighter_events(
+    session: requests.Session,
+    fighter_url: str,
+    limiter: RateLimiter,
+) -> list[dict[str, str]]:
+    limiter.wait()
+    try:
+        response = session.get(fighter_url, timeout=30)
+        if response.status_code != 200:
+            return []
+    except requests.RequestException:
+        return []
+
+    soup = bs4.BeautifulSoup(response.text, "html.parser")
+    events: list[dict[str, str]] = []
+    for link in soup.find_all("a", href=re.compile(r"/events/")):
+        href = str(link.get("href", ""))
+        name = link.get_text(strip=True)
+        if not name or not href or "future-events" in href:
+            continue
+        slug = href.rstrip("/").split("/")[-1]
+        url = f"{BASE_URL}{href}" if href.startswith("/") else href
+        events.append({"slug": slug, "name": name, "url": url, "date_str": ""})
+    return events
 
 
 def _run_searches(
     search_terms: list[str],
     session: requests.Session,
     max_searches: int | None,
-    max_workers: int = 3,
-    min_interval: float = 0.15,
+    max_workers: int = 4,
+    min_interval: float = 0.2,
 ) -> list[BFOEvent]:
     state = _load_search_state()
     completed_terms = set(state["completed_terms"])
     all_events: dict[str, dict[str, str]] = {
         e["slug"]: e
         for e in state.get("discovered_events", [])  # type: ignore[union-attr]
+    }
+    all_fighters: dict[str, dict[str, str]] = {
+        f["url"]: f for f in state.get("discovered_fighters", [])
     }
 
     pending_terms = [t for t in search_terms if t not in completed_terms]
@@ -196,6 +249,11 @@ def _run_searches(
                     all_events[event["slug"]] = event
                     new_in_batch += 1
 
+            if result.fighters:
+                for fighter in result.fighters:
+                    if fighter["url"] not in all_fighters:
+                        all_fighters[fighter["url"]] = fighter
+
             completed_terms.add(result.term)
             unsaved_count += 1
 
@@ -206,8 +264,10 @@ def _run_searches(
                 )
 
             if unsaved_count >= SAVE_BATCH_SIZE or processed == total:
+                print("saving...", processed)
                 state["completed_terms"] = sorted(completed_terms)
                 state["discovered_events"] = list(all_events.values())  # type: ignore[assignment]
+                state["discovered_fighters"] = list(all_fighters.values())
                 _save_search_state(state)
                 unsaved_count = 0
 
@@ -216,6 +276,7 @@ def _run_searches(
             f"{rate_limited} requests failed (rate limited/connection error), will retry next run"
         )
 
+    print(create_header(80, "FIGHTER PAGE SCRAPING", True, "-"))
     results: list[BFOEvent] = []
     for e in all_events.values():
         event_date = datetime.date.today()
@@ -263,65 +324,99 @@ def search_bfo_fighters(
     return _run_searches(search_terms, session, max_searches)
 
 
-def download_bfo_event_pages(
-    events: list[BFOEvent],
-    session: requests.Session,
+@dataclass
+class DownloadConfig:
+    obj: BFOEvent | BFOFighter
+    slug: str
+    filepath: Path
+
+
+def _run_download(
+    pending: list[DownloadConfig],
     min_interval: float = 0.15,
     max_workers: int = 3,
 ) -> int:
+    def _download(cfg: DownloadConfig) -> tuple[str, bool]:
+        limiter.wait()
+        try:
+            response = session.get(cfg.obj.url, timeout=30)
+            if response.status_code != 200:
+                return cfg.slug, False
+        except requests.RequestException:
+            return cfg.slug, False
+        cfg.filepath.write_text(response.text, encoding="utf-8")
+        return cfg.slug, True
+
+    limiter = RateLimiter(min_interval)
+    session = get_session()
+    downloaded = 0
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(_download, cfg): cfg.slug for cfg in pending}
+        for future in as_completed(futures):
+            _slug, success = future.result()
+            if success:
+                downloaded += 1
+                print(f"[{downloaded:04,d} / {len(pending):04,d}] downloaded {_slug}")
+            else:
+                print(f"failed {_slug}")
+    return downloaded
+
+
+def download_pages(objs: list[BFOFighter] | list[BFOEvent]) -> int:
     RAW_ODDS_DIR.mkdir(exist_ok=True, parents=True)
+    subdir = "fighters" if isinstance(objs[0], BFOFighter) else "events"
 
     pending = []
-    for event in events:
-        slug = event.url.rstrip("/").split("/")[-1]
-        filepath = RAW_ODDS_DIR / f"{slug}.html"
+    for obj in objs:
+        slug = obj.url.rstrip("/").split("/")[-1]
+        filepath = RAW_ODDS_DIR / subdir / f"{slug}.html"
         if not filepath.exists():
-            pending.append((event, slug, filepath))
+            pending.append(DownloadConfig(obj, slug, filepath))
 
     if not pending:
         return 0
 
-    limiter = RateLimiter(min_interval)
-    downloaded = 0
+    return _run_download(pending)
 
-    def _download(event: BFOEvent, slug: str, filepath: Path) -> tuple[str, bool]:
-        limiter.wait()
-        try:
-            response = session.get(event.url, timeout=30)
-            if response.status_code != 200:
-                return slug, False
-        except requests.RequestException:
-            return slug, False
-        filepath.write_text(response.text, encoding="utf-8")
-        return slug, True
 
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {
-            executor.submit(_download, event, slug, filepath): slug
-            for event, slug, filepath in pending
-        }
-        for future in as_completed(futures):
-            slug, success = future.result()
-            if success:
-                downloaded += 1
-                print(f"[n={downloaded:04d}] downloaded {slug}")
-            else:
-                print(f"failed {slug}")
+def scrape_bfo_fighter_pages(max_downloads: int | None = None) -> dict[str, int]:
+    fighter_dir = RAW_ODDS_DIR / "fighter"
+    search_state = RAW_ODDS_DIR / "search_state.json"
 
-    return downloaded
+    with search_state.open("r") as f:
+        searches = json.load(f)
+
+    fighters: list[BFOFighter] = [
+        BFOFighter(entry["name"], entry["url"]) for entry in searches["discovered_fighters"]
+    ]
+
+    scraped_slugs = [i.stem for i in fighter_dir.glob("*.html")]
+    unscraped_fighters = [
+        fighter
+        for fighter in fighters
+        if fighter.url.rstrip("/").split("/")[-1].lower() not in scraped_slugs
+    ]
+
+    if max_downloads is not None:
+        unscraped_fighters = unscraped_fighters[0 : min(len(unscraped_fighters), max_downloads)]
+
+    downloaded = download_pages(unscraped_fighters)
+    total_on_disk = len(list(fighter_dir.glob("*html")))
+    return {"downloaded": downloaded, "total_on_disk": total_on_disk}
 
 
 def download_bfo_pages(max_searches: int | None = None) -> dict[str, int]:
     print(create_header(80, "SEARCHING BFO EVENTS", True, "="))
+    event_dir = RAW_ODDS_DIR / "events"
     session = get_session()
     events = search_bfo_fighters(session, max_searches=max_searches)
 
     print(f"\n[n={len(events):5,d}] total events discovered")
 
     print(create_header(80, "DOWNLOADING EVENT PAGES", True, "="))
-    downloaded = download_bfo_event_pages(events, session)
+    downloaded = download_pages(events)
 
-    existing = len(list(RAW_ODDS_DIR.glob("*.html")))
+    existing = len(list(event_dir.glob("*.html")))
     print(f"\n[n={downloaded:5,d}] newly downloaded")
     print(f"[n={existing:5,d}] total on disk")
 
@@ -457,6 +552,152 @@ def download_fight_odds(
 
     if records:
         write_data_to_db(records)
+
+    total_in_db = len(_get_existing_odds_keys())
+    print(f"\n[n={downloaded:5,d}] newly downloaded")
+    print(f"[n={failed:5,d}] failed")
+    print(f"[n={total_in_db:5,d}] total in db")
+
+    return {"downloaded": downloaded, "failed": failed, "total_in_db": total_in_db}
+
+
+def parse_matchups_from_fighter_html(html: str) -> list[BFOMatchup]:
+    soup = bs4.BeautifulSoup(html, "html.parser")
+    matchups: list[BFOMatchup] = []
+
+    for row in soup.find_all("tr", class_="main-row"):
+        chart_cell = row.find("td", class_="chart-cell", attrs={"data-li": True})
+        if not chart_cell:
+            continue
+
+        data_li = json.loads(str(chart_cell["data-li"]))
+        match_id = int(data_li[0])
+        player = int(data_li[1])
+
+        main_tag = row.find("th", class_="oppcell")
+        if not main_tag:
+            continue
+        main_link = main_tag.find("a")
+        if not main_link:
+            continue
+        main_fighter = main_link.get_text(strip=True)
+
+        next_row = row.find_next_sibling("tr")
+        if not next_row:
+            continue
+        sibling_tag = next_row.find("th", class_="oppcell")
+        if not sibling_tag:
+            continue
+        sibling_link = sibling_tag.find("a")
+        if not sibling_link:
+            continue
+        sibling_fighter = sibling_link.get_text(strip=True)
+
+        if player == 1:
+            fighter1, fighter2 = main_fighter, sibling_fighter
+        else:
+            fighter1, fighter2 = sibling_fighter, main_fighter
+
+        matchups.append(
+            BFOMatchup(match_id=match_id, fighter1_name=fighter1, fighter2_name=fighter2)
+        )
+
+    return matchups
+
+
+def download_fighter_page_odds(
+    max_downloads: int | None = None,
+    max_workers: int = 3,
+    min_interval: float = 0.15,
+) -> dict[str, int]:
+    print(create_header(80, "DOWNLOADING FIGHTER PAGE ODDS API RESPONSES", True, "="))
+    session = get_session()
+
+    fighter_dir = RAW_ODDS_DIR / "fighters"
+    fighter_htmls = sorted(fighter_dir.glob("*.html"))
+    print(f"  {len(fighter_htmls)} fighter pages on disk")
+
+    engine = get_engine()
+    with Session(engine) as db_session:
+        parsed_slugs = set(db_session.exec(select(BFOFighterPageParsed.slug)).all())
+    print(f"  {len(parsed_slugs)} fighter pages already parsed")
+
+    unparsed_htmls = [p for p in fighter_htmls if p.stem not in parsed_slugs]
+    print(f"  {len(unparsed_htmls)} fighter pages to parse")
+
+    existing_keys = _get_existing_odds_keys()
+    print(f"  {len(existing_keys)} API responses already in db")
+
+    pending: list[tuple[int, int, str, str]] = []
+    slugs_with_pending: set[str] = set()
+    all_unparsed_slugs: list[str] = []
+
+    for html_path in unparsed_htmls:
+        slug = html_path.stem
+        all_unparsed_slugs.append(slug)
+        html = html_path.read_text(encoding="utf-8")
+        matchups = parse_matchups_from_fighter_html(html)
+        for matchup in matchups:
+            for player in (1, 2):
+                fighter = f"f{player}"
+                if (matchup.match_id, fighter) not in existing_keys:
+                    name = matchup.fighter1_name if player == 1 else matchup.fighter2_name
+                    pending.append((matchup.match_id, player, name, slug))
+                    slugs_with_pending.add(slug)
+
+    print(f"  {len(pending)} new API responses to download")
+
+    if max_downloads is not None:
+        pending = pending[:max_downloads]
+
+    downloaded = 0
+    failed = 0
+    total = len(pending)
+    limiter = RateLimiter(min_interval)
+    records: list[BFORawOdds] = []
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(_fetch_api, session, match_id, player, limiter): (
+                match_id,
+                player,
+                name,
+                slug,
+            )
+            for match_id, player, name, slug in pending
+        }
+        for future in as_completed(futures):
+            match_id, player, response_text = future.result()
+            name = futures[future][2]
+            slug = futures[future][3]
+            if response_text is not None:
+                downloaded += 1
+                records.append(
+                    BFORawOdds(
+                        match_id=match_id,
+                        fighter=f"f{player}",
+                        slug=slug,
+                        value=response_text,
+                        downloaded_ts=get_current_time().isoformat(timespec="seconds"),
+                    )
+                )
+                print(f"[{downloaded}/{total}] m={match_id} p={player} {name}")
+            else:
+                failed += 1
+                print(f"[{downloaded}/{total}] FAILED m={match_id} p={player} {name}")
+
+            if len(records) >= SAVE_BATCH_SIZE:
+                write_data_to_db(records)
+                records = []
+
+    if records:
+        write_data_to_db(records)
+
+    now = get_current_time().isoformat(timespec="seconds")
+    completed_slugs = [s for s in all_unparsed_slugs if s not in slugs_with_pending]
+    parsed_records = [BFOFighterPageParsed(slug=slug, parsed_ts=now) for slug in completed_slugs]
+    if parsed_records:
+        write_data_to_db(parsed_records)
 
     total_in_db = len(_get_existing_odds_keys())
     print(f"\n[n={downloaded:5,d}] newly downloaded")
