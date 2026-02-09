@@ -11,19 +11,21 @@ from panoctagon.promotions import setup_promotions
 
 db_path = panoctagon_project.project_dir.joinpath("data/panoctagon_orm.duckdb")
 
+DB_WRITE = {"duckdb_write": "true"}
 
-@dbt_assets(manifest=panoctagon_project.manifest_path)
+
+@dbt_assets(manifest=panoctagon_project.manifest_path, op_tags=DB_WRITE)
 def panoctagon_dbt_assets(context: AssetExecutionContext, dbt: DbtCliResource) -> Any:
     yield from dbt.cli(["build"], context=context).stream()
 
 
-@asset(compute_kind="python", key=["ufc_events"], deps=["divisions"])
+@asset(compute_kind="python", key=["ufc_events"], deps=["divisions"], op_tags=DB_WRITE)
 def dagster_scrape_events(context: AssetExecutionContext) -> None:
     n_new_events = scrape.events()
     context.add_output_metadata({"n_records": n_new_events})
 
 
-@asset(compute_kind="python", key=["scrape_fights"], deps=["ufc_events"])
+@asset(compute_kind="python", key=["scrape_fights"], deps=["ufc_events"], op_tags=DB_WRITE)
 def dagster_scrape_fights(context: AssetExecutionContext) -> None:
     n_new_fights = scrape.fights()
     context.add_output_metadata({"n_records": n_new_fights})
@@ -35,6 +37,7 @@ def dagster_scrape_fights(context: AssetExecutionContext) -> None:
         AssetSpec("ufc_fights", deps=["scrape_fights"]),
         AssetSpec("ufc_fight_stats", deps=["scrape_fights"]),
     ],
+    op_tags=DB_WRITE,
 )
 def dagster_parse_fights(context: AssetExecutionContext) -> tuple[None, None]:
     n_records = parse.fights()
@@ -49,7 +52,7 @@ def dagster_scrape_fighters(context: AssetExecutionContext) -> None:
     context.add_output_metadata({"n_records": n_new_fighters})
 
 
-@asset(compute_kind="python", key=["ufc_fighters_stg"], deps=["scrape_fighters"])
+@asset(compute_kind="python", key=["ufc_fighters_stg"], deps=["scrape_fighters"], op_tags=DB_WRITE)
 def dagster_parse_fighters(context: AssetExecutionContext) -> None:
     n_records = parse.fighters()
     context.add_output_metadata({"n_records": n_records})
@@ -61,7 +64,7 @@ def dagster_scrape_fighter_bio(context: AssetExecutionContext) -> None:
     context.add_output_metadata({"n_records": n_bios})
 
 
-@asset(compute_kind="python", key=["ufc_fighters"], deps=["scrape_fighter_bio"])
+@asset(compute_kind="python", key=["ufc_fighters"], deps=["scrape_fighter_bio"], op_tags=DB_WRITE)
 def dagster_parse_fighter_bio(context: AssetExecutionContext) -> None:
     n_bios = parse.bios()
     context.add_output_metadata({"n_records": n_bios})
@@ -79,19 +82,24 @@ def dagster_scrape_bfo_fighters(context: AssetExecutionContext) -> None:
     context.add_output_metadata({"n_records": n_downloaded})
 
 
-@asset(compute_kind="python", key=["bfo_raw_odds"], deps=["scrape_bfo_fighters"])
+@asset(compute_kind="python", key=["bfo_raw_odds"], deps=["scrape_bfo_fighters"], op_tags=DB_WRITE)
 def dagster_scrape_bfo_odds(context: AssetExecutionContext) -> None:
     n_downloaded = scrape.fight_odds()
     context.add_output_metadata({"n_records": n_downloaded})
 
 
-@asset(compute_kind="python", key=["bfo_fighter_odds"], deps=["scrape_bfo_fighters"])
+@asset(compute_kind="python", key=["bfo_fighter_odds"], deps=["scrape_bfo_fighters"], op_tags=DB_WRITE)
 def dagster_scrape_bfo_fighter_odds(context: AssetExecutionContext) -> None:
     n_downloaded = scrape.fighter_odds()
     context.add_output_metadata({"n_records": n_downloaded})
 
 
-@asset(compute_kind="python", key=["bfo_parsed_odds"], deps=["bfo_raw_odds", "bfo_fighter_odds"])
+@asset(
+    compute_kind="python",
+    key=["bfo_parsed_odds"],
+    deps=["bfo_raw_odds", "bfo_fighter_odds"],
+    op_tags=DB_WRITE,
+)
 def dagster_parse_bfo_odds(context: AssetExecutionContext) -> None:
     n_saved = parse.odds()
     context.add_output_metadata({"n_records": n_saved})
@@ -101,17 +109,18 @@ def dagster_parse_bfo_odds(context: AssetExecutionContext) -> None:
     compute_kind="python",
     key=["bfo_ufc_link"],
     deps=["bfo_parsed_odds", "ufc_fights", "ufc_fighters"],
+    op_tags=DB_WRITE,
 )
 def dagster_link_bfo_odds(context: AssetExecutionContext) -> None:
     n_matched = parse.link_odds()
     context.add_output_metadata({"n_records": n_matched})
 
 
-@asset(compute_kind="python", key=["divisions"], deps=["promotions"])
+@asset(compute_kind="python", key=["divisions"], deps=["promotions"], op_tags=DB_WRITE)
 def dagster_divisions():
     setup_divisions()
 
 
-@asset(compute_kind="python", key=["promotions"])
+@asset(compute_kind="python", key=["promotions"], op_tags=DB_WRITE)
 def dagster_promotions():
     setup_promotions()
