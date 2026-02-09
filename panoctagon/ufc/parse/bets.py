@@ -348,9 +348,13 @@ def link_bfo_to_ufc(force: bool = False) -> dict[str, int]:
     def _find_best_fighter(name: str) -> tuple[str | None, float]:
         if name in fighter_match_cache:
             return fighter_match_cache[name]
+        name_lower = name.lower()
+        exact = ufc_fighter_name_index.get(name_lower)
+        if exact:
+            fighter_match_cache[name] = (exact, 1.0)
+            return exact, 1.0
         best_uid = None
         best_ratio = 0.0
-        name_lower = name.lower()
         for full_name, fuid in ufc_fighter_name_index.items():
             ratio = SequenceMatcher(None, name_lower, full_name).ratio()
             if ratio > best_ratio:
