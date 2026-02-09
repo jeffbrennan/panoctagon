@@ -8,7 +8,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
 WORKDIR /panoctagon
 
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml uv.lock readme.md ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 COPY panoctagon/ ./panoctagon

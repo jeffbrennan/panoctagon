@@ -9,7 +9,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
 WORKDIR /panoctagon
 
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml uv.lock readme.md ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 COPY panoctagon/ ./panoctagon
@@ -17,12 +17,10 @@ COPY panoctagon/ ./panoctagon
 COPY dbt_project.yml .
 COPY profiles.yml .
 COPY packages.yml .
-COPY dbt_packages/ ./dbt_packages
-COPY target/ ./target
 COPY models/ ./models
 
 RUN uv run dbt deps --profiles-dir .
 
 EXPOSE 3000
 
-ENTRYPOINT ["uv", "run", "dagster-webserver", "-h", "0.0.0.0", "-p", "3000", "--path-prefix", "/dagster"]
+ENTRYPOINT ["sh", "-c", "uv run dbt compile --profiles-dir . && uv run dagster-webserver -h 0.0.0.0 -p 3000 --path-prefix /dagster"]
