@@ -4,18 +4,19 @@ services:
       context: .
       dockerfile: Dockerfile-backend
     labels:
-      - "traefik.http.routers.panoctagon_backend.rule=Host(`backend.panoctagon.com`)"
       - "traefik.enable=true"
+      - "traefik.http.routers.panoctagon_backend.rule=Host(`panoctagon.jeffbrennan.dev`) && PathPrefix(`/dagster`)"
       - "traefik.http.routers.panoctagon_backend.entrypoints=websecure"
       - "traefik.http.routers.panoctagon_backend.tls.certresolver=myresolver"
-      - "traefik.http.routers.panoctagon_backend.middlewares=auth"
-      - "traefik.http.middlewares.auth.basicauth.users=${BACKEND_ADMIN}:${BACKEND_HASH}"
+      - "traefik.http.routers.panoctagon_backend.middlewares=panoctagon-auth"
+      - "traefik.http.middlewares.panoctagon-auth.basicauth.users=${BACKEND_ADMIN}:${BACKEND_HASH}"
+      - "traefik.http.services.panoctagon_backend.loadbalancer.server.port=3000"
     volumes:
       - panoctagon_data:/panoctagon/data
     networks:
       - jb-proxy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/server_info"]
+      test: ["CMD", "curl", "-f", "http://localhost:3000/dagster/server_info"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -26,10 +27,12 @@ services:
       context: .
       dockerfile: Dockerfile-api
     labels:
-      - "traefik.http.routers.panoctagon_api.rule=Host(`api.panoctagon.com`)"
       - "traefik.enable=true"
+      - "traefik.http.routers.panoctagon_api.rule=Host(`panoctagon.jeffbrennan.dev`) && PathPrefix(`/api`)"
       - "traefik.http.routers.panoctagon_api.entrypoints=websecure"
       - "traefik.http.routers.panoctagon_api.tls.certresolver=myresolver"
+      - "traefik.http.routers.panoctagon_api.middlewares=panoctagon-api-strip"
+      - "traefik.http.middlewares.panoctagon-api-strip.stripprefix.prefixes=/api"
       - "traefik.http.services.panoctagon_api.loadbalancer.server.port=8000"
     volumes:
       - panoctagon_data:/panoctagon/data
@@ -47,10 +50,11 @@ services:
       context: .
       dockerfile: Dockerfile-frontend
     labels:
-      - "traefik.http.routers.panoctagon_frontend.rule=Host(`panoctagon.com`)"
       - "traefik.enable=true"
+      - "traefik.http.routers.panoctagon_frontend.rule=Host(`panoctagon.jeffbrennan.dev`)"
       - "traefik.http.routers.panoctagon_frontend.entrypoints=websecure"
       - "traefik.http.routers.panoctagon_frontend.tls.certresolver=myresolver"
+      - "traefik.http.routers.panoctagon_frontend.priority=1"
       - "traefik.http.services.panoctagon_frontend.loadbalancer.server.port=8050"
     volumes:
       - panoctagon_data:/panoctagon/data
