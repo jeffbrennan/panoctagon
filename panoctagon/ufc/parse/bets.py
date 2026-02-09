@@ -254,7 +254,7 @@ def _fuzzy_ratio(a: str, b: str) -> float:
     return SequenceMatcher(None, a.strip(". ").lower(), b.strip(". ").lower()).ratio()
 
 
-def link_bfo_to_ufc(force: bool = False) -> dict[str, int]:
+def link_bfo_to_ufc(force: bool = False, match_id: int | None = None) -> dict[str, int]:
     print(create_header(80, "LINKING BFO ODDS TO UFC FIGHTS", True, "="))
 
     engine = get_engine()
@@ -273,7 +273,10 @@ def link_bfo_to_ufc(force: bool = False) -> dict[str, int]:
             ).distinct()
         ).all()
 
-        bfo_rows = session.exec(select(BFOParsedOdds)).all()
+        bfo_query = select(BFOParsedOdds)
+        if match_id is not None:
+            bfo_query = bfo_query.where(col(BFOParsedOdds.match_id) == match_id)
+        bfo_rows = session.exec(bfo_query).all()
 
         existing_keys: set[tuple[int, str]] = set()
         if not force:
@@ -419,24 +422,35 @@ def link_bfo_to_ufc(force: bool = False) -> dict[str, int]:
             unmatched_event += 1
             continue
 
-        shared_fight = None
+        shared_fights = []
         for fight in fights_by_fighter.get(fighter_uid, []):
             other = fight.fighter2_uid if fight.fighter1_uid == fighter_uid else fight.fighter1_uid
             if other == partner_uid:
-                shared_fight = fight
-                break
+                shared_fights.append(fight)
 
-        if not shared_fight:
+        if not shared_fights:
             unmatched_event += 1
             continue
+
+        best_shared = shared_fights[0]
+        if len(shared_fights) > 1:
+            norm_bfo = _normalize_title(row.event_title)
+            best_event_ratio = 0.0
+            for fight in shared_fights:
+                evt = ufc_events.get(fight.event_uid)
+                if evt:
+                    ratio = _fuzzy_ratio(norm_bfo, _normalize_title(evt.title))
+                    if ratio > best_event_ratio:
+                        best_event_ratio = ratio
+                        best_shared = fight
 
         links.append(
             BFOUFCLink(
                 match_id=row.match_id,
                 fighter=row.fighter,
-                fight_uid=shared_fight.fight_uid,
+                fight_uid=best_shared.fight_uid,
                 fighter_uid=fighter_uid,
-                event_uid=shared_fight.event_uid,
+                event_uid=best_shared.event_uid,
             )
         )
         matched_fallback += 1
