@@ -251,7 +251,7 @@ def _normalize_title(title: str) -> str:
 
 
 def _fuzzy_ratio(a: str, b: str) -> float:
-    return SequenceMatcher(None, a.lower(), b.lower()).ratio()
+    return SequenceMatcher(None, a.strip(". ").lower(), b.strip(". ").lower()).ratio()
 
 
 def link_bfo_to_ufc(force: bool = False) -> dict[str, int]:
@@ -348,7 +348,7 @@ def link_bfo_to_ufc(force: bool = False) -> dict[str, int]:
     def _find_best_fighter(name: str) -> tuple[str | None, float]:
         if name in fighter_match_cache:
             return fighter_match_cache[name]
-        name_lower = name.lower()
+        name_lower = name.strip(". ").lower()
         exact = ufc_fighter_name_index.get(name_lower)
         if exact:
             fighter_match_cache[name] = (exact, 1.0)
@@ -401,9 +401,6 @@ def link_bfo_to_ufc(force: bool = False) -> dict[str, int]:
                     )
                 )
                 matched += 1
-                continue
-            else:
-                unmatched_fighter += 1
                 continue
 
         partner_rows = bfo_rows_by_match.get(row.match_id, [])
