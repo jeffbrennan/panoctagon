@@ -8,37 +8,68 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.panoctagon_backend.entrypoints=websecure"
       - "traefik.http.routers.panoctagon_backend.tls.certresolver=myresolver"
-
       - "traefik.http.routers.panoctagon_backend.middlewares=auth"
       - "traefik.http.middlewares.auth.basicauth.users=${BACKEND_ADMIN}:${BACKEND_HASH}"
     volumes:
       - panoctagon_data:/panoctagon/data
     networks:
       - jb-proxy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/server_info"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  panoctagon_api:
+    build:
+      context: .
+      dockerfile: Dockerfile-api
+    labels:
+      - "traefik.http.routers.panoctagon_api.rule=Host(`api.panoctagon.com`)"
+      - "traefik.enable=true"
+      - "traefik.http.routers.panoctagon_api.entrypoints=websecure"
+      - "traefik.http.routers.panoctagon_api.tls.certresolver=myresolver"
+      - "traefik.http.services.panoctagon_api.loadbalancer.server.port=8000"
+    volumes:
+      - panoctagon_data:/panoctagon/data
+    networks:
+      - jb-proxy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
   panoctagon_frontend:
     build:
       context: .
       dockerfile: Dockerfile-frontend
-    deploy:
-      mode: replicated
-      replicas: 3
     labels:
       - "traefik.http.routers.panoctagon_frontend.rule=Host(`panoctagon.com`)"
       - "traefik.enable=true"
       - "traefik.http.routers.panoctagon_frontend.entrypoints=websecure"
       - "traefik.http.routers.panoctagon_frontend.tls.certresolver=myresolver"
+      - "traefik.http.services.panoctagon_frontend.loadbalancer.server.port=8050"
     volumes:
       - panoctagon_data:/panoctagon/data
     networks:
       - jb-proxy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8050/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
 volumes:
-  letsencrypt:
   panoctagon_data:
-      driver: local
-      driver_opts:
-        type: 'none'
-        o: 'bind'
-        device: 'data'
+    driver: local
+    driver_opts:
+      type: 'none'
+      o: 'bind'
+      device: 'data'
 
 networks:
   jb-proxy:
