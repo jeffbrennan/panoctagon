@@ -245,9 +245,7 @@ def link_bfo_to_ufc(force: bool = False) -> dict[str, int]:
                 col(BFOParsedOdds.slug),
                 col(BFOParsedOdds.event_title),
                 col(BFOParsedOdds.event_date),
-            )
-            .where(col(BFOParsedOdds.match_id) == 28832)
-            .distinct()
+            ).distinct()
         ).all()
 
         bfo_rows = session.exec(select(BFOParsedOdds)).all()
