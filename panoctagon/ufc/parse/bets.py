@@ -132,25 +132,25 @@ def parse_and_store_odds(force: bool = False) -> dict[str, int]:
         raw_odds_rows = session.exec(select(BFORawOdds)).all()
         existing_slugs: set[str] = set()
         if not force:
-            rows = session.exec(
-                select(col(BFOParsedOdds.slug)).distinct()
-            ).all()
+            rows = session.exec(select(col(BFOParsedOdds.slug)).distinct()).all()
             existing_slugs = set(rows)
 
     raw_odds_index: dict[tuple[int, str], str] = {}
     for row in raw_odds_rows:
         raw_odds_index[(row.match_id, row.fighter)] = row.value
 
-    event_htmls = sorted(RAW_ODDS_DIR.glob("*.html"))
+    event_path = RAW_ODDS_DIR / "events"
+    fighter_path = RAW_ODDS_DIR / "fighters"
+    htmls = sorted(event_path.glob("*.html")) + sorted(fighter_path.glob("*.html"))
     if not force:
-        event_htmls = [p for p in event_htmls if p.stem not in existing_slugs]
-    print(f"  {len(event_htmls)} event pages to parse")
+        htmls = [p for p in htmls if p.stem not in existing_slugs]
+    print(f"  {len(htmls):,} pages to parse")
 
     total_saved = 0
     events_with_odds = 0
     events_without_odds = 0
 
-    for html_path in event_htmls:
+    for html_path in htmls:
         slug = html_path.stem
         event_date = slug_to_date.get(slug, "")
 
@@ -162,7 +162,10 @@ def parse_and_store_odds(force: bool = False) -> dict[str, int]:
         event_odds: list[BFOParsedOdds] = []
 
         for matchup in matchups:
-            for fighter_key, fighter_name in [("f1", matchup.fighter1_name), ("f2", matchup.fighter2_name)]:
+            for fighter_key, fighter_name in [
+                ("f1", matchup.fighter1_name),
+                ("f2", matchup.fighter2_name),
+            ]:
                 value = raw_odds_index.get((matchup.match_id, fighter_key))
                 if value is None:
                     continue
@@ -171,6 +174,7 @@ def parse_and_store_odds(force: bool = False) -> dict[str, int]:
                 if opening is None and closing is None:
                     continue
 
+                print(matchup.match_id)
                 event_odds.append(
                     BFOParsedOdds(
                         match_id=matchup.match_id,
