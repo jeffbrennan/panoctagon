@@ -1,7 +1,7 @@
 import base64
 import json
 import re
-from dataclasses import dataclass
+from concurrent.futures import ProcessPoolExecutor
 from difflib import SequenceMatcher
 from pathlib import Path
 
@@ -11,17 +11,10 @@ from sqlmodel import Session, SQLModel, col, select
 
 from panoctagon.common import create_header, get_engine
 from panoctagon.tables import BFOParsedOdds, BFORawOdds, BFOUFCLink, UFCEvent, UFCFight, UFCFighter
-from panoctagon.ufc.scrape.bets import parse_matchups_from_fighter_html
+from panoctagon.ufc.scrape.bets import BFOMatchup, parse_matchups_from_fighter_html
 
 RAW_ODDS_DIR = Path(__file__).parents[3] / "data" / "raw" / "ufc" / "betting_odds"
 SEARCH_STATE_PATH = RAW_ODDS_DIR / "search_state.json"
-
-
-@dataclass
-class BFOMatchup:
-    match_id: int
-    fighter1_name: str
-    fighter2_name: str
 
 
 def parse_matchups_from_html(html: str) -> list[BFOMatchup]:
@@ -121,7 +114,26 @@ def _extract_mean_odds(value: str) -> tuple[int | None, int | None]:
     return None, None
 
 
-def parse_and_store_odds(force: bool = False) -> dict[str, int]:
+def _parse_page(html_path: Path) -> tuple[str, str, bool, list[BFOMatchup]]:
+    slug = html_path.stem
+    is_fighter_page = html_path.parent.name == "fighters"
+    html = html_path.read_text(encoding="utf-8")
+
+    if is_fighter_page:
+        matchups = parse_matchups_from_fighter_html(html)
+        event_title = slug
+    else:
+        matchups = parse_matchups_from_html(html)
+        soup = bs4.BeautifulSoup(html, "html.parser")
+        event_title = _parse_event_title(soup) or slug
+
+    return slug, event_title, is_fighter_page, matchups
+
+
+SAVE_BATCH_SIZE = 500
+
+
+def parse_and_store_odds(force: bool = False, max_workers: int = 8) -> dict[str, int]:
     print(create_header(80, "PARSING BFO ODDS", True, "="))
 
     engine = get_engine()
@@ -142,36 +154,37 @@ def parse_and_store_odds(force: bool = False) -> dict[str, int]:
 
     event_path = RAW_ODDS_DIR / "events"
     fighter_path = RAW_ODDS_DIR / "fighters"
-    htmls = sorted(event_path.glob("*.html")) + sorted(fighter_path.glob("*.html"))
+    event_htmls = sorted(event_path.glob("*.html"))
+    fighter_htmls = sorted(fighter_path.glob("*.html"))
+    all_htmls = event_htmls + fighter_htmls
     if not force:
-        htmls = [p for p in htmls if p.stem not in existing_slugs]
-    print(f"  {len(htmls):,} pages to parse")
+        all_htmls = [p for p in all_htmls if p.stem not in existing_slugs]
+    print(f"  {len(all_htmls):,} pages to parse")
+
+    print("  parsing HTML...")
+    parsed_pages: list[tuple[str, str, bool, list[BFOMatchup]]] = []
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        parsed_pages = list(executor.map(_parse_page, all_htmls, chunksize=64))
+    print(f"  parsed {len(parsed_pages):,} pages")
 
     total_saved = 0
     events_with_odds = 0
     events_without_odds = 0
+    seen_keys: set[tuple[int, str]] = set()
+    pending_odds: list[BFOParsedOdds] = []
 
-    for html_path in htmls:
-        slug = html_path.stem
+    for slug, event_title, is_fighter_page, matchups in parsed_pages:
         event_date = slug_to_date.get(slug, "")
-
-        html = html_path.read_text(encoding="utf-8")
-        soup = bs4.BeautifulSoup(html, "html.parser")
-        event_title = _parse_event_title(soup) or slug
-
-        is_fighter_page = html_path.parent.name == "fighters"
-        matchups = (
-            parse_matchups_from_fighter_html(html)
-            if is_fighter_page
-            else parse_matchups_from_html(html)
-        )
-        event_odds: list[BFOParsedOdds] = []
+        page_had_odds = False
 
         for matchup in matchups:
             for fighter_key, fighter_name in [
                 ("f1", matchup.fighter1_name),
                 ("f2", matchup.fighter2_name),
             ]:
+                if is_fighter_page and (matchup.match_id, fighter_key) in seen_keys:
+                    continue
+
                 value = raw_odds_index.get((matchup.match_id, fighter_key))
                 if value is None:
                     continue
@@ -180,8 +193,9 @@ def parse_and_store_odds(force: bool = False) -> dict[str, int]:
                 if opening is None and closing is None:
                     continue
 
-                print(matchup.match_id)
-                event_odds.append(
+                seen_keys.add((matchup.match_id, fighter_key))
+                page_had_odds = True
+                pending_odds.append(
                     BFOParsedOdds(
                         match_id=matchup.match_id,
                         fighter=fighter_key,
@@ -194,15 +208,26 @@ def parse_and_store_odds(force: bool = False) -> dict[str, int]:
                     )
                 )
 
-        if event_odds:
-            with Session(engine) as session:
-                for odd in event_odds:
-                    session.merge(odd)
-                session.commit()
-            total_saved += len(event_odds)
+        if page_had_odds:
             events_with_odds += 1
         else:
             events_without_odds += 1
+
+        if len(pending_odds) >= SAVE_BATCH_SIZE:
+            with Session(engine) as session:
+                for odd in pending_odds:
+                    session.merge(odd)
+                session.commit()
+            total_saved += len(pending_odds)
+            print(f"  [n={total_saved:,}] saved so far")
+            pending_odds = []
+
+    if pending_odds:
+        with Session(engine) as session:
+            for odd in pending_odds:
+                session.merge(odd)
+            session.commit()
+        total_saved += len(pending_odds)
 
     print(f"\n[n={events_with_odds:5,d}] events with odds")
     print(f"[n={events_without_odds:5,d}] events without odds")
