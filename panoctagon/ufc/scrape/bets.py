@@ -573,12 +573,6 @@ def parse_matchups_from_fighter_html(html: str) -> list[BFOMatchup]:
         data_li = json.loads(str(chart_cell["data-li"]))
         match_id = int(data_li[0])
 
-        event_header = row.find_previous_sibling("tr", class_="event-header")
-        if event_header:
-            event_link = event_header.find("a", href=True)
-            if event_link and "future-events" in event_link["href"]:
-                continue
-
         fighter1_tag = row.find("th", class_="oppcell")
         if not fighter1_tag:
             continue
@@ -695,9 +689,7 @@ def download_fighter_page_odds(
 
     now = get_current_time().isoformat(timespec="seconds")
     completed_slugs = [s for s in all_unparsed_slugs if s not in slugs_with_pending]
-    parsed_records = [
-        BFOFighterPageParsed(slug=slug, parsed_ts=now) for slug in completed_slugs
-    ]
+    parsed_records = [BFOFighterPageParsed(slug=slug, parsed_ts=now) for slug in completed_slugs]
     if parsed_records:
         write_data_to_db(parsed_records)
 
