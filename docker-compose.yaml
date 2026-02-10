@@ -28,6 +28,16 @@ services:
       retries: 3
       start_period: 30s
 
+  panoctagon_daemon:
+    build:
+      context: .
+      dockerfile: Dockerfile-backend
+    entrypoint: ["sh", "-c", "uv run dbt compile --profiles-dir . && uv run dagster-daemon run"]
+    volumes:
+      - panoctagon_data:/panoctagon/data
+    networks:
+      - jb-proxy
+
   panoctagon_api:
     build:
       context: .
