@@ -9,14 +9,20 @@ services:
       - "traefik.http.routers.panoctagon_backend.entrypoints=websecure"
       - "traefik.http.routers.panoctagon_backend.tls.certresolver=myresolver"
       - "traefik.http.routers.panoctagon_backend.middlewares=panoctagon-auth"
-      - "traefik.http.middlewares.panoctagon-auth.basicauth.users=${BACKEND_ADMIN}:${BACKEND_HASH}"
+      - "traefik.http.middlewares.panoctagon-auth.basicauth.users=${BACKEND_ADMIN}:$$2y$$05$$YLM2DnPfJhDNww7lXxN5J.t2WH/utCeYkQcYQeNSyQO2uEELpl7W2"
       - "traefik.http.services.panoctagon_backend.loadbalancer.server.port=3000"
     volumes:
       - panoctagon_data:/panoctagon/data
     networks:
       - jb-proxy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:3000/dagster/server_info')"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:3000/dagster/server_info')",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -39,7 +45,13 @@ services:
     networks:
       - jb-proxy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -61,7 +73,13 @@ services:
     networks:
       - jb-proxy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8050/')"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8050/')",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -71,9 +89,9 @@ volumes:
   panoctagon_data:
     driver: local
     driver_opts:
-      type: 'none'
-      o: 'bind'
-      device: 'data'
+      type: "none"
+      o: "bind"
+      device: "data"
 
 networks:
   jb-proxy:
