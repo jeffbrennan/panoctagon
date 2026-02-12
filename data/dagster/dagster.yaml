@@ -1,6 +1,11 @@
 telemetry:
   enabled: false
 
+concurrency:
+  pools:
+    default_limit: 1
+    granularity: "op"
+
 storage:
   sqlite:
     base_dir: data/dagster/storage
