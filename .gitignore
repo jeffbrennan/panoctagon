@@ -32,3 +32,5 @@ helpers/
 *.duckdb
 .claude
 data/raw/ufc/betting_odds/search_state.json
+data/raw/ufc/betting_odds/parsed_slugs.json
+data/raw/ufc/betting_odds/attempted_links.json
