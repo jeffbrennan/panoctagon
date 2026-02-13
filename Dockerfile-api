@@ -12,8 +12,7 @@ COPY pyproject.toml uv.lock readme.md ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 COPY panoctagon/ ./panoctagon
-COPY gunicorn_config.py .
 
-EXPOSE 8050
+EXPOSE 8000
 
-ENTRYPOINT ["uv", "run", "gunicorn", "--config", "gunicorn_config.py", "panoctagon.dashboard.main:server"]
+ENTRYPOINT ["uv", "run", "uvicorn", "panoctagon.api.server:app", "--host", "0.0.0.0", "--port", "8000", "--root-path", "/api"]

@@ -4,41 +4,104 @@ services:
       context: .
       dockerfile: Dockerfile-backend
     labels:
-      - "traefik.http.routers.panoctagon_backend.rule=Host(`backend.panoctagon.com`)"
       - "traefik.enable=true"
+      - "traefik.http.routers.panoctagon_backend.rule=Host(`panoctagon.jeffbrennan.dev`) && PathPrefix(`/dagster`)"
       - "traefik.http.routers.panoctagon_backend.entrypoints=websecure"
       - "traefik.http.routers.panoctagon_backend.tls.certresolver=myresolver"
-
-      - "traefik.http.routers.panoctagon_backend.middlewares=auth"
-      - "traefik.http.middlewares.auth.basicauth.users=${BACKEND_ADMIN}:${BACKEND_HASH}"
+      - "traefik.http.routers.panoctagon_backend.middlewares=panoctagon-auth"
+      - "traefik.http.middlewares.panoctagon-auth.basicauth.users=${BACKEND_ADMIN}:$$2y$$05$$YLM2DnPfJhDNww7lXxN5J.t2WH/utCeYkQcYQeNSyQO2uEELpl7W2"
+      - "traefik.http.services.panoctagon_backend.loadbalancer.server.port=3000"
     volumes:
       - panoctagon_data:/panoctagon/data
     networks:
       - jb-proxy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:3000/dagster/server_info')",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  panoctagon_daemon:
+    build:
+      context: .
+      dockerfile: Dockerfile-backend
+    entrypoint: ["sh", "-c", "uv run dbt compile --profiles-dir . && uv run dagster instance concurrency set duckdb_write 1 && uv run dagster-daemon run"]
+    volumes:
+      - panoctagon_data:/panoctagon/data
+    networks:
+      - jb-proxy
+
+  panoctagon_api:
+    build:
+      context: .
+      dockerfile: Dockerfile-api
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.panoctagon_api.rule=Host(`panoctagon.jeffbrennan.dev`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.panoctagon_api.entrypoints=websecure"
+      - "traefik.http.routers.panoctagon_api.tls.certresolver=myresolver"
+      - "traefik.http.routers.panoctagon_api.middlewares=panoctagon-api-strip"
+      - "traefik.http.middlewares.panoctagon-api-strip.stripprefix.prefixes=/api"
+      - "traefik.http.services.panoctagon_api.loadbalancer.server.port=8000"
+    volumes:
+      - panoctagon_data:/panoctagon/data
+    networks:
+      - jb-proxy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
   panoctagon_frontend:
     build:
       context: .
       dockerfile: Dockerfile-frontend
-    deploy:
-      mode: replicated
-      replicas: 3
     labels:
-      - "traefik.http.routers.panoctagon_frontend.rule=Host(`panoctagon.com`)"
       - "traefik.enable=true"
+      - "traefik.http.routers.panoctagon_frontend.rule=Host(`panoctagon.jeffbrennan.dev`)"
       - "traefik.http.routers.panoctagon_frontend.entrypoints=websecure"
       - "traefik.http.routers.panoctagon_frontend.tls.certresolver=myresolver"
+      - "traefik.http.routers.panoctagon_frontend.priority=1"
+      - "traefik.http.services.panoctagon_frontend.loadbalancer.server.port=8050"
     volumes:
       - panoctagon_data:/panoctagon/data
     networks:
       - jb-proxy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8050/')",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
 volumes:
-  letsencrypt:
   panoctagon_data:
-      driver: local
-      driver_opts:
-        type: 'none'
-        o: 'bind'
-        device: 'data'
+    driver: local
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "data"
 
 networks:
   jb-proxy:

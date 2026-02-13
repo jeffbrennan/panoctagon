@@ -131,6 +131,17 @@ def _parse_page(html_path: Path) -> tuple[str, str, bool, list[BFOMatchup]]:
 
 
 SAVE_BATCH_SIZE = 500
+PARSED_SLUGS_PATH = RAW_ODDS_DIR / "parsed_slugs.json"
+
+
+def _load_parsed_slugs() -> set[str]:
+    if PARSED_SLUGS_PATH.exists():
+        return set(json.loads(PARSED_SLUGS_PATH.read_text(encoding="utf-8")))
+    return set()
+
+
+def _save_parsed_slugs(slugs: set[str]) -> None:
+    PARSED_SLUGS_PATH.write_text(json.dumps(sorted(slugs)), encoding="utf-8")
 
 
 def parse_and_store_odds(force: bool = False, max_workers: int = 8) -> dict[str, int]:
@@ -143,10 +154,8 @@ def parse_and_store_odds(force: bool = False, max_workers: int = 8) -> dict[str,
 
     with Session(engine) as session:
         raw_odds_rows = session.exec(select(BFORawOdds)).all()
-        existing_slugs: set[str] = set()
-        if not force:
-            rows = session.exec(select(col(BFOParsedOdds.slug)).distinct()).all()
-            existing_slugs = set(rows)
+
+    parsed_slugs = _load_parsed_slugs() if not force else set()
 
     raw_odds_index: dict[tuple[int, str], str] = {}
     for row in raw_odds_rows:
@@ -158,7 +167,7 @@ def parse_and_store_odds(force: bool = False, max_workers: int = 8) -> dict[str,
     fighter_htmls = sorted(fighter_path.glob("*.html"))
     all_htmls = event_htmls + fighter_htmls
     if not force:
-        all_htmls = [p for p in all_htmls if p.stem not in existing_slugs]
+        all_htmls = [p for p in all_htmls if p.stem not in parsed_slugs]
     print(f"  {len(all_htmls):,} pages to parse")
 
     print("  parsing HTML...")
@@ -229,6 +238,10 @@ def parse_and_store_odds(force: bool = False, max_workers: int = 8) -> dict[str,
             session.commit()
         total_saved += len(pending_odds)
 
+    new_slugs = {slug for slug, _, _, _ in parsed_pages}
+    parsed_slugs.update(new_slugs)
+    _save_parsed_slugs(parsed_slugs)
+
     print(f"\n[n={events_with_odds:5,d}] events with odds")
     print(f"[n={events_without_odds:5,d}] events without odds")
     print(f"[n={total_saved:5,d}] odds records saved")
@@ -254,11 +267,28 @@ def _fuzzy_ratio(a: str, b: str) -> float:
     return SequenceMatcher(None, a.strip(". ").lower(), b.strip(". ").lower()).ratio()
 
 
+ATTEMPTED_LINKS_PATH = RAW_ODDS_DIR / "attempted_links.json"
+
+
+def _load_attempted_links() -> set[tuple[int, str]]:
+    if ATTEMPTED_LINKS_PATH.exists():
+        data = json.loads(ATTEMPTED_LINKS_PATH.read_text(encoding="utf-8"))
+        return {(e[0], e[1]) for e in data}
+    return set()
+
+
+def _save_attempted_links(keys: set[tuple[int, str]]) -> None:
+    data = sorted([list(k) for k in keys])
+    ATTEMPTED_LINKS_PATH.write_text(json.dumps(data), encoding="utf-8")
+
+
 def link_bfo_to_ufc(force: bool = False, match_id: int | None = None) -> dict[str, int]:
     print(create_header(80, "LINKING BFO ODDS TO UFC FIGHTS", True, "="))
 
     engine = get_engine()
     SQLModel.metadata.create_all(engine, tables=[BFOUFCLink.__table__])  # pyright: ignore[reportAttributeAccessIssue]
+
+    attempted_keys = _load_attempted_links() if not force else set()
 
     with Session(engine) as session:
         ufc_events = {e.event_uid: e for e in session.exec(select(UFCEvent)).all()}
@@ -374,7 +404,8 @@ def link_bfo_to_ufc(force: bool = False, match_id: int | None = None) -> dict[st
     links: list[BFOUFCLink] = []
 
     for row in bfo_rows:
-        if (row.match_id, row.fighter) in existing_keys:
+        key = (row.match_id, row.fighter)
+        if key in existing_keys or key in attempted_keys:
             skipped_existing += 1
             continue
 
@@ -460,6 +491,10 @@ def link_bfo_to_ufc(force: bool = False, match_id: int | None = None) -> dict[st
             for link in links:
                 session.merge(link)
             session.commit()
+
+    new_attempted = {(row.match_id, row.fighter) for row in bfo_rows} - existing_keys
+    attempted_keys.update(new_attempted)
+    _save_attempted_links(attempted_keys)
 
     print(f"\n[n={matched:5,d}] matched (event+fighter)")
     print(f"[n={matched_fallback:5,d}] matched (fighter fallback)")

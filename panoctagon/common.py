@@ -77,6 +77,18 @@ def get_engine() -> Engine:
     return engine
 
 
+def get_read_engine() -> Engine:
+    db_path = Path(__file__).parent.parent / "data" / "panoctagon_orm.duckdb"
+    engine_path = "duckdb:///" + str(db_path.resolve())
+    engine = create_engine(
+        engine_path,
+        echo=False,
+        poolclass=NullPool,
+        connect_args={"read_only": True},
+    )
+    return engine
+
+
 def delete_existing_records(
     tbl_model: Type[SQLModel], uid_col: Mapped[Any], uids: list[str]
 ) -> None:
