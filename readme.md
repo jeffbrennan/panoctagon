@@ -59,6 +59,12 @@ panoctagon event
 panoctagon roster
 ```
 
+## Pipeline
+
+Data is scraped, parsed, and transformed using Dagster and dbt.
+
+ ![pipeline](docs/pipeline.jpg)
+
 ## Stack
 
 Python, FastAPI, Dash, DuckDB, Dagster, dbt
