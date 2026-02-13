@@ -32,7 +32,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile-backend
-    entrypoint: ["sh", "-c", "uv run dbt compile --profiles-dir . && uv run dagster-daemon run"]
+    entrypoint: ["sh", "-c", "uv run dbt compile --profiles-dir . && uv run dagster instance concurrency set duckdb_write 1 && uv run dagster-daemon run"]
     volumes:
       - panoctagon_data:/panoctagon/data
     networks:

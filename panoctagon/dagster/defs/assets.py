@@ -46,7 +46,7 @@ def dagster_parse_fights(context: AssetExecutionContext) -> tuple[None, None]:
     return None, None
 
 
-@asset(compute_kind="python", key=["scrape_fighters"], deps=["ufc_fights"])
+@asset(compute_kind="python", key=["scrape_fighters"], deps=["ufc_fights"], pool=POOL)
 def dagster_scrape_fighters(context: AssetExecutionContext) -> None:
     n_new_fighters = scrape.fighters()
     context.add_output_metadata({"n_records": n_new_fighters})
@@ -58,7 +58,7 @@ def dagster_parse_fighters(context: AssetExecutionContext) -> None:
     context.add_output_metadata({"n_records": n_records})
 
 
-@asset(compute_kind="python", key=["scrape_fighter_bio"], deps=["ufc_fighters_stg"])
+@asset(compute_kind="python", key=["scrape_fighter_bio"], deps=["ufc_fighters_stg"], pool=POOL)
 def dagster_scrape_fighter_bio(context: AssetExecutionContext) -> None:
     n_bios = scrape.bios()
     context.add_output_metadata({"n_records": n_bios})
@@ -70,13 +70,13 @@ def dagster_parse_fighter_bio(context: AssetExecutionContext) -> None:
     context.add_output_metadata({"n_records": n_bios})
 
 
-@asset(compute_kind="python", key=["scrape_bfo_events"], deps=["ufc_events"])
+@asset(compute_kind="python", key=["scrape_bfo_events"], deps=["ufc_events"], pool=POOL)
 def dagster_scrape_bfo_events(context: AssetExecutionContext) -> None:
     n_downloaded = scrape.event_pages()
     context.add_output_metadata({"n_records": n_downloaded})
 
 
-@asset(compute_kind="python", key=["scrape_bfo_fighters"], deps=["scrape_bfo_events"])
+@asset(compute_kind="python", key=["scrape_bfo_fighters"], deps=["scrape_bfo_events"], pool=POOL)
 def dagster_scrape_bfo_fighters(context: AssetExecutionContext) -> None:
     n_downloaded = scrape.fighter_pages()
     context.add_output_metadata({"n_records": n_downloaded})
