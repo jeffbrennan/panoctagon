@@ -31,4 +31,4 @@ helpers/
 .user.yml
 *.duckdb
 .claude
-data/raw/ufc/betting_odds/search_state.json
+*.json
