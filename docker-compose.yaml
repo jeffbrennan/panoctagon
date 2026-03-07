@@ -9,7 +9,7 @@ services:
       - "traefik.http.routers.panoctagon_backend.entrypoints=websecure"
       - "traefik.http.routers.panoctagon_backend.tls.certresolver=myresolver"
       - "traefik.http.routers.panoctagon_backend.middlewares=panoctagon-auth"
-      - "traefik.http.middlewares.panoctagon-auth.basicauth.users=${BACKEND_ADMIN}:$$2y$$05$$YLM2DnPfJhDNww7lXxN5J.t2WH/utCeYkQcYQeNSyQO2uEELpl7W2"
+      - "traefik.http.middlewares.panoctagon-auth.basicauth.users=${BACKEND_ADMIN}:$$2y$$10$$i3bYX.zcwvh4lTG/pw6iEOBCjiL4PGNidGgzwb6/EVtUKqYGtt2e2"
       - "traefik.http.services.panoctagon_backend.loadbalancer.server.port=3000"
     volumes:
       - panoctagon_data:/panoctagon/data
