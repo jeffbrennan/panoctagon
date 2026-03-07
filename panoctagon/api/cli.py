@@ -11,7 +11,7 @@ import typer
 
 from panoctagon.enums import format_decision, format_division
 
-DEFAULT_API_URL = "http://localhost:8000"
+DEFAULT_API_URL = "https://panoctagon.jeffbrennan.dev/api"
 
 
 class OutputFormat(str, Enum):

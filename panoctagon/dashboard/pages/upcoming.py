@@ -4,12 +4,12 @@ import dash_mantine_components as dmc
 import polars as pl
 from dash import html
 
-from panoctagon.common import get_engine
+from panoctagon.common import get_read_engine
 from panoctagon.dashboard.common import PLOT_COLORS, get_headshot_base64
 
 
 def get_upcoming_fights() -> pl.DataFrame:
-    engine = get_engine()
+    engine = get_read_engine()
     with engine.connect() as conn:
         return pl.read_database(
             """

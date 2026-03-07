@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 import polars as pl
 from dash import Input, Output, callback, dcc, html, no_update
 
-from panoctagon.common import get_engine
+from panoctagon.common import get_read_engine
 from panoctagon.dashboard.common import apply_figure_styling, get_fighter_divisions
 
 
@@ -287,7 +287,7 @@ def create_network_figure(
 
 
 def get_network_data() -> pl.DataFrame:
-    engine = get_engine()
+    engine = get_read_engine()
     with engine.connect() as conn:
         return pl.read_database(
             """

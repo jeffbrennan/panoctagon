@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 import polars as pl
 from dash import dcc, html
 
-from panoctagon.common import get_engine
+from panoctagon.common import get_read_engine
 
 
 def apply_figure_styling(fig: go.Figure) -> go.Figure:
@@ -98,7 +98,7 @@ def get_headshot_base64(fighter_uid: str) -> str:
 
 
 def get_main_data() -> pl.DataFrame:
-    engine = get_engine()
+    engine = get_read_engine()
     with engine.connect() as conn:
         df = pl.read_database(
             """
@@ -273,7 +273,7 @@ def filter_data(df: pl.DataFrame, fighter: str) -> pl.DataFrame:
 
 
 def get_fighter_divisions() -> dict[str, str]:
-    engine = get_engine()
+    engine = get_read_engine()
     with engine.connect() as conn:
         df = pl.read_database(
             """

@@ -23,3 +23,8 @@ check:
     uv run ruff check --fix
     ruff check --select I --fix .
     uv run ruff format .
+
+up:
+    rm ~/panoctagon/data/panoctagon_orm.duckdb.wal  || echo 'wal does not exist'
+    rm ~/panoctagon/data/panoctagon_orm.duckdb.lock || echo 'lock does not exist'
+    docker compose up --build -d

@@ -4,7 +4,7 @@ import dash_mantine_components as dmc
 import pandas as pd
 from dash import Dash, Input, Output, callback, html
 
-from panoctagon.common import get_engine
+from panoctagon.common import get_read_engine
 from panoctagon.dashboard.pages.fighter import fighter_analysis_content
 from panoctagon.dashboard.pages.network import (
     fighter_network_content,
@@ -18,7 +18,7 @@ from panoctagon.dashboard.pages.upcoming import create_upcoming_fights_content
 def get_last_refresh() -> str:
     return (
         pd.read_sql_query(
-            "select max(downloaded_ts::DATE) AS downloaded FROM ufc_events", get_engine()
+            "select max(downloaded_ts::DATE) AS downloaded FROM ufc_events", get_read_engine()
         )["downloaded"]
         .iloc[0]
         .strftime("%Y-%m-%d")

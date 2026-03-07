@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 import polars as pl
 from dash import Input, Output, callback, dcc, html
 
-from panoctagon.common import get_engine
+from panoctagon.common import get_read_engine
 from panoctagon.dashboard.common import (
     PLOT_COLORS,
     apply_figure_styling,
@@ -15,7 +15,7 @@ from panoctagon.dashboard.common import (
 
 
 def get_matchup_data() -> pl.DataFrame:
-    engine = get_engine()
+    engine = get_read_engine()
     with engine.connect() as conn:
         return pl.read_database(
             """
@@ -74,7 +74,7 @@ def get_matchup_data() -> pl.DataFrame:
 
 
 def get_roster_stats() -> pl.DataFrame:
-    engine = get_engine()
+    engine = get_read_engine()
     with engine.connect() as conn:
         return pl.read_database(
             """
@@ -270,7 +270,7 @@ def create_fighter_clustering_figure(roster_df: pl.DataFrame) -> go.Figure:
         fig.update_layout(height=600)
         return apply_figure_styling(fig)
 
-    engine = get_engine()
+    engine = get_read_engine()
     with engine.connect() as conn:
         opposition_df = pl.read_database(
             """
@@ -661,7 +661,7 @@ def create_matchup_discrepancy_figure(matchup_df: pl.DataFrame) -> go.Figure:
 
 
 def create_striking_target_winrate_figure(division: str) -> go.Figure:
-    engine = get_engine()
+    engine = get_read_engine()
     with engine.connect() as conn:
         target_df = pl.read_database(
             """
