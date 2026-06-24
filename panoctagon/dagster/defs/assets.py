@@ -1,10 +1,20 @@
 from typing import Any
 
 from dagster_dbt import DbtCliResource, dbt_assets
+from sqlalchemy import text
 
 import panoctagon.ufc.parse.app as parse
 import panoctagon.ufc.scrape.app as scrape
-from dagster import AssetExecutionContext, AssetSpec, asset, multi_asset
+from dagster import (
+    AssetCheckResult,
+    AssetExecutionContext,
+    AssetKey,
+    AssetSpec,
+    asset,
+    asset_check,
+    multi_asset,
+)
+from panoctagon.common import get_read_engine
 from panoctagon.dagster.project import panoctagon_project
 from panoctagon.divisions import setup_divisions
 from panoctagon.promotions import setup_promotions
@@ -124,3 +134,20 @@ def dagster_divisions():
 @asset(compute_kind="python", key=["promotions"], pool=POOL)
 def dagster_promotions():
     setup_promotions()
+
+
+@asset_check(asset=AssetKey(["ufc_fights"]), blocking=True)
+def upcoming_fights_not_empty() -> AssetCheckResult:
+    engine = get_read_engine()
+    with engine.connect() as conn:
+        n_upcoming = conn.execute(
+            text(
+                """
+                select count(*) from ufc_fights f
+                join ufc_events e on f.event_uid = e.event_uid
+                where f.fighter1_result is null and e.event_date::date >= current_date
+                """
+            )
+        ).scalar()
+
+    return AssetCheckResult(passed=n_upcoming > 0, metadata={"n_upcoming_fights": n_upcoming})

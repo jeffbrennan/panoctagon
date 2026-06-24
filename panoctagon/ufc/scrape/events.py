@@ -1,9 +1,8 @@
 import datetime
 
 import bs4
-import requests
 
-from panoctagon.common import get_table_rows
+from panoctagon.common import get_table_rows, get_with_bot_challenge
 from panoctagon.tables import UFCEvent
 
 
@@ -12,7 +11,7 @@ def get_events(all_events: bool, page_num: int = 1) -> list[UFCEvent]:
     if all_events:
         url = "http://www.ufcstats.com/statistics/events/completed?page=all"
 
-    soup = bs4.BeautifulSoup(requests.get(url).content, "html.parser")
+    soup = bs4.BeautifulSoup(get_with_bot_challenge(url).content, "html.parser")
 
     data: list[UFCEvent] = []
     rows = get_table_rows(soup)[0]

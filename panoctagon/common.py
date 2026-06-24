@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import datetime
+import hashlib
 import os
 import random
+import re
 import time
 from functools import wraps
 from pathlib import Path
-from typing import Any, Optional, Type
+from typing import Any, Callable, Optional, Type, TypeVar
+from urllib.parse import urlparse
 
 import bs4
 import requests
@@ -26,6 +29,39 @@ from panoctagon.models import (
     ScrapingWriteResult,
     SQLModelType,
 )
+
+
+def get_secret(secret_name: str) -> str:
+    import dotenv
+
+    dotenv.load_dotenv()
+    secret = os.environ.get(secret_name)
+    if secret is None:
+        raise ValueError(f"missing secret: {secret_name}")
+    return secret
+
+
+T = TypeVar("T")
+
+
+def ttl_cache(seconds: float) -> Callable[[Callable[[], T]], Callable[[], T]]:
+    def decorator(func: Callable[[], T]) -> Callable[[], T]:
+        cached: dict[str, Any] = {}
+
+        @wraps(func)
+        def wrapper() -> T:
+            now = time.monotonic()
+            if "value" in cached and now - cached["ts"] < seconds:
+                return cached["value"]
+
+            value = func()
+            cached["value"] = value
+            cached["ts"] = now
+            return value
+
+        return wrapper
+
+    return decorator
 
 
 class ScrapingArgs(BaseModel):
@@ -237,6 +273,39 @@ def get_table_uids(
     return list(results)
 
 
+def solve_bot_challenge(
+    response: requests.Response, session: requests.Session
+) -> requests.Response:
+    if "Checking your browser" not in response.text:
+        return response
+
+    nonce_match = re.search(r'nonce="([0-9a-f]+)"', response.text)
+    target_match = re.search(r"new Array\((\d+)\+1\)", response.text)
+    if nonce_match is None or target_match is None:
+        return response
+
+    nonce = nonce_match.group(1)
+    target = "0" * int(target_match.group(1))
+
+    n = 0
+    while hashlib.sha256(f"{nonce}:{n}".encode()).hexdigest()[: len(target)] != target:
+        n += 1
+
+    parsed = urlparse(response.url)
+    challenge_url = f"{parsed.scheme}://{parsed.netloc}/__c"
+    session.post(challenge_url, data={"nonce": nonce, "n": n})
+
+    return session.get(response.url, timeout=30)
+
+
+def get_with_bot_challenge(
+    url: str, session: Optional[requests.Session] = None, timeout: int = 30
+) -> requests.Response:
+    session = session or requests.Session()
+    response = session.get(url, timeout=timeout)
+    return solve_bot_challenge(response, session)
+
+
 def scrape_page(
     config: ScrapingConfig,
     max_attempts: int = 3,
@@ -334,11 +403,7 @@ def dump_html(
     url = f"{config.base_url}/{config.uid}"
 
     try:
-        if session is None:
-            response = requests.get(url, timeout=30)
-        else:
-            response = session.get(url, timeout=30)
-
+        response = get_with_bot_challenge(url, session=session, timeout=30)
         status_code = response.status_code
 
         if status_code != 200:

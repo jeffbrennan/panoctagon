@@ -1,13 +1,15 @@
+import traceback
 from typing import Any
 
 import dash_mantine_components as dmc
 import polars as pl
 from dash import html
 
-from panoctagon.common import get_read_engine
+from panoctagon.common import get_read_engine, ttl_cache
 from panoctagon.dashboard.common import PLOT_COLORS, get_headshot_base64
 
 
+@ttl_cache(seconds=120)
 def get_upcoming_fights() -> pl.DataFrame:
     engine = get_read_engine()
     with engine.connect() as conn:
@@ -357,6 +359,7 @@ def create_upcoming_fights_content() -> html.Div:
     try:
         upcoming_df = get_upcoming_fights()
     except Exception:
+        traceback.print_exc()
         upcoming_df = pl.DataFrame()
 
     if upcoming_df.height == 0:

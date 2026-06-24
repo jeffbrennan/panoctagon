@@ -13,6 +13,7 @@ from panoctagon.common import (
     create_header,
     get_engine,
     get_table_rows,
+    get_with_bot_challenge,
     scrape_page,
 )
 from panoctagon.enums import Symbols
@@ -111,12 +112,10 @@ def get_fight_uids(
     event_attempts = 0
     max_attempts = 5
 
+    fetch_session = session or requests.Session()
     response = None
     while not success and event_attempts < max_attempts:
-        if session is None:
-            response = requests.get(url)
-        else:
-            response = session.get(url)
+        response = get_with_bot_challenge(url, session=fetch_session)
         success = response.status_code == 200
         time.sleep(1)
 
