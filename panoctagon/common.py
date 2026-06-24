@@ -8,7 +8,7 @@ import re
 import time
 from functools import wraps
 from pathlib import Path
-from typing import Any, Optional, Type
+from typing import Any, Callable, Optional, Type, TypeVar
 from urllib.parse import urlparse
 
 import bs4
@@ -29,6 +29,29 @@ from panoctagon.models import (
     ScrapingWriteResult,
     SQLModelType,
 )
+
+
+T = TypeVar("T")
+
+
+def ttl_cache(seconds: float) -> Callable[[Callable[[], T]], Callable[[], T]]:
+    def decorator(func: Callable[[], T]) -> Callable[[], T]:
+        cached: dict[str, Any] = {}
+
+        @wraps(func)
+        def wrapper() -> T:
+            now = time.monotonic()
+            if "value" in cached and now - cached["ts"] < seconds:
+                return cached["value"]
+
+            value = func()
+            cached["value"] = value
+            cached["ts"] = now
+            return value
+
+        return wrapper
+
+    return decorator
 
 
 class ScrapingArgs(BaseModel):

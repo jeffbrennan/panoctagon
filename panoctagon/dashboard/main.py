@@ -2,9 +2,9 @@ from pathlib import Path
 
 import dash_mantine_components as dmc
 import pandas as pd
-from dash import Dash, Input, Output, callback, html
+from dash import Dash, Input, Output, callback, dcc, html
 
-from panoctagon.common import get_read_engine
+from panoctagon.common import get_read_engine, ttl_cache
 from panoctagon.dashboard.pages.fighter import fighter_analysis_content
 from panoctagon.dashboard.pages.network import (
     fighter_network_content,
@@ -15,6 +15,7 @@ from panoctagon.dashboard.pages.roster import (
 from panoctagon.dashboard.pages.upcoming import create_upcoming_fights_content
 
 
+@ttl_cache(seconds=120)
 def get_last_refresh() -> str:
     return (
         pd.read_sql_query(
@@ -29,13 +30,14 @@ assets_path = Path(__file__).parents[1] / "assets"
 app = Dash(__name__, assets_folder=str(assets_path))
 server = app.server
 
-upcoming_fights_content = create_upcoming_fights_content()
-
 app.layout = dmc.MantineProvider(
     html.Div(
         id="panoctagon-page",
         children=dmc.AppShell(
             [
+                dcc.Interval(
+                    id="data-refresh-interval", interval=1000, max_intervals=1, n_intervals=0
+                ),
                 dmc.AppShellHeader(
                     dmc.Group(
                         [
@@ -45,7 +47,7 @@ app.layout = dmc.MantineProvider(
                                 style={"textDecoration": "none", "cursor": "pointer"},
                             ),
                             dmc.Badge(
-                                f"Data current as of {get_last_refresh()}",
+                                id="last-refresh-badge",
                                 color="gray",
                                 variant="light",
                             ),
@@ -68,7 +70,7 @@ app.layout = dmc.MantineProvider(
                                     ]
                                 ),
                                 dmc.TabsPanel(
-                                    upcoming_fights_content,
+                                    html.Div(id="upcoming-fights-container"),
                                     value="upcoming",
                                     pt="md",
                                 ),
@@ -109,6 +111,15 @@ app.layout = dmc.MantineProvider(
 )
 def reset_to_upcoming(_: int | None) -> str:
     return "upcoming"
+
+
+@callback(
+    Output("last-refresh-badge", "children"),
+    Output("upcoming-fights-container", "children"),
+    Input("data-refresh-interval", "n_intervals"),
+)
+def refresh_dashboard_data(_: int) -> tuple[str, html.Div]:
+    return f"Data current as of {get_last_refresh()}", create_upcoming_fights_content()
 
 
 if __name__ == "__main__":
