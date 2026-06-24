@@ -31,6 +31,16 @@ from panoctagon.models import (
 )
 
 
+def get_secret(secret_name: str) -> str:
+    import dotenv
+
+    dotenv.load_dotenv()
+    secret = os.environ.get(secret_name)
+    if secret is None:
+        raise ValueError(f"missing secret: {secret_name}")
+    return secret
+
+
 T = TypeVar("T")
 
 
