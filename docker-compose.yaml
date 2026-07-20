@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile-backend
+    restart: unless-stopped
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.panoctagon_backend.rule=Host(`panoctagon.jeffbrennan.dev`) && PathPrefix(`/dagster`)"
@@ -13,6 +14,7 @@ services:
       - "traefik.http.services.panoctagon_backend.loadbalancer.server.port=3000"
     volumes:
       - panoctagon_data:/panoctagon/data
+      - panoctagon_target:/panoctagon/target
     networks:
       - jb-proxy
     healthcheck:
@@ -32,9 +34,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile-backend
+    restart: unless-stopped
     entrypoint: ["sh", "-c", "uv run dbt compile --profiles-dir . && uv run dagster instance concurrency set duckdb_write 1 && uv run dagster-daemon run"]
     volumes:
       - panoctagon_data:/panoctagon/data
+      - panoctagon_target:/panoctagon/target
     networks:
       - jb-proxy
 
@@ -42,6 +46,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile-api
+    restart: unless-stopped
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.panoctagon_api.rule=Host(`panoctagon.jeffbrennan.dev`) && PathPrefix(`/api`)"
@@ -71,6 +76,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile-frontend
+    restart: unless-stopped
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.panoctagon_frontend.rule=Host(`panoctagon.jeffbrennan.dev`)"
@@ -102,6 +108,8 @@ volumes:
       type: "none"
       o: "bind"
       device: "data"
+  panoctagon_target:
+    driver: local
 
 networks:
   jb-proxy:

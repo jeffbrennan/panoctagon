@@ -23,4 +23,4 @@ RUN uv run dbt deps --profiles-dir .
 
 EXPOSE 3000
 
-ENTRYPOINT ["sh", "-c", "uv run dbt compile --profiles-dir . && uv run dagster-webserver -h 0.0.0.0 -p 3000 --path-prefix /dagster"]
+ENTRYPOINT ["sh", "-c", "until [ -f target/manifest.json ]; do echo 'waiting for dbt manifest from panoctagon_daemon...'; sleep 2; done && uv run dagster-webserver -h 0.0.0.0 -p 3000 --path-prefix /dagster"]
