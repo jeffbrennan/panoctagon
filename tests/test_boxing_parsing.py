@@ -3,7 +3,9 @@ from pathlib import Path
 import pytest
 
 from panoctagon.boxing.parse.events import parse_event_page
+from panoctagon.boxing.parse.fighters import parse_fighter
 from panoctagon.boxing.scrape.events import parse_schedule
+from panoctagon.enums import FightResult
 from panoctagon.models import FileContents
 from panoctagon.tables import BoxingEvent, BoxingFight
 
@@ -29,6 +31,22 @@ def _event_page(
     page = boxing_data_dir / "events" / f"{uid}.html"
     if not page.exists():
         pytest.skip(f"boxing event fixture {uid} not downloaded")
+    return FileContents(
+        uid=uid,
+        path=page,
+        modified_ts=datetime.datetime(2026, 8, 2, 12, 0, 0),
+        contents=page.read_text(),
+        file_num=file_num,
+        n_files=n_files,
+    )
+
+
+def _fighter_page(
+    boxing_data_dir: Path, uid: str, file_num: int = 0, n_files: int = 1
+) -> FileContents:
+    page = boxing_data_dir / "fighters" / f"{uid}.html"
+    if not page.exists():
+        pytest.skip(f"boxing fighter fixture {uid} not downloaded")
     return FileContents(
         uid=uid,
         path=page,
@@ -109,3 +127,81 @@ def test_parse_event_page_all_fights_are_boxing_fights(boxing_data_dir: Path) ->
     for uid in ["3838", "3846"]:
         result = parse_event_page(_event_page(boxing_data_dir, uid))
         assert all(isinstance(f, BoxingFight) for f in result.result)
+
+
+def test_parse_fighter_details(boxing_data_dir: Path) -> None:
+    result = parse_fighter(_fighter_page(boxing_data_dir, "4961"))
+    fighter = result.result
+    assert fighter.fighter_uid == "4961"
+    assert fighter.first_name == "Ryan"
+    assert fighter.last_name == "Garcia"
+    assert fighter.nickname == "Kingry"
+    assert fighter.weight_class == "Super featherweight"
+    assert fighter.stance == "Orthodox"
+    assert fighter.height_inches == 70
+    assert fighter.reach_inches == 70
+    assert fighter.nationality == "Los Angeles, California, USA"
+    assert fighter.dob == "1998-08-08"
+    assert fighter.wins == 25
+    assert fighter.losses == 2
+    assert fighter.draws == 0
+    assert fighter.kos == 20
+    assert fighter.ko_percent == 74.0
+    assert fighter.total_bouts == 27
+
+
+def test_parse_fighter_missing_reach(boxing_data_dir: Path) -> None:
+    result = parse_fighter(_fighter_page(boxing_data_dir, "4278"))
+    fighter = result.result
+    assert fighter.first_name == "Conor"
+    assert fighter.last_name == "Benn"
+    assert fighter.wins == 23
+    assert fighter.losses == 1
+    assert fighter.reach_inches is None
+    assert fighter.height_inches == 68
+
+
+def test_parse_fight_history_first_entry(boxing_data_dir: Path) -> None:
+    result = parse_fighter(_fighter_page(boxing_data_dir, "4961"))
+    history = result.fight_history
+    assert len(history) == 16
+
+    first = history[0]
+    assert first.boxer_uid == "4961"
+    assert first.event_uid == "3785"
+    assert first.fight_date == "2026-02-21"
+    assert first.opponent_uid == "3972"
+    assert first.boxer_result == FightResult.WIN
+    assert first.opponent_result == FightResult.LOSS
+    assert first.decision == "UD"
+    assert first.decision_round == 12
+    assert first.title_bout == "WBC World Welterweight"
+    assert first.boxer_weight_lbs == 147.0
+    assert first.opponent_weight_lbs == 147.0
+    assert "Tim Cheatham" in (first.judge_cards or "")
+    assert "T-Mobile Arena" in (first.venue or "")
+
+
+def test_parse_fight_history_fractional_weights(boxing_data_dir: Path) -> None:
+    result = parse_fighter(_fighter_page(boxing_data_dir, "4961"))
+    fractional = [
+        h for h in result.fight_history if h.boxer_weight_lbs and h.boxer_weight_lbs % 1 != 0
+    ]
+    assert len(fractional) > 0
+    assert all(h.boxer_weight_lbs in (129.5, 130.5, 134.25, 134.75) for h in fractional)
+
+
+def test_parse_fight_history_skips_incomplete_fights(boxing_data_dir: Path) -> None:
+    result = parse_fighter(_fighter_page(boxing_data_dir, "3012"))
+    fight_dates = [h.fight_date for h in result.fight_history]
+    assert "2014-09-20" not in fight_dates
+    assert all(h.boxer_result is not None for h in result.fight_history)
+
+
+def test_parse_fight_history_results_direction(boxing_data_dir: Path) -> None:
+    result = parse_fighter(_fighter_page(boxing_data_dir, "4278"))
+    assert all(
+        h.boxer_result != h.opponent_result
+        and h.boxer_result in (FightResult.WIN, FightResult.LOSS)
+        for h in result.fight_history
+    )

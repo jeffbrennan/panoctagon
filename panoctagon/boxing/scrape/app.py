@@ -6,6 +6,7 @@ import typer
 from sqlmodel import col
 
 from panoctagon.boxing.scrape.events import download_schedule, get_event_pages
+from panoctagon.boxing.scrape.fighters import download_boxer_pages
 from panoctagon.common import (
     create_header,
     get_table_uids,
@@ -69,6 +70,29 @@ def event_pages(force: bool = False, max_downloads: Optional[int] = None) -> int
         write_parsing_timestamp(
             BoxingEvent, "downloaded_ts", col(BoxingEvent.event_uid), updated_uids
         )
+
+    print(setup.footer)
+    return n_downloaded
+
+
+@app.command()
+def fighters(force: bool = False, max_downloads: Optional[int] = None) -> int:
+    setup = setup_panoctagon(title="Panoctagon Boxing Fighter Scraper")
+
+    start_time = time.time()
+    n_downloaded = download_boxer_pages(force=force, max_downloads=max_downloads)
+    end_time = time.time()
+
+    report_stats(
+        RunStats(
+            start=start_time,
+            end=end_time,
+            n_ops=n_downloaded,
+            op_name="boxer page",
+            successes=n_downloaded,
+            failures=0,
+        )
+    )
 
     print(setup.footer)
     return n_downloaded
