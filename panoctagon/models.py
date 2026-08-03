@@ -8,7 +8,14 @@ from typing import Any, Optional, TypeVar
 from pydantic import BaseModel
 from sqlmodel import SQLModel
 
-from panoctagon.tables import BoxingFight, BoxingFighter, BoxingFightHistory, UFCFight, UFCFighter
+from panoctagon.tables import (
+    BoxingEvent,
+    BoxingFight,
+    BoxingFighter,
+    BoxingFightHistory,
+    UFCFight,
+    UFCFighter,
+)
 
 
 class ScrapingConfig(BaseModel):
@@ -64,7 +71,8 @@ class FighterParsingResult(ParsingResult):
 
 
 class BoxingFightParsingResult(ParsingResult):
-    result: BoxingFight
+    result: list[BoxingFight]
+    event: Optional[BoxingEvent] = None
 
 
 class BoxingFighterParsingResult(ParsingResult):
