@@ -110,7 +110,6 @@ class UFCFightStats(SQLModel, table=True):
     sig_strikes_grounded_attempted: Optional[int] = None
 
 
-
 class BFORawOdds(SQLModel, table=True):
     __tablename__ = "bfo_raw_odds"  # pyright: ignore [reportAssignmentType]
     match_id: int = Field(primary_key=True)
@@ -118,6 +117,81 @@ class BFORawOdds(SQLModel, table=True):
     slug: str
     value: str
     downloaded_ts: str
+
+
+class BoxingEvent(SQLModel, table=True):
+    __tablename__ = "boxing_events"  # pyright: ignore [reportAssignmentType]
+
+    event_uid: str = Field(primary_key=True)
+    title: str
+    event_date: str
+    event_location: str
+    broadcast: Optional[str] = None
+    bouts: Optional[int] = None
+    image_url: Optional[str] = None
+    downloaded_ts: Optional[str] = None
+
+
+class BoxingFight(SQLModel, table=True):
+    __tablename__ = "boxing_fights"  # pyright: ignore [reportAssignmentType]
+    __table_args__ = (
+        UniqueConstraint("event_uid", "fight_uid", name="boxing_fight_pk"),
+        UniqueConstraint("fight_uid", name="boxing_fight_uid_unique"),
+    )
+
+    event_uid: str = Field(primary_key=True)
+    fight_uid: str = Field(primary_key=True)
+    fighter1_uid: str
+    fighter2_uid: str
+    title_bout: Optional[str] = None
+    scheduled_rounds: Optional[int] = None
+    main_event: bool = True
+    bout_order: int = 1
+    match_uid: Optional[str] = None
+    fighter1_result: Optional[FightResult] = None
+    fighter2_result: Optional[FightResult] = None
+    decision: Optional[str] = None
+    decision_round: Optional[int] = None
+
+
+class BoxingFighter(SQLModel, table=True):
+    __tablename__ = "boxing_fighters"  # pyright: ignore [reportAssignmentType]
+
+    fighter_uid: str = Field(primary_key=True)
+    first_name: str
+    last_name: str
+    nickname: Optional[str] = None
+    weight_class: Optional[str] = None
+    stance: Optional[str] = None
+    height_inches: Optional[int] = None
+    reach_inches: Optional[int] = None
+    nationality: Optional[str] = None
+    dob: Optional[str] = None
+    wins: Optional[int] = None
+    losses: Optional[int] = None
+    draws: Optional[int] = None
+    kos: Optional[int] = None
+    ko_percent: Optional[float] = None
+    total_bouts: Optional[int] = None
+    downloaded_ts: Optional[str] = None
+
+
+class BoxingFightHistory(SQLModel, table=True):
+    __tablename__ = "boxing_fight_history"  # pyright: ignore [reportAssignmentType]
+
+    boxer_uid: str = Field(primary_key=True)
+    event_uid: str = Field(primary_key=True)
+    opponent_uid: str = Field(primary_key=True)
+    fight_date: str = Field(primary_key=True)
+    venue: Optional[str] = None
+    boxer_weight_lbs: Optional[float] = None
+    opponent_weight_lbs: Optional[float] = None
+    boxer_result: Optional[FightResult] = None
+    opponent_result: Optional[FightResult] = None
+    decision: Optional[str] = None
+    decision_round: Optional[int] = None
+    title_bout: Optional[str] = None
+    judge_cards: Optional[str] = None
 
 
 class BFOParsedOdds(SQLModel, table=True):

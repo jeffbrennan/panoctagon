@@ -8,7 +8,7 @@ from typing import Any, Optional, TypeVar
 from pydantic import BaseModel
 from sqlmodel import SQLModel
 
-from panoctagon.tables import UFCFight, UFCFighter
+from panoctagon.tables import BoxingFight, BoxingFighter, BoxingFightHistory, UFCFight, UFCFighter
 
 
 class ScrapingConfig(BaseModel):
@@ -17,6 +17,7 @@ class ScrapingConfig(BaseModel):
     base_url: str
     base_dir: Path
     path: Path
+    url: Optional[str] = None
 
 
 class FileContents(BaseModel):
@@ -60,6 +61,15 @@ class ParsingResult(BaseModel):
 
 class FighterParsingResult(ParsingResult):
     result: UFCFighter
+
+
+class BoxingFightParsingResult(ParsingResult):
+    result: BoxingFight
+
+
+class BoxingFighterParsingResult(ParsingResult):
+    result: BoxingFighter
+    fight_history: list[BoxingFightHistory]
 
 
 class RoundSigStats(BaseModel):

@@ -400,7 +400,10 @@ def dump_html(
 ) -> tuple[bool, int]:
     if log_uid:
         print(f"saving {config.description}: {config.uid}")
-    url = f"{config.base_url}/{config.uid}"
+    if config.url is not None:
+        url = config.url
+    else:
+        url = f"{config.base_url}/{config.uid}"
 
     try:
         response = get_with_bot_challenge(url, session=session, timeout=30)
