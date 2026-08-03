@@ -2,9 +2,13 @@ from pathlib import Path
 
 import pytest
 
-from panoctagon.boxing.parse.events import parse_event_page
+from panoctagon.boxing.parse.events import (
+    apply_match_results,
+    parse_event_page,
+    parse_match_page,
+)
 from panoctagon.boxing.parse.fighters import parse_fighter
-from panoctagon.boxing.scrape.events import parse_schedule
+from panoctagon.boxing.scrape.events import parse_results, parse_schedule
 from panoctagon.enums import FightResult
 from panoctagon.models import FileContents
 from panoctagon.tables import BoxingEvent, BoxingFight
@@ -205,3 +209,79 @@ def test_parse_fight_history_results_direction(boxing_data_dir: Path) -> None:
         and h.boxer_result in (FightResult.WIN, FightResult.LOSS)
         for h in result.fight_history
     )
+
+
+def test_parse_event_page_extracts_title(boxing_data_dir: Path) -> None:
+    result = parse_event_page(_event_page(boxing_data_dir, "3846"))
+    assert result.event is not None
+    assert result.event.title == "Ryan Garcia vs Conor Benn WBC World Welterweight"
+
+
+def test_parse_match_page_outcomes_and_decision() -> None:
+    page = FileContents(
+        uid="9730",
+        path=Path("9730.html"),
+        modified_ts=datetime.datetime.now(),
+        contents="""
+            <ul class="list-group"><li class="list-group-item">
+              <a href="/boxer-4278">Conor Benn</a>
+              <span style="color:red">L</span>
+              <a href="/boxer-4961">Ryan Garcia</a>
+              <span style="color:green">W</span>
+              <span style="color:#3366CC">UD 12</span>
+            </li></ul>
+        """,
+        file_num=0,
+        n_files=1,
+    )
+    result = parse_match_page(page)
+    assert result.issues == []
+    assert result.result.fighter1_result == FightResult.LOSS
+    assert result.result.fighter2_result == FightResult.WIN
+    assert result.result.decision == "UD"
+    assert result.result.decision_round == 12
+
+
+def test_apply_match_results_handles_reversed_fighters() -> None:
+    page = FileContents(
+        uid="9730",
+        path=Path("9730.html"),
+        modified_ts=datetime.datetime.now(),
+        contents="""
+            <a href="/boxer-4278">Conor Benn</a><span style="color:red">L</span>
+            <a href="/boxer-4961">Ryan Garcia</a><span style="color:green">W</span>
+            <span style="color:#3366CC">UD 12</span>
+        """,
+        file_num=0,
+        n_files=1,
+    )
+    match = parse_match_page(page)
+    fight = BoxingFight(
+        event_uid="3846",
+        fight_uid="9730",
+        fighter1_uid="4961",
+        fighter2_uid="4278",
+        match_uid="9730",
+    )
+    apply_match_results([fight], [match])
+    assert fight.fighter1_result == FightResult.WIN
+    assert fight.fighter2_result == FightResult.LOSS
+    assert fight.decision_round == 12
+
+
+def test_parse_results_discovers_completed_events() -> None:
+    events = parse_results(
+        """
+        <div class="panel">
+          <div class="well-content"><h5>Sun, Jul 26 2026
+            <i class="fa-map-marker"></i> Las Vegas, Nevada, USA</h5></div>
+          <ul class="list-group"><li class="list-group-item">bout</li></ul>
+          <a href="/event-3785">View FightNight</a>
+        </div>
+        """
+    )
+    assert len(events) == 1
+    assert events[0].event_uid == "3785"
+    assert events[0].event_date == "2026-07-26"
+    assert events[0].event_location == "Las Vegas, Nevada, USA"
+    assert events[0].bouts == 1

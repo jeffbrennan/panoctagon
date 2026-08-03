@@ -16,11 +16,11 @@ Goal: bring the boxing pipeline toward the UFC implementation's operational and 
 
 ## Milestone 2: Normalize completed boxing fights
 
-- [ ] Add completed-event/fight discovery and refresh behavior.
-- [ ] Populate `BoxingFight` outcomes, decisions, and decision rounds.
-- [ ] Reconcile `BoxingFightHistory` with stable `BoxingFight`/`match_uid` identities.
-- [ ] Replace event bouts atomically so removed bouts do not remain stale.
-- [ ] Extract event titles instead of persisting blank titles.
+- [x] Add completed-event/fight discovery and refresh behavior.
+- [x] Populate `BoxingFight` outcomes, decisions, and decision rounds.
+- [x] Reconcile `BoxingFightHistory` with stable `BoxingFight`/`match_uid` identities.
+- [x] Replace event bouts atomically so removed bouts do not remain stale.
+- [x] Extract event titles instead of persisting blank titles.
 
 ## Milestone 3: Match supported data depth
 

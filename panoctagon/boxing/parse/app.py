@@ -1,9 +1,14 @@
 import typer
 from sqlmodel import col
 
-from panoctagon.boxing.parse.events import parse_event_page, write_fight_results_to_db
+from panoctagon.boxing.parse.events import (
+    apply_match_results,
+    parse_event_page,
+    parse_match_page,
+    write_fight_results_to_db,
+)
 from panoctagon.boxing.parse.fighters import parse_fighter, write_fighter_results_to_db
-from panoctagon.boxing.paths import events_dir, fighters_dir
+from panoctagon.boxing.paths import events_dir, fighters_dir, matches_dir
 from panoctagon.common import get_html_files, setup_panoctagon
 from panoctagon.tables import BoxingFight, BoxingFighter
 
@@ -27,6 +32,15 @@ def events(force: bool = False) -> int:
         return 0
 
     results = [parse_event_page(event_page) for event_page in event_pages]
+    match_pages = get_html_files(
+        path=matches_dir(),
+        uid_col=col(BoxingFight.match_uid),
+        where_clause=None,
+        force_run=True,
+    )
+    match_results = [parse_match_page(match_page) for match_page in match_pages]
+    for result in results:
+        apply_match_results(result.result, match_results)
     write_fight_results_to_db(results, force)
 
     print(setup.footer)

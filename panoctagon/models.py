@@ -4,10 +4,10 @@ import datetime
 from enum import StrEnum, auto
 from pathlib import Path
 from typing import Any, Optional, TypeVar
-
 from pydantic import BaseModel
 from sqlmodel import SQLModel
 
+from panoctagon.enums import FightResult
 from panoctagon.tables import (
     BoxingEvent,
     BoxingFight,
@@ -73,6 +73,20 @@ class FighterParsingResult(ParsingResult):
 class BoxingFightParsingResult(ParsingResult):
     result: list[BoxingFight]
     event: Optional[BoxingEvent] = None
+
+
+class BoxingMatchResult(BaseModel):
+    match_uid: str
+    fighter1_uid: str
+    fighter2_uid: str
+    fighter1_result: Optional[FightResult] = None
+    fighter2_result: Optional[FightResult] = None
+    decision: Optional[str] = None
+    decision_round: Optional[int] = None
+
+
+class BoxingMatchParsingResult(ParsingResult):
+    result: BoxingMatchResult
 
 
 class BoxingFighterParsingResult(ParsingResult):

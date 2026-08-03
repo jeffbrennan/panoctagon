@@ -5,17 +5,19 @@ import re
 from typing import Optional, TypedDict
 
 import bs4
-from sqlmodel import col
+from sqlmodel import Session, col, select
 
+from panoctagon.boxing.parse.events import reconcile_fight_history
 from panoctagon.common import (
     create_header,
     delete_existing_records,
+    get_engine,
     handle_parsing_issues,
     write_data_to_db,
 )
 from panoctagon.enums import FightResult
 from panoctagon.models import BoxingFighterParsingResult, FileContents
-from panoctagon.tables import BoxingFighter, BoxingFightHistory
+from panoctagon.tables import BoxingFight, BoxingFighter, BoxingFightHistory
 
 RESULT_MAP = {
     "W": FightResult.WIN,
@@ -339,3 +341,17 @@ def write_fighter_results_to_db(results: list[BoxingFighterParsingResult], force
     history = [fight for r in clean_results for fight in r.fight_history]
     print(create_header(80, "boxing_fight_history", True, spacer="-"))
     write_data_to_db(history)
+    engine = get_engine()
+    with Session(engine) as session:
+        fights = session.exec(
+            select(BoxingFight).where(
+                col(BoxingFight.fighter1_uid).in_(boxer_uids)
+                | col(BoxingFight.fighter2_uid).in_(boxer_uids)
+            )
+        ).all()
+        stored_history = session.exec(
+            select(BoxingFightHistory).where(col(BoxingFightHistory.boxer_uid).in_(boxer_uids))
+        ).all()
+        for fight in fights:
+            reconcile_fight_history(fight, stored_history)
+        session.commit()

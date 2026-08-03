@@ -9,9 +9,17 @@ def schedule_path() -> Path:
     return BOXING_DATA_DIR / "schedule.html"
 
 
+def results_path() -> Path:
+    return BOXING_DATA_DIR / "results.html"
+
+
 def events_dir() -> Path:
     return BOXING_DATA_DIR / "events"
 
 
 def fighters_dir() -> Path:
     return BOXING_DATA_DIR / "fighters"
+
+
+def matches_dir() -> Path:
+    return BOXING_DATA_DIR / "matches"

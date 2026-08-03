@@ -5,7 +5,7 @@ from typing import Optional
 import typer
 from sqlmodel import col
 
-from panoctagon.boxing.scrape.events import download_schedule, get_event_pages
+from panoctagon.boxing.scrape.events import download_results, download_schedule, get_event_pages
 from panoctagon.boxing.scrape.fighters import download_boxer_pages
 from panoctagon.common import (
     create_header,
@@ -26,7 +26,11 @@ def events() -> int:
     setup = setup_panoctagon(title="Panoctagon Boxing Event Scraper")
     existing_events = get_table_uids(col(BoxingEvent.event_uid))
 
-    scraped_events = download_schedule()
+    scraped_events_by_uid = {}
+    for event in download_schedule() + download_results():
+        if event.event_uid not in scraped_events_by_uid or event.title:
+            scraped_events_by_uid[event.event_uid] = event
+    scraped_events = list(scraped_events_by_uid.values())
 
     if existing_events is None:
         new_events = scraped_events
@@ -65,7 +69,9 @@ def event_pages(force: bool = False, max_downloads: Optional[int] = None) -> int
     if n_downloaded > 0:
         print(create_header(80, "UPDATING BOXING_EVENTS", True, "-"))
         updated_uids = [
-            i.stem for i in (Path(__file__).parents[3] / "data/raw/boxing/events").glob("*.html")
+            path.stem
+            for path in (Path(__file__).parents[3] / "data/raw/boxing/events").glob("*.html")
+            if path.stat().st_mtime >= start_time
         ]
         write_parsing_timestamp(
             BoxingEvent, "downloaded_ts", col(BoxingEvent.event_uid), updated_uids
