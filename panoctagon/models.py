@@ -83,6 +83,7 @@ class BoxingMatchResult(BaseModel):
     fighter2_result: Optional[FightResult] = None
     decision: Optional[str] = None
     decision_round: Optional[int] = None
+    judge_cards: Optional[str] = None
 
 
 class BoxingMatchParsingResult(ParsingResult):

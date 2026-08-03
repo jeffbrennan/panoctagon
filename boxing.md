@@ -4,15 +4,15 @@ Goal: bring the boxing pipeline toward the UFC implementation's operational and 
 
 ## Milestone 1: Make boxing operationally reachable
 
-- [ ] Add `panoctagon/boxing/app.py` to aggregate scrape and parse Typer commands.
-- [ ] Register the boxing app in `panoctagon/admin.py`.
-- [ ] Expose and test the commands below:
+- [x] Add `panoctagon/boxing/app.py` to aggregate scrape and parse Typer commands.
+- [x] Register the boxing app in `panoctagon/admin.py`.
+- [x] Expose and test the commands below:
   - `admin boxing scrape events`
   - `admin boxing scrape event-pages`
   - `admin boxing scrape fighters`
   - `admin boxing parse events`
   - `admin boxing parse fighters`
-- [ ] Add CLI smoke tests without performing network requests or database writes.
+- [x] Add CLI smoke tests without performing network requests or database writes.
 
 ## Milestone 2: Normalize completed boxing fights
 
@@ -24,8 +24,8 @@ Goal: bring the boxing pipeline toward the UFC implementation's operational and 
 
 ## Milestone 3: Match supported data depth
 
-- [ ] Determine which boxing round-level statistics FightNights exposes.
-- [ ] Add boxing stats models, parsers, and writers only for source-supported fields.
+- [x] Determine which boxing round-level statistics FightNights exposes. Match pages expose no round-by-round punch statistics; they provide outcomes, method/round, and judge scorecards.
+- [x] Add boxing stats models, parsers, and writers only for source-supported fields. Boxing fights now persist the source-supported judge scorecards; no unsupported round-stat model is added.
 - [ ] Decide separately whether boxing needs odds, bios, or headshots; these are UFC-specific features, not automatic parity requirements.
 
 ## Milestone 4: Wire production orchestration and consumers

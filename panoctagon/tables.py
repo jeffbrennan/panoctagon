@@ -152,6 +152,7 @@ class BoxingFight(SQLModel, table=True):
     fighter2_result: Optional[FightResult] = None
     decision: Optional[str] = None
     decision_round: Optional[int] = None
+    judge_cards: Optional[str] = None
 
 
 class BoxingFighter(SQLModel, table=True):

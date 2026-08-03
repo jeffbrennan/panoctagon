@@ -228,7 +228,9 @@ def test_parse_match_page_outcomes_and_decision() -> None:
               <span style="color:red">L</span>
               <a href="/boxer-4961">Ryan Garcia</a>
               <span style="color:green">W</span>
-              <span style="color:#3366CC">UD 12</span>
+              <span style="color:#3366CC">UD 12</span><br>
+              WBC World Welterweight<br>
+              Tim Cheatham 108-119 David Sutherland 107-120 Steve Weisfeld 109-118
             </li></ul>
         """,
         file_num=0,
@@ -240,6 +242,10 @@ def test_parse_match_page_outcomes_and_decision() -> None:
     assert result.result.fighter2_result == FightResult.WIN
     assert result.result.decision == "UD"
     assert result.result.decision_round == 12
+    assert (
+        result.result.judge_cards
+        == "Tim Cheatham 108-119 David Sutherland 107-120 Steve Weisfeld 109-118"
+    )
 
 
 def test_apply_match_results_handles_reversed_fighters() -> None:
@@ -248,9 +254,13 @@ def test_apply_match_results_handles_reversed_fighters() -> None:
         path=Path("9730.html"),
         modified_ts=datetime.datetime.now(),
         contents="""
-            <a href="/boxer-4278">Conor Benn</a><span style="color:red">L</span>
-            <a href="/boxer-4961">Ryan Garcia</a><span style="color:green">W</span>
-            <span style="color:#3366CC">UD 12</span>
+            <ul><li>
+              <a href="/boxer-4278">Conor Benn</a><span style="color:red">L</span>
+              <a href="/boxer-4961">Ryan Garcia</a><span style="color:green">W</span>
+              <span style="color:#3366CC">UD 12</span><br>
+              WBC World Welterweight<br>
+              Tim Cheatham 108-119 David Sutherland 107-120 Steve Weisfeld 109-118
+            </li></ul>
         """,
         file_num=0,
         n_files=1,
@@ -267,6 +277,9 @@ def test_apply_match_results_handles_reversed_fighters() -> None:
     assert fight.fighter1_result == FightResult.WIN
     assert fight.fighter2_result == FightResult.LOSS
     assert fight.decision_round == 12
+    assert (
+        fight.judge_cards == "Tim Cheatham 108-119 David Sutherland 107-120 Steve Weisfeld 109-118"
+    )
 
 
 def test_parse_results_discovers_completed_events() -> None:

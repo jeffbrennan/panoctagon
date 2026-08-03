@@ -188,6 +188,7 @@ def parse_match_page(match_page: FileContents) -> BoxingMatchParsingResult:
     )
     decision = None
     decision_round = None
+    judge_cards = None
     if method_span is not None:
         method_text = re.sub(r"\s+", " ", method_span.get_text(" ", strip=True)).strip()
         method_match = re.match(r"^(.*?)\s+(\d+)$", method_text)
@@ -196,6 +197,20 @@ def parse_match_page(match_page: FileContents) -> BoxingMatchParsingResult:
         else:
             decision = method_match.group(1).strip() or None
             decision_round = int(method_match.group(2))
+
+        result_item = method_span.find_parent("li")
+        if result_item is not None:
+            line_breaks = result_item.find_all("br")
+            if len(line_breaks) >= 2:
+                judge_text = " ".join(
+                    (
+                        node.get_text(" ", strip=True)
+                        if isinstance(node, bs4.Tag)
+                        else str(node).strip()
+                    )
+                    for node in line_breaks[1].next_siblings
+                )
+                judge_cards = re.sub(r"\s+", " ", judge_text).strip() or None
 
     fighter1_result = (
         RESULT_MAP.get(result_spans[0].get_text(strip=True)) if len(result_spans) > 0 else None
@@ -213,6 +228,7 @@ def parse_match_page(match_page: FileContents) -> BoxingMatchParsingResult:
             fighter2_result=fighter2_result,
             decision=decision,
             decision_round=decision_round,
+            judge_cards=judge_cards,
         ),
         issues=issues,
     )
@@ -239,6 +255,7 @@ def apply_match_results(
             continue
         fight.decision = match.decision
         fight.decision_round = match.decision_round
+        fight.judge_cards = match.judge_cards
 
 
 def parse_date(date_tag: bs4.Tag) -> str:
@@ -267,6 +284,8 @@ def reconcile_fight_history(fight: BoxingFight, history: Sequence[BoxingFightHis
             fight.decision = item.decision
         if fight.decision_round is None:
             fight.decision_round = item.decision_round
+        if fight.judge_cards is None:
+            fight.judge_cards = item.judge_cards
 
         if item.boxer_uid == fight.fighter1_uid:
             item.boxer_result = fight.fighter1_result
@@ -276,6 +295,7 @@ def reconcile_fight_history(fight: BoxingFight, history: Sequence[BoxingFightHis
             item.opponent_result = fight.fighter1_result
         item.decision = fight.decision
         item.decision_round = fight.decision_round
+        item.judge_cards = fight.judge_cards
 
 
 def write_fight_results_to_db(results: list[BoxingFightParsingResult], force_run: bool) -> None:
