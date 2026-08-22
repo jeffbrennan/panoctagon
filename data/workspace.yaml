@@ -1,0 +1,9 @@
+# Points dagster-webserver and dagster-daemon at the long-lived code server
+# (panoctagon_code_server compose service, which runs `dagster code-server start` on :4000).
+# Keeps code reloads cheap: the heavy import of panoctagon.dagster.definitions happens once,
+# in that persistent process, instead of a fresh grpc server per connection.
+load_from:
+  - grpc_server:
+      host: panoctagon_code_server
+      port: 4000
+      location_name: panoctagon
