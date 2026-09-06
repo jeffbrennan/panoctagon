@@ -1,4 +1,5 @@
 from typing import Any
+import time
 
 from dagster_dbt import DbtCliResource, dbt_assets
 from sqlalchemy import text
@@ -10,6 +11,7 @@ from dagster import (
     AssetExecutionContext,
     AssetKey,
     AssetSpec,
+    RetryPolicy,
     asset,
     asset_check,
     multi_asset,
@@ -136,18 +138,33 @@ def dagster_promotions():
     setup_promotions()
 
 
-@asset_check(asset=AssetKey(["ufc_fights"]), blocking=True)
+@asset_check(
+    asset=AssetKey(["ufc_fights"]),
+    blocking=True,
+    pool=POOL,
+    retry_policy=RetryPolicy(max_retries=3, delay=30),
+)
 def upcoming_fights_not_empty() -> AssetCheckResult:
     engine = get_read_engine()
-    with engine.connect() as conn:
-        n_upcoming = conn.execute(
-            text(
-                """
-                select count(*) from ufc_fights f
-                join ufc_events e on f.event_uid = e.event_uid
-                where f.fighter1_result is null and e.event_date::date >= current_date
-                """
-            )
-        ).scalar()
+    n_upcoming = None
+    for attempt in range(5):
+        try:
+            with engine.connect() as conn:
+                n_upcoming = conn.execute(
+                    text(
+                        """
+                        select count(*) from ufc_fights f
+                        join ufc_events e on f.event_uid = e.event_uid
+                        where f.fighter1_result is null and e.event_date::date >= current_date
+                        """
+                    )
+                ).scalar()
+            break
+        except Exception:
+            if attempt == 4:
+                raise
+            time.sleep(10)
 
-    return AssetCheckResult(passed=n_upcoming > 0, metadata={"n_upcoming_fights": n_upcoming})
+    return AssetCheckResult(
+        passed=(n_upcoming or 0) > 0, metadata={"n_upcoming_fights": n_upcoming}
+    )
