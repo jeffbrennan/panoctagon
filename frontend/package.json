@@ -17,6 +17,7 @@
     "svelte": "^5.57.2"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.64.1",
     "@sveltejs/vite-plugin-svelte": "^6.2.1",
     "@types/node": "^24.0.0",

@@ -249,7 +249,7 @@
     color: var(--ink);
   }
   .table-note {
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     color: var(--muted);
     margin-top: 12px;
   }

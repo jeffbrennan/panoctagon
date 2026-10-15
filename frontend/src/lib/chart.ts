@@ -10,6 +10,7 @@ import {
   VisualMapComponent,
 } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
+import { LabelLayout } from 'echarts/features';
 
 use([
   BarChart,
@@ -25,5 +26,6 @@ use([
   AriaComponent,
   VisualMapComponent,
   CanvasRenderer,
+  LabelLayout,
 ]);
 export { init };

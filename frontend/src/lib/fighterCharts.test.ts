@@ -32,7 +32,7 @@ describe('fighter charts', () => {
       fight('missing', {}),
       fight('last', { strikes_absorbed: 20 }),
     ]);
-    expect((option.series as any[])[0].data.map((p: any) => p.value)).toEqual([10, 10, 30]);
+    expect((option.series as any[])[0].data.map((p: any) => p.value[1])).toEqual([10, 10, 30]);
   });
   it('excludes unknown and zero-attempt accuracy rather than plotting false zeroes', () => {
     const option = accuracy([
@@ -40,6 +40,6 @@ describe('fighter charts', () => {
       fight('zero', { strikes_attempted: 0 }),
       fight('valid', { strikes_landed: 10, strikes_attempted: 20 }),
     ]);
-    expect((option.series as any[])[0].data).toEqual([50]);
+    expect((option.series as any[])[0].data.map((p: any) => p[1])).toEqual([50]);
   });
 });

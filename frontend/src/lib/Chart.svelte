@@ -74,7 +74,7 @@
           animation: !reducedMotion,
           aria: { enabled: true, label: { description: label } },
         },
-        { replaceMerge: ['series'], lazyUpdate: true },
+        { replaceMerge: ['series', 'dataZoom', 'visualMap'], lazyUpdate: true },
       );
   });
 </script>

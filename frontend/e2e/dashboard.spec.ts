@@ -154,3 +154,44 @@ test('failed requests can be retried and an empty calendar stays usable', async 
   await expect(page.getByRole('heading', { name: 'No upcoming events' })).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Main navigation' })).toBeVisible();
 });
+
+test('fighter detail tabs support arrow, home, and end keys', async ({ page }) => {
+  await page.goto('/?view=fighters&fighter=alpha');
+  const profile = page.getByRole('tab', { name: 'Profile' });
+  await profile.focus();
+  await profile.press('ArrowRight');
+  const history = page.getByRole('tab', { name: 'History' });
+  await expect(history).toBeFocused();
+  await expect(history).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('table')).toBeVisible();
+  await history.press('End');
+  const striking = page.getByRole('tab', { name: 'Striking' });
+  await expect(striking).toBeFocused();
+  await expect(striking).toHaveAttribute('aria-selected', 'true');
+  await striking.press('Home');
+  await expect(profile).toBeFocused();
+  await expect(profile).toHaveAttribute('tabindex', '0');
+  await expect(history).toHaveAttribute('tabindex', '-1');
+});
+
+test('changing fighter keeps the existing chart while the next profile loads', async ({ page }) => {
+  await page.goto('/?view=fighters&fighter=alpha');
+  await page.locator('.chart').first().scrollIntoViewIfNeeded();
+  const canvas = page.locator('.chart').first().locator('canvas');
+  await expect(canvas).toBeVisible();
+  const original = await canvas.elementHandle();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  await page.route('**/api/fighter/bravo/analytics', async (route) => {
+    await gate;
+    const { profile, bravo } = await import('./fixtures');
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify(profile(bravo)) });
+  });
+  await page.getByRole('combobox', { name: 'Find a fighter' }).fill('Blair');
+  await page.getByRole('option', { name: /Blair Bravo/ }).click();
+  await expect(page.getByRole('status')).toHaveText('Loading fighter…');
+  expect(await canvas.evaluate((node, previous) => node === previous, original)).toBe(true);
+  release();
+  await expect(page.getByRole('heading', { name: 'Blair Bravo', exact: true })).toBeVisible();
+  expect(await canvas.evaluate((node, previous) => node === previous, original)).toBe(true);
+});

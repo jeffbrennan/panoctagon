@@ -33,7 +33,7 @@ export const baseOption = {
 export const axis = {
   axisLine: { lineStyle: { color: '#d5d3c7' } },
   axisTick: { show: false },
-  axisLabel: { color: '#69685f', fontSize: 10, hideOverlap: true },
+  axisLabel: { color: '#69685f', fontSize: 11, hideOverlap: true },
   splitLine: { lineStyle: { color: '#e7e5da', type: 'dashed' as const } },
   nameTextStyle: { color: '#69685f', fontSize: 11, align: 'left' as const },
 };

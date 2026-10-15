@@ -24,6 +24,8 @@
     if (!open) return;
     loading = true;
     error = '';
+    results = [];
+    selected = -1;
     timer = setTimeout(
       async () => {
         const abort = new AbortController();
@@ -75,9 +77,9 @@
     }
     if (event.key === 'ArrowUp') {
       event.preventDefault();
-      selected = Math.max(selected - 1, 0);
+      selected = results.length ? Math.max(selected - 1, 0) : -1;
     }
-    if (event.key === 'Enter' && open && selected >= 0) {
+    if (event.key === 'Enter' && open && !loading && selected >= 0 && selected < results.length) {
       event.preventDefault();
       choose(results[selected].fighter_uid);
     }
@@ -93,7 +95,13 @@
     if (root && !root.contains(e.target as Node)) open = false;
   }}
 />
-<div class="fighter-search" bind:this={root}>
+<div
+  class="fighter-search"
+  bind:this={root}
+  onfocusout={(event) => {
+    if (!root.contains(event.relatedTarget as Node)) open = false;
+  }}
+>
   <label class="field" for="fighter-search">Find a fighter</label>
   <div class="search-input-wrap">
     <svg
@@ -127,10 +135,20 @@
         </p>{:else if !loading && !results.length}<p class="search-status">
           No fighters found.
         </p>{/if}
-      <ul id="fighter-results" role="listbox" aria-label="Fighters" aria-busy={loading}>
+      <ul
+        id="fighter-results"
+        role="listbox"
+        tabindex="0"
+        onkeydown={keys}
+        aria-label="Fighters"
+        aria-busy={loading}
+      >
         {#each results as f, i (f.fighter_uid)}
-          <li role="option" aria-selected={selected === i} id={`fighter-result-${i}`}>
+          <li role="presentation">
             <button
+              role="option"
+              aria-selected={selected === i}
+              id={`fighter-result-${i}`}
               tabindex="-1"
               class:selected={selected === i}
               onclick={() => choose(f.fighter_uid)}
@@ -186,8 +204,6 @@
     left: 0;
     right: 0;
     top: calc(100% + 6px);
-    max-height: 380px;
-    overflow: auto;
     border: 1px solid var(--line);
     background: var(--surface);
     box-shadow: 0 12px 30px #1a1a1a12;
@@ -197,6 +213,8 @@
     list-style: none;
     padding: 0;
     margin: 0;
+    max-height: 340px;
+    overflow: auto;
   }
   .search-results button {
     display: flex;
@@ -222,7 +240,7 @@
   .search-results small {
     display: block;
     color: var(--muted);
-    font-size: 0.625rem;
+    font-size: 0.75rem;
   }
   .search-status {
     font-size: 0.75rem;
@@ -231,7 +249,7 @@
   }
   .search-results .record {
     white-space: nowrap;
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
   }
   @media (max-width: 640px) {
     .fighter-search {

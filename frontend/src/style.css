@@ -167,6 +167,9 @@ main {
   min-height: 65vh;
   outline: none;
 }
+.view:not([hidden]) {
+  animation: enter 160ms ease-out;
+}
 .page-heading {
   display: flex;
   align-items: flex-end;
@@ -229,7 +232,7 @@ main {
   color: #77766f;
 }
 .badge {
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   border: 1px solid currentColor;
   padding: 3px 8px;
   white-space: nowrap;
@@ -305,7 +308,7 @@ input.control {
   gap: 12px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   color: var(--muted);
   margin-bottom: 18px;
 }
@@ -410,7 +413,7 @@ input.control {
 }
 .fighter-metrics span,
 .fighter-metrics small {
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   color: var(--muted);
 }
 .fighter-metrics strong {
@@ -571,7 +574,7 @@ input.control {
   border-right: 0;
 }
 .metric dt {
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   color: var(--muted);
   margin-bottom: 8px;
 }
@@ -598,7 +601,7 @@ input.control {
   font-weight: 600;
   color: var(--muted);
   text-align: left;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   padding: 12px 16px;
 }
 .data-table td {
@@ -617,7 +620,7 @@ input.control {
   cursor: pointer;
 }
 .result {
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   display: inline-block;
   min-width: 42px;
   text-align: center;
@@ -642,7 +645,7 @@ footer {
   margin-top: 48px;
   padding: 22px 0;
   color: var(--muted);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
 }
 footer > span:first-child {
   font-weight: 700;
@@ -736,7 +739,7 @@ main > div.page-heading {
     height: 25px;
   }
   .refresh-label {
-    font-size: 0.625rem;
+    font-size: 0.75rem;
     max-width: 115px;
     text-align: right;
   }
@@ -756,7 +759,7 @@ main > div.page-heading {
     font-size: 1.8rem;
   }
   .eyebrow {
-    font-size: 0.625rem;
+    font-size: 0.75rem;
   }
   .event-banner {
     padding: 20px 16px;
@@ -776,7 +779,7 @@ main > div.page-heading {
     margin-bottom: 8px;
   }
   .event-info > p:last-child {
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
   }
   .event-info .separator {
     display: block;
@@ -787,7 +790,7 @@ main > div.page-heading {
     display: none;
   }
   .event-info .eyebrow {
-    font-size: 0.625rem;
+    font-size: 0.75rem;
   }
   .section-toolbar {
     align-items: flex-start;
@@ -809,7 +812,7 @@ main > div.page-heading {
     padding: 16px;
   }
   .matchup-meta {
-    font-size: 0.625rem;
+    font-size: 0.75rem;
     margin-bottom: 16px;
   }
   .matchup-fighters {
@@ -843,14 +846,14 @@ main > div.page-heading {
     font-size: 0.75rem;
   }
   .odds {
-    font-size: 0.625rem;
+    font-size: 0.75rem;
   }
   .headshot {
     width: 84px;
     height: 64px;
   }
   .versus {
-    font-size: 0.625rem;
+    font-size: 0.75rem;
   }
   .comparison {
     display: none;
@@ -877,7 +880,7 @@ main > div.page-heading {
     border-top: 1px solid var(--line);
     background: transparent;
     color: var(--muted);
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     min-height: 40px;
   }
   .compare-toggle span {

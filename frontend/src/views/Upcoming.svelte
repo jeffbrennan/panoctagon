@@ -22,15 +22,17 @@
 
   async function load() {
     controller?.abort();
-    controller = new AbortController();
+    const request = new AbortController();
+    controller = request;
     loading = true;
     error = '';
     try {
-      events = await api<UpcomingEvent[]>('/upcoming', controller.signal);
+      const value = await api<UpcomingEvent[]>('/upcoming', request.signal);
+      if (!request.signal.aborted) events = value;
     } catch (e) {
       if (!isAbort(e)) error = errorMessage(e);
     } finally {
-      if (!controller.signal.aborted) loading = false;
+      if (!request.signal.aborted) loading = false;
     }
   }
   onMount(() => {

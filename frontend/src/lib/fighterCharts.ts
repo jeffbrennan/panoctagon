@@ -21,6 +21,11 @@ const valueAxis = (name: string) => ({
   name,
   nameLocation: 'end' as const,
 });
+const timeAxis = () => ({
+  ...axis,
+  type: 'time' as const,
+  axisLabel: { ...axis.axisLabel, formatter: '{yyyy}', hideOverlap: true },
+});
 function fightTip(f: CareerFight): string {
   return `${date(f.event_date, true)}\n${f.event_title}\n${label(f.result)} vs ${f.opponent_name}\n${label(f.decision)}${f.closing_odds == null ? '' : ` · ${odds(f.closing_odds)}`}`;
 }
@@ -53,9 +58,9 @@ export function timeline(fights: CareerFight[]): EChartsOption {
       ...baseOption.tooltip,
       trigger: 'item',
       formatter: (p: any) =>
-        `${fightTip(fights[p.dataIndex])}\nStrikes absorbed: ${number(fights[p.dataIndex].strikes_absorbed)}\nCareer total: ${number(p.value)}`,
+        `${fightTip(fights[p.dataIndex])}\nStrikes absorbed: ${number(fights[p.dataIndex].strikes_absorbed)}\nCareer total: ${number(p.value[1])}`,
     },
-    xAxis: category(fights),
+    xAxis: timeAxis(),
     yAxis: valueAxis('Strikes absorbed'),
     dataZoom: zoom(fights),
     series: [
@@ -64,12 +69,14 @@ export function timeline(fights: CareerFight[]): EChartsOption {
         type: 'line',
         smooth: 0.18,
         symbolSize: 9,
+        symbol: 'circle',
         lineStyle: { color: '#4b4f43', width: 1.5 },
         areaStyle: { color: '#8d9b8b', opacity: 0.15 },
         data: fights.map((f) => {
           total += f.strikes_absorbed || 0;
           return {
-            value: total,
+            name: f.fight_uid,
+            value: [f.event_date, total],
             itemStyle: {
               color: f.result === 'WIN' ? '#253b32' : f.result === 'LOSS' ? '#f2f0e3' : '#b4a58a',
               borderColor: '#253b32',
@@ -157,7 +164,7 @@ export function accuracy(fights: CareerFight[]): EChartsOption {
           : '';
       },
     },
-    xAxis: category(eligible),
+    xAxis: timeAxis(),
     yAxis: { ...valueAxis('Accuracy (%)'), min: 0, max: 100 },
     series: [
       {
@@ -165,7 +172,10 @@ export function accuracy(fights: CareerFight[]): EChartsOption {
         type: 'line',
         smooth: 0.2,
         symbolSize: 6,
-        data: eligible.map((f) => ((f.strikes_landed || 0) / f.strikes_attempted!) * 100),
+        data: eligible.map((f) => [
+          f.event_date,
+          ((f.strikes_landed || 0) / f.strikes_attempted!) * 100,
+        ]),
         areaStyle: { opacity: 0.06 },
       },
     ],

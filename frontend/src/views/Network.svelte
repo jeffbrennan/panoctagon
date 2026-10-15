@@ -47,6 +47,7 @@
     series: [
       {
         type: 'graph',
+        labelLayout: { hideOverlap: true },
         layout: 'none',
         roam: true,
         scaleLimit: { min: 0.4, max: 6 },
@@ -289,7 +290,7 @@
       align-items: flex-start;
     }
     .network-panel > .panel-heading > .button {
-      font-size: 0.625rem;
+      font-size: 0.75rem;
       padding: 8px;
     }
     .network-graph {
