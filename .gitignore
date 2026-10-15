@@ -42,4 +42,5 @@ data/raw/ufc/betting_odds/attempted_links.json
 frontend/node_modules/
 frontend/dist/
 frontend/.svelte-kit/
+!frontend/index.html
 /data/raw/ufc/fighter_headshots
