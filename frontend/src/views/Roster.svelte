@@ -116,6 +116,7 @@
             </div>
           </div>
           <Chart
+            family="roster"
             option={strikingOption}
             label={`Striking styles of ${data.fighters.length} fighters in ${label(division)}`}
             height={440}
@@ -132,6 +133,7 @@
             </div>
           </div>
           <Chart
+            family="roster"
             option={targetOption}
             label="Head, body, and leg strike percentages for wins and losses"
             height={340}
@@ -153,6 +155,7 @@
                 >{/each}</select
             ></label
           ><Chart
+            family="roster"
             option={advantageOption}
             label={`Win rate by ${metric.toLowerCase()} difference`}
             height={284}

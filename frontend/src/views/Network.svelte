@@ -51,6 +51,7 @@
   });
   let option = $derived<EChartsOption>({
     ...baseOption,
+    grid: undefined,
     tooltip: {
       ...baseOption.tooltip,
       trigger: 'item',
@@ -211,6 +212,7 @@
     </div>
     <div class="network-graph" class:updating={loading} bind:clientWidth={graphWidth}>
       <Chart
+        family="network"
         bind:this={graph}
         {option}
         label={`Network of ${shown?.nodes.length} UFC fighters in ${label(division)}, from ${start} through ${end}`}

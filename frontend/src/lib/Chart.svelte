@@ -2,16 +2,19 @@
   import { onMount } from 'svelte';
   import type { EChartsType } from 'echarts/core';
   import type { EChartsOption, GraphSeriesOption } from 'echarts';
+  import { loadChart, type ChartFamily } from './chartLoader';
   let {
     option,
     label,
     height = 320,
     onselect,
+    family = 'fighter',
   }: {
     option: EChartsOption;
     label: string;
     height?: number;
     onselect?: (data: any) => void;
+    family?: ChartFamily;
   } = $props();
   let container: HTMLDivElement;
   let chart = $state<EChartsType | null>(null);
@@ -61,7 +64,7 @@
         if (!visible || chart || initializing) return;
         initializing = true;
         try {
-          const { init } = await import('./chart');
+          const { init } = await loadChart(family);
           if (disposed || !visible || container.clientWidth === 0) return;
           chart = init(container, undefined, {
             renderer: 'canvas',
@@ -107,7 +110,7 @@
             animation: !reducedMotion,
             aria: { enabled: true, label: { description: label } },
           },
-          { replaceMerge: ['series', 'dataZoom', 'visualMap'], lazyUpdate: true },
+          { replaceMerge: ['series', ...(family === 'fighter' ? ['dataZoom'] : family === 'roster' ? ['visualMap'] : [])], lazyUpdate: true },
         );
       else if (renderedLabel !== label || renderedMotion !== reducedMotion)
         chart.setOption({
