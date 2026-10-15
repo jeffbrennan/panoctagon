@@ -12,6 +12,7 @@ export class ApiError extends Error {
 }
 
 export async function api<T>(path: string, signal?: AbortSignal): Promise<T> {
+  signal?.throwIfAborted();
   const cached = cache.get(path);
   if (cached && cached.expires > Date.now()) return cached.value as T;
   const response = await fetch(`/api${path}`, {

@@ -11,7 +11,10 @@
   let loading = $state(true);
   let error = $state('');
   let retry = $state(0);
+  let strikingOption = $derived(strikingType(data?.fighters || []));
+  let targetOption = $derived(strikeTargets(data?.targets || []));
   let metric = $state('Age');
+  let advantageOption = $derived(discrepancy(data?.advantages || [], metric));
   let search = $state('');
   let sort = $state('total_fights');
   let descending = $state(true);
@@ -113,7 +116,7 @@
             </div>
           </div>
           <Chart
-            option={strikingType(data.fighters)}
+            option={strikingOption}
             label={`Striking styles of ${data.fighters.length} fighters in ${label(division)}`}
             height={440}
             onselect={(point) => {
@@ -129,7 +132,7 @@
             </div>
           </div>
           <Chart
-            option={strikeTargets(data.targets)}
+            option={targetOption}
             label="Head, body, and leg strike percentages for wins and losses"
             height={340}
             onselect={(point) => {
@@ -150,7 +153,7 @@
                 >{/each}</select
             ></label
           ><Chart
-            option={discrepancy(data.advantages, metric)}
+            option={advantageOption}
             label={`Win rate by ${metric.toLowerCase()} difference`}
             height={284}
           />

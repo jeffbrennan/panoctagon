@@ -18,6 +18,7 @@
   let focus = $state(false);
   let retry = $state(0);
   let graphWidth = $state(1000);
+  let graph = $state.raw<{ resetGraphView: () => void }>();
   let minYear = $derived(metadata?.first_year || 1993);
   let maxYear = $derived(Math.max(metadata?.last_year || 2026, new Date().getFullYear()));
   let years = $derived(Array.from({ length: maxYear - minYear + 1 }, (_, i) => minYear + i));
@@ -62,6 +63,7 @@
     series: [
       {
         type: 'graph',
+        id: `connections-${division}-${start}-${end}`,
         animationThreshold: 300,
         labelLayout: { hideOverlap: true },
         layout: 'none',
@@ -191,7 +193,8 @@
         onclick={() => {
           selected = '';
           focus = false;
-        }}>Reset selection</button
+          graph?.resetGraphView();
+        }}>Reset view</button
       >
     </div>
     <div class="network-toolbar">
@@ -208,6 +211,7 @@
     </div>
     <div class="network-graph" class:updating={loading} bind:clientWidth={graphWidth}>
       <Chart
+        bind:this={graph}
         {option}
         label={`Network of ${shown?.nodes.length} UFC fighters in ${label(division)}, from ${start} through ${end}`}
         height={500}

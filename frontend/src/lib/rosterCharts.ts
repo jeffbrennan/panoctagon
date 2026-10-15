@@ -25,6 +25,7 @@ export function strikingType(fighters: RosterPoint[]): EChartsOption {
     },
     yAxis: { ...axis, type: 'value', name: 'Median strikes absorbed / round' },
     visualMap: {
+      id: 'opposition-strength',
       min: 0,
       max: Math.max(...fighters.map((f) => f.opposition_strength), 1),
       dimension: 2,
@@ -42,6 +43,7 @@ export function strikingType(fighters: RosterPoint[]): EChartsOption {
       {
         type: 'scatter',
         name: 'Fighters',
+        id: 'fighter-striking',
         progressive: 200,
         progressiveThreshold: 500,
         progressiveChunkMode: 'mod',
@@ -106,6 +108,7 @@ export function strikeTargets(targets: TargetBox[]): EChartsOption {
     series: [
       {
         name: 'Target distribution',
+        id: 'target-distribution',
         type: 'boxplot',
         boxWidth: ['35%', '60%'],
         data: boxes.map((t) => ({
@@ -120,6 +123,7 @@ export function strikeTargets(targets: TargetBox[]): EChartsOption {
       },
       {
         name: 'Outliers',
+        id: 'target-outliers',
         type: 'scatter',
         symbolSize: 5,
         itemStyle: { color: '#4b4f43', opacity: 0.65 },
@@ -169,6 +173,7 @@ export function discrepancy(advantages: Advantage[], metric: string): EChartsOpt
       {
         type: 'line',
         name: 'Win rate',
+        id: 'matchup-advantage',
         data: data.map((a) => a.win_rate),
         symbolSize: 8,
         smooth: 0.15,

@@ -7,7 +7,7 @@ Local Svelte 5 + TypeScript + ECharts replacement for the Dash dashboard. The Py
 From the repository root, start the API against your existing `data/panoctagon_orm.duckdb`:
 
 ```sh
-uv run uvicorn panoctagon.api.server:app --host 127.0.0.1 --port 8000
+uv run --python 3.12 uvicorn panoctagon.api.server:app --host 127.0.0.1 --port 8000
 ```
 
 In another terminal:
@@ -28,14 +28,14 @@ Headshots are served from `data/raw/ufc/fighter_headshots/`. Missing images disp
 npm run check
 npm test
 npm run build
-npx playwright install chromium
+npx playwright install chromium firefox webkit
 npm run test:ui
 ```
 
 The browser suite uses deterministic API fixtures and covers desktop/mobile navigation, search, matchup filtering, chart loading, pagination, retries, and horizontal overflow at 320, 390, 768, and 1440 pixels. Reports, traces, and screenshots are written to the repository's ignored `.scratch/` directory. Python analytics tests use their own temporary DuckDB database:
 
 ```sh
-uv run pytest tests/test_dashboard_api.py
+uv run --python 3.12 pytest tests/test_dashboard_api.py tests/test_web_server.py
 ```
 
 Use `npm run preview` to serve the production build at <http://127.0.0.1:4173> with the same API proxy.

@@ -34,15 +34,32 @@ describe('API data cache', () => {
     expect(fetch).toHaveBeenCalledTimes(2);
   });
   it('forwards cancellation and recognizes aborts', async () => {
-    const fetch = vi.fn().mockRejectedValue(new DOMException('Aborted', 'AbortError'));
+    const fetch = vi.fn(
+      (_url: string, { signal }: { signal: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+        }),
+    );
     vi.stubGlobal('fetch', fetch);
     const { api, isAbort } = await import('./api');
     const controller = new AbortController();
+    const pending = api('/fighter', controller.signal);
     controller.abort();
-    await expect(api('/fighter', controller.signal)).rejects.toSatisfy(isAbort);
+    await expect(pending).rejects.toSatisfy(isAbort);
     expect(fetch).toHaveBeenCalledWith(
       '/api/fighter',
       expect.objectContaining({ signal: controller.signal }),
     );
   });
+});
+
+it('honors cancellation even when the response is already cached', async () => {
+  const fetch = vi.fn().mockResolvedValue(new Response('[]'));
+  vi.stubGlobal('fetch', fetch);
+  const { api, isAbort } = await import('./api');
+  await api('/upcoming');
+  const controller = new AbortController();
+  controller.abort();
+  await expect(api('/upcoming', controller.signal)).rejects.toSatisfy(isAbort);
+  expect(fetch).toHaveBeenCalledTimes(1);
 });

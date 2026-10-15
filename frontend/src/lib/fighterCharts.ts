@@ -34,12 +34,14 @@ function zoom(fights: CareerFight[]) {
     ? [
         {
           type: 'inside' as const,
+          id: 'career-zoom-inside',
           filterMode: 'none' as const,
           zoomOnMouseWheel: false,
           moveOnMouseWheel: false,
         },
         {
           type: 'slider' as const,
+          id: 'career-zoom-slider',
           height: 14,
           bottom: 0,
           borderColor: '#d5d3c7',
@@ -66,6 +68,7 @@ export function timeline(fights: CareerFight[]): EChartsOption {
     series: [
       {
         name: 'Career strikes absorbed',
+        id: 'career-strikes',
         type: 'line',
         smooth: 0.18,
         symbolSize: 9,
@@ -106,6 +109,7 @@ export function outcomes(fights: CareerFight[]): EChartsOption {
     yAxis: { ...axis, type: 'category', data: ['Losses', 'Wins'] },
     series: methods.map((method, i) => ({
       name: method,
+      id: `outcome-${method}`,
       type: 'bar',
       stack: 'outcomes',
       barMaxWidth: 46,
@@ -135,12 +139,14 @@ export function strikes(fights: CareerFight[]): EChartsOption {
     series: [
       {
         name: 'Landed',
+        id: 'strikes-landed',
         type: 'bar',
         data: fights.map((f) => f.strikes_landed),
         barMaxWidth: 20,
       },
       {
         name: 'Absorbed',
+        id: 'strikes-absorbed',
         type: 'bar',
         data: fights.map((f) => f.strikes_absorbed),
         barMaxWidth: 20,
@@ -169,6 +175,7 @@ export function accuracy(fights: CareerFight[]): EChartsOption {
     series: [
       {
         name: 'Accuracy',
+        id: 'strike-accuracy',
         type: 'line',
         smooth: 0.2,
         symbolSize: 6,
@@ -199,6 +206,7 @@ export function targets(fights: CareerFight[]): EChartsOption {
     dataZoom: zoom(fights),
     series: (['leg', 'body', 'head'] as const).map((key, i) => ({
       name: label(key),
+      id: `target-${key}`,
       type: 'bar',
       stack: 'targets',
       barMaxWidth: 32,

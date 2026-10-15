@@ -167,7 +167,7 @@
       <State
         title="This view could not load"
         message="Check your connection and try again."
-        retry={() => void show(view, fighter, false)}
+        retry={() => location.reload()}
       />
     {:else if loading}
       <State loading message={`Loading ${names[view].toLowerCase()}…`} />

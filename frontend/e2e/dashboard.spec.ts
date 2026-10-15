@@ -200,3 +200,89 @@ test('changing fighter keeps the existing chart while the next profile loads', a
   await expect(page.getByRole('heading', { name: 'Blair Bravo', exact: true })).toBeVisible();
   expect(await canvas.evaluate((node, previous) => node === previous, original)).toBe(true);
 });
+
+test('a failed view chunk can recover by reloading its bookmarked route', async ({ page }) => {
+  let fail = true;
+  await page.route('**/src/views/Fighters.svelte*', (route) => {
+    if (!fail) return route.continue();
+    return route.fulfill({
+      status: 503,
+      contentType: 'text/plain',
+      body: 'Temporarily unavailable',
+    });
+  });
+  await page.goto('/');
+  await page
+    .getByRole('navigation', { name: 'Main navigation' })
+    .getByRole('link', { name: 'Fighters' })
+    .click();
+  await expect(page.getByRole('heading', { name: 'This view could not load' })).toBeVisible();
+  fail = false;
+  await page.getByRole('button', { name: 'Try again' }).click();
+  await expect(page).toHaveURL(/view=fighters/);
+  await expect(page.getByRole('heading', { name: 'Alex Alpha', exact: true })).toBeVisible();
+});
+
+test('a slow obsolete roster response cannot replace a newer division', async ({ page }) => {
+  const { roster } = await import('./fixtures');
+  let release!: () => void;
+  let started!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const pending = new Promise<void>((resolve) => (started = resolve));
+  await page.route('**/api/analytics/roster?division=LIGHTWEIGHT', async (route) => {
+    started();
+    await gate;
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ...roster,
+        fighters: [{ ...roster.fighters[0], fighter_name: 'Old lightweight response' }],
+      }),
+    });
+  });
+  await page.route('**/api/analytics/roster?division=HEAVYWEIGHT', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ...roster,
+        fighters: [{ ...roster.fighters[0], fighter_name: 'New heavyweight response' }],
+      }),
+    }),
+  );
+  await page.goto('/?view=roster');
+  const division = page.getByRole('combobox', { name: 'Division' });
+  await division.selectOption('LIGHTWEIGHT');
+  await pending;
+  await division.selectOption('HEAVYWEIGHT');
+  await expect(page.getByRole('link', { name: 'New heavyweight response' })).toBeVisible();
+  release();
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
+  await expect(page.getByRole('link', { name: 'New heavyweight response' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Old lightweight response' })).toHaveCount(0);
+});
+
+test('returning to a fighter sub-tab preserves its chart instance', async ({ page }) => {
+  await page.goto('/?view=fighters&fighter=alpha');
+  const profilePanel = page.getByRole('tabpanel', { name: 'Profile', exact: true });
+  await profilePanel.locator('.chart').first().scrollIntoViewIfNeeded();
+  const canvas = profilePanel.locator('canvas').first();
+  await expect(canvas).toBeVisible();
+  const original = await canvas.elementHandle();
+  await page.getByRole('tab', { name: 'Striking', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Strikes landed vs. absorbed' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Profile', exact: true }).click();
+  expect(await canvas.evaluate((node, previous) => node === previous, original)).toBe(true);
+});
+
+test('resetting the network clears local focus and selection', async ({ page }) => {
+  await page.goto('/?view=network');
+  const fighter = page.getByRole('combobox', { name: 'Select a fighter' });
+  await fighter.selectOption('alpha');
+  await page.getByRole('checkbox', { name: 'Opponents only' }).check();
+  await page.getByRole('button', { name: 'Reset view', exact: true }).click();
+  await expect(fighter).toHaveValue('');
+  await expect(page.getByRole('checkbox', { name: 'Opponents only' })).not.toBeChecked();
+  await expect(page.getByRole('region', { name: 'Head-to-head records' })).toHaveCount(0);
+});

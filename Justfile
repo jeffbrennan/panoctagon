@@ -19,14 +19,14 @@ viz:
     uv run python panoctagon/dashboard/main.py
 
 api:
-    uv run uvicorn panoctagon.api.server:app --host 127.0.0.1 --port 8000
+    uv run --python 3.12 uvicorn panoctagon.api.server:app --host 127.0.0.1 --port 8000
 
 web:
     npm --prefix frontend run dev
 
 webpreview:
     npm --prefix frontend run build
-    uv run uvicorn panoctagon.web.server:app --host 127.0.0.1 --port 8080
+    uv run --python 3.12 uvicorn panoctagon.web.server:app --host 127.0.0.1 --port 8080
 
 webcheck:
     npm --prefix frontend run check

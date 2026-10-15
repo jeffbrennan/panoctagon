@@ -16,6 +16,11 @@
   let retry = $state(0);
   let uid = $state('');
   const tabs = ['profile', 'history', 'striking'];
+  let visitedTabs = $state<Record<string, boolean>>({ profile: true });
+  function selectTab(next: string) {
+    visitedTabs[next] = true;
+    tab = next;
+  }
   function tabKeys(event: KeyboardEvent, index: number) {
     let next = index;
     if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
@@ -24,11 +29,16 @@
     else if (event.key === 'End') next = tabs.length - 1;
     else return;
     event.preventDefault();
-    tab = tabs[next];
+    selectTab(tabs[next]);
     document.getElementById(`tab-${tab}`)?.focus();
   }
   let fights = $derived(profile?.fights || []);
   let reversed = $derived([...fights].reverse());
+  let timelineOption = $derived(timeline(fights));
+  let outcomeOption = $derived(outcomes(fights));
+  let strikeOption = $derived(strikes(fights));
+  let accuracyOption = $derived(accuracy(fights));
+  let targetOption = $derived(targets(fights));
   let landed = $derived(fights.reduce((sum, f) => sum + (f.strikes_landed || 0), 0));
   let absorbed = $derived(fights.reduce((sum, f) => sum + (f.strikes_absorbed || 0), 0));
   let finishes = $derived(
@@ -120,118 +130,137 @@
           onkeydown={(event) => tabKeys(event, index)}
           aria-controls={`panel-${item}`}
           class:active={tab === item}
-          onclick={() => (tab = item)}>{label(item)}</button
+          onclick={() => selectTab(item)}>{label(item)}</button
         >{/each}
     </div>
-    <div role="tabpanel" tabindex="0" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
-      {#if !fights.length}<State
+    {#if !fights.length}
+      <div role="tabpanel" tabindex="0" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
+        <State
           title="No UFC fight history"
           message="Career statistics will appear when completed fights are available."
         />
-      {:else if tab === 'profile'}
-        <dl class="metrics">
-          <div class="metric">
-            <dt>Total fights</dt>
-            <dd>{profile.record.total_fights}</dd>
-          </div>
-          <div class="metric">
-            <dt>UFC wins</dt>
-            <dd>{profile.record.wins}</dd>
-          </div>
-          <div class="metric">
-            <dt title="UFC fights ending by KO, TKO, or submission, including wins and losses">
-              Finish rate
-            </dt>
-            <dd>{fights.length ? `${((finishes / fights.length) * 100).toFixed(1)}%` : '—'}</dd>
-          </div>
-          <div class="metric">
-            <dt>Strikes landed</dt>
-            <dd>{number(landed)}</dd>
-          </div>
-          <div class="metric">
-            <dt>Strikes absorbed</dt>
-            <dd>{number(absorbed)}</dd>
-          </div>
-        </dl>
-        <div class="chart-grid">
-          <section class="panel full">
-            <div class="panel-heading">
-              <div>
-                <h3>Career timeline</h3>
-                <p>Cumulative total strikes absorbed</p>
-              </div>
-              <span class="chart-key"><i></i> Win <i class="hollow"></i> Loss</span>
+      </div>
+    {:else}
+      {#if visitedTabs.profile}
+        <div
+          role="tabpanel"
+          tabindex="0"
+          id="panel-profile"
+          aria-labelledby="tab-profile"
+          hidden={tab !== 'profile'}
+        >
+          <dl class="metrics">
+            <div class="metric">
+              <dt>Total fights</dt>
+              <dd>{profile.record.total_fights}</dd>
             </div>
-            <Chart
-              option={timeline(fights)}
-              label={`${profile.bio.full_name}: cumulative strikes absorbed across ${fights.length} UFC fights`}
-              height={340}
-            />
-          </section>
-          <section class="panel full">
-            <div class="panel-heading"><h3>Fight outcome distribution</h3></div>
-            <Chart
-              option={outcomes(fights)}
-              label="Wins and losses by finish method"
-              height={260}
-            />
-          </section>
-        </div>
-      {:else if tab === 'history'}
-        <!-- svelte-ignore a11y_no_noninteractive_tabindex (Scrollable tables need keyboard access.) -->
-        <div class="table-scroll" tabindex="0" role="region" aria-label="Fight history">
-          <table class="data-table">
-            <thead
-              ><tr
-                ><th>Result</th><th>Opponent</th><th>Event</th><th>Date</th><th>Method</th><th
-                  >Round</th
-                ><th>Odds</th></tr
-              ></thead
-            ><tbody
-              >{#each reversed as f (f.fight_uid)}<tr
-                  ><td
-                    ><span
-                      class="result"
-                      class:win={f.result === 'WIN'}
-                      class:loss={f.result === 'LOSS'}
-                      >{f.result === 'NO_CONTEST' ? 'NC' : f.result}</span
-                    ></td
-                  ><td
-                    ><a href={fighterHref(f.opponent_uid)} data-fighter={f.opponent_uid}
-                      >{f.opponent_name}</a
-                    ></td
-                  ><td>{f.event_title}</td><td>{date(f.event_date, true)}</td><td
-                    >{label(f.decision)}</td
-                  ><td>{f.decision_round ?? '—'}</td><td>{odds(f.closing_odds)}</td></tr
-                >{/each}</tbody
-            >
-          </table>
-        </div>
-      {:else}
-        <div class="chart-grid">
-          <section class="panel full">
-            <div class="panel-heading"><h3>Strikes landed vs. absorbed</h3></div>
-            <Chart
-              option={strikes(fights)}
-              label="Total strikes landed and absorbed by fight"
-              height={340}
-            />
-          </section>
-          <section class="panel">
-            <div class="panel-heading"><h3>Striking accuracy</h3></div>
-            <Chart option={accuracy(fights)} label="Total strike accuracy by fight" height={300} />
-          </section>
-          <section class="panel">
-            <div class="panel-heading"><h3>Strike target distribution</h3></div>
-            <Chart
-              option={targets(fights)}
-              label="Significant strikes to head, body, and legs by fight"
-              height={300}
-            />
-          </section>
+            <div class="metric">
+              <dt>UFC wins</dt>
+              <dd>{profile.record.wins}</dd>
+            </div>
+            <div class="metric">
+              <dt title="UFC fights ending by KO, TKO, or submission, including wins and losses">
+                Finish rate
+              </dt>
+              <dd>{fights.length ? `${((finishes / fights.length) * 100).toFixed(1)}%` : '—'}</dd>
+            </div>
+            <div class="metric">
+              <dt>Strikes landed</dt>
+              <dd>{number(landed)}</dd>
+            </div>
+            <div class="metric">
+              <dt>Strikes absorbed</dt>
+              <dd>{number(absorbed)}</dd>
+            </div>
+          </dl>
+          <div class="chart-grid">
+            <section class="panel full">
+              <div class="panel-heading">
+                <div>
+                  <h3>Career timeline</h3>
+                  <p>Cumulative total strikes absorbed</p>
+                </div>
+                <span class="chart-key"><i></i> Win <i class="hollow"></i> Loss</span>
+              </div>
+              <Chart
+                option={timelineOption}
+                label={`${profile.bio.full_name}: cumulative strikes absorbed across ${fights.length} UFC fights`}
+                height={340}
+              />
+            </section>
+            <section class="panel full">
+              <div class="panel-heading"><h3>Fight outcome distribution</h3></div>
+              <Chart option={outcomeOption} label="Wins and losses by finish method" height={260} />
+            </section>
+          </div>
         </div>
       {/if}
-    </div>
+      {#if tab === 'history'}
+        <div role="tabpanel" tabindex="0" id="panel-history" aria-labelledby="tab-history">
+          <!-- svelte-ignore a11y_no_noninteractive_tabindex (Scrollable tables need keyboard access.) -->
+          <div class="table-scroll" tabindex="0" role="region" aria-label="Fight history">
+            <table class="data-table">
+              <thead
+                ><tr
+                  ><th>Result</th><th>Opponent</th><th>Event</th><th>Date</th><th>Method</th><th
+                    >Round</th
+                  ><th>Odds</th></tr
+                ></thead
+              ><tbody
+                >{#each reversed as f (f.fight_uid)}<tr
+                    ><td
+                      ><span
+                        class="result"
+                        class:win={f.result === 'WIN'}
+                        class:loss={f.result === 'LOSS'}
+                        >{f.result === 'NO_CONTEST' ? 'NC' : f.result}</span
+                      ></td
+                    ><td
+                      ><a href={fighterHref(f.opponent_uid)} data-fighter={f.opponent_uid}
+                        >{f.opponent_name}</a
+                      ></td
+                    ><td>{f.event_title}</td><td>{date(f.event_date, true)}</td><td
+                      >{label(f.decision)}</td
+                    ><td>{f.decision_round ?? '—'}</td><td>{odds(f.closing_odds)}</td></tr
+                  >{/each}</tbody
+              >
+            </table>
+          </div>
+        </div>
+      {/if}
+      {#if visitedTabs.striking}
+        <div
+          role="tabpanel"
+          tabindex="0"
+          id="panel-striking"
+          aria-labelledby="tab-striking"
+          hidden={tab !== 'striking'}
+        >
+          <div class="chart-grid">
+            <section class="panel full">
+              <div class="panel-heading"><h3>Strikes landed vs. absorbed</h3></div>
+              <Chart
+                option={strikeOption}
+                label="Total strikes landed and absorbed by fight"
+                height={340}
+              />
+            </section>
+            <section class="panel">
+              <div class="panel-heading"><h3>Striking accuracy</h3></div>
+              <Chart option={accuracyOption} label="Total strike accuracy by fight" height={300} />
+            </section>
+            <section class="panel">
+              <div class="panel-heading"><h3>Strike target distribution</h3></div>
+              <Chart
+                option={targetOption}
+                label="Significant strikes to head, body, and legs by fight"
+                height={300}
+              />
+            </section>
+          </div>
+        </div>
+      {/if}
+    {/if}
   </div>
 {/if}
 

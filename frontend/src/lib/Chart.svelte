@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import type { EChartsType } from 'echarts/core';
-  import type { EChartsOption } from 'echarts';
+  import type { EChartsOption, GraphSeriesOption } from 'echarts';
   let {
     option,
     label,
@@ -17,41 +17,71 @@
   let chart = $state<EChartsType | null>(null);
   let error = $state(false);
   let ready = $state(false);
-  let reducedMotion = false;
+  let reducedMotion = $state(false);
+  let visible = $state(false);
   let observer: ResizeObserver;
   let frame = 0;
+  let measuredWidth = 0;
+  let measuredHeight = 0;
+  let renderedOption: EChartsOption | undefined;
+  let renderedLabel = '';
+  let renderedMotion = false;
+  export function resetGraphView() {
+    const series = (chart?.getOption().series as GraphSeriesOption[] | undefined)?.find(
+      (series) => series.type === 'graph',
+    );
+    if (series) chart?.setOption({ series: [{ id: series.id, zoom: 1, center: ['50%', '50%'] }] });
+  }
+  function resizeChart() {
+    if (!chart || !visible) return;
+    const width = container.clientWidth,
+      height = container.clientHeight;
+    if (width > 0 && (width !== measuredWidth || height !== measuredHeight)) {
+      chart.resize();
+      measuredWidth = width;
+      measuredHeight = height;
+    }
+  }
 
   onMount(() => {
     let disposed = false;
+    let initializing = false;
     const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
     reducedMotion = motion.matches;
     function updateMotion() {
       reducedMotion = motion.matches;
-      chart?.setOption({ animation: !reducedMotion });
     }
     motion.addEventListener('change', updateMotion);
     const visibility = new IntersectionObserver(
       async (entries) => {
-        if (!entries.some((entry) => entry.isIntersecting)) return;
-        visibility.disconnect();
+        if (disposed) return;
+        visible = entries.some((entry) => entry.isIntersecting);
+        if (visible) chart?.getZr().animation.resume();
+        else chart?.getZr().animation.pause();
+        if (!visible || chart || initializing) return;
+        initializing = true;
         try {
           const { init } = await import('./chart');
-          if (disposed) return;
+          if (disposed || !visible || container.clientWidth === 0) return;
           chart = init(container, undefined, {
             renderer: 'canvas',
             devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
           });
+          measuredWidth = container.clientWidth;
+          measuredHeight = container.clientHeight;
           chart.on('click', (params: any) => onselect?.(params.data));
           observer = new ResizeObserver(() => {
             cancelAnimationFrame(frame);
             frame = requestAnimationFrame(() => {
-              if (container.clientWidth > 0) chart?.resize();
+              resizeChart();
             });
           });
           observer.observe(container);
           ready = true;
         } catch {
           if (!disposed) error = true;
+        } finally {
+          initializing = false;
         }
       },
       { rootMargin: '100px' },
@@ -67,15 +97,27 @@
     };
   });
   $effect(() => {
-    if (chart)
-      chart.setOption(
-        {
-          ...option,
+    if (chart && visible) {
+      resizeChart();
+      const current = option;
+      if (current !== renderedOption)
+        chart.setOption(
+          {
+            ...current,
+            animation: !reducedMotion,
+            aria: { enabled: true, label: { description: label } },
+          },
+          { replaceMerge: ['series', 'dataZoom', 'visualMap'], lazyUpdate: true },
+        );
+      else if (renderedLabel !== label || renderedMotion !== reducedMotion)
+        chart.setOption({
           animation: !reducedMotion,
           aria: { enabled: true, label: { description: label } },
-        },
-        { replaceMerge: ['series', 'dataZoom', 'visualMap'], lazyUpdate: true },
-      );
+        });
+      renderedOption = current;
+      renderedLabel = label;
+      renderedMotion = reducedMotion;
+    }
   });
 </script>
 
