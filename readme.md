@@ -2,6 +2,13 @@
 
 UFC fight data aggregation, analysis, and visualization
 
+## Local frontend rewrite
+
+A Svelte + ECharts frontend is available in [`frontend/`](frontend/README.md). Run
+`just api` and `just web` in separate terminals, then open <http://127.0.0.1:5173>.
+It uses the existing local DuckDB data through FastAPI. The production dashboard and
+Docker configuration still use Dash while the rewrite is evaluated locally.
+
 Live at [panoctagon.jeffbrennan.dev](https://panoctagon.jeffbrennan.dev)
 
 ## Site
