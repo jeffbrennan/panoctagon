@@ -78,6 +78,10 @@ class UpcomingMatchup(BaseModel):
     fighter2_reach: Optional[int]
     fighter2_height: Optional[int]
     fighter2_stance: Optional[str]
+    fighter1_closing_odds: Optional[int] = None
+    fighter2_closing_odds: Optional[int] = None
+    fighter1_total_fights: int = 0
+    fighter2_total_fights: int = 0
 
 
 class UpcomingEvent(BaseModel):
@@ -213,3 +217,92 @@ class FighterFightSummary(BaseModel):
     result: Optional[str]
     decision: Optional[str]
     decision_round: Optional[int]
+
+
+class DashboardMetadata(BaseModel):
+    last_refresh: Optional[str]
+    fighters: int
+    fights: int
+    first_year: Optional[int]
+    last_year: Optional[int]
+
+
+class CareerFight(BaseModel):
+    fight_uid: str
+    event_uid: str
+    event_title: str
+    event_date: str
+    opponent_uid: str
+    opponent_name: str
+    result: str
+    decision: Optional[str]
+    decision_round: Optional[int]
+    fight_division: Optional[str]
+    closing_odds: Optional[int]
+    strikes_landed: Optional[int]
+    strikes_attempted: Optional[int]
+    strikes_absorbed: Optional[int]
+    sig_strikes_landed: Optional[int]
+    sig_strikes_attempted: Optional[int]
+    head: Optional[int]
+    body: Optional[int]
+    leg: Optional[int]
+    takedowns: Optional[int]
+    control_seconds: Optional[int]
+
+
+class FighterAnalytics(BaseModel):
+    bio: FighterBio
+    record: FighterRecord
+    fights: list[CareerFight]
+
+
+class NetworkNode(BaseModel):
+    id: str
+    name: str
+    wins: int
+    losses: int
+    fights: int
+    x: float
+    y: float
+
+
+class NetworkLink(BaseModel):
+    source: str
+    target: str
+    fights: int
+
+
+class NetworkAnalytics(BaseModel):
+    nodes: list[NetworkNode]
+    links: list[NetworkLink]
+
+
+class RosterPoint(BaseModel):
+    fighter_uid: str
+    fighter_name: str
+    total_fights: int
+    wins: int
+    landed: float
+    absorbed: float
+    opposition_strength: int
+
+
+class TargetBox(BaseModel):
+    target: str
+    result: str
+    count: int
+    values: tuple[float, float, float, float, float]
+
+
+class MatchupAdvantage(BaseModel):
+    metric: str
+    bin: str
+    count: int
+    win_rate: float
+
+
+class RosterAnalytics(BaseModel):
+    fighters: list[RosterPoint]
+    targets: list[TargetBox]
+    advantages: list[MatchupAdvantage]

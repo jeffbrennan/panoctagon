@@ -240,9 +240,7 @@ def get_fighter_stats(fighter_uid: str) -> Optional[pl.DataFrame]:
             os.avg_opp_win_rate
         from fight_stats fs, win_types wt, opp_strength os
         """
-        df = pl.read_database(
-            text(query).bindparams(fighter_uid=fighter_uid), connection=conn
-        )
+        df = pl.read_database(text(query).bindparams(fighter_uid=fighter_uid), connection=conn)
         if df.height == 0:
             return None
         return df
@@ -265,6 +263,7 @@ def get_upcoming_fights() -> pl.DataFrame:
             fighter_records as (
                 select
                     fighter_uid,
+                    count(*) as total_fights,
                     sum(case when result = 'WIN' then 1 else 0 end) as wins,
                     sum(case when result = 'LOSS' then 1 else 0 end) as losses,
                     sum(case when result = 'DRAW' then 1 else 0 end) as draws
@@ -276,6 +275,15 @@ def get_upcoming_fights() -> pl.DataFrame:
                     from ufc_fights where fighter2_result is not null
                 )
                 group by fighter_uid
+            ),
+            odds as (
+                select bl.fight_uid, bl.fighter_uid, bo.closing_odds,
+                    row_number() over (
+                        partition by bl.fight_uid, bl.fighter_uid
+                        order by bo.event_date desc, bo.slug desc
+                    ) as rn
+                from bfo_ufc_link bl join bfo_parsed_odds bo
+                    on bl.match_id = bo.match_id and bl.fighter = bo.fighter
             )
             select
                 f.fight_uid,
@@ -294,6 +302,8 @@ def get_upcoming_fights() -> pl.DataFrame:
                 f1.reach_inches as fighter1_reach,
                 f1.height_inches as fighter1_height,
                 f1.stance as fighter1_stance,
+                coalesce(fr1.total_fights, 0) as fighter1_total_fights,
+                odds1.closing_odds as fighter1_closing_odds,
                 f.fighter2_uid,
                 f2.fighter_name as fighter2_name,
                 cast(coalesce(fr2.wins, 0) as varchar) || '-' ||
@@ -301,13 +311,19 @@ def get_upcoming_fights() -> pl.DataFrame:
                 cast(coalesce(fr2.draws, 0) as varchar) as fighter2_record,
                 f2.reach_inches as fighter2_reach,
                 f2.height_inches as fighter2_height,
-                f2.stance as fighter2_stance
+                f2.stance as fighter2_stance,
+                coalesce(fr2.total_fights, 0) as fighter2_total_fights,
+                odds2.closing_odds as fighter2_closing_odds
             from ufc_fights f
             inner join ufc_events e on f.event_uid = e.event_uid
             inner join fighter_info f1 on f.fighter1_uid = f1.fighter_uid
             inner join fighter_info f2 on f.fighter2_uid = f2.fighter_uid
             left join fighter_records fr1 on f.fighter1_uid = fr1.fighter_uid
             left join fighter_records fr2 on f.fighter2_uid = fr2.fighter_uid
+            left join odds odds1 on f.fight_uid = odds1.fight_uid
+                and f.fighter1_uid = odds1.fighter_uid and odds1.rn = 1
+            left join odds odds2 on f.fight_uid = odds2.fight_uid
+                and f.fighter2_uid = odds2.fighter_uid and odds2.rn = 1
             where f.fighter1_result is null
             and e.event_date::date >= current_date
             order by e.event_date asc, f.fight_order asc nulls last

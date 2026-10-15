@@ -3,6 +3,9 @@ from __future__ import annotations
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.gzip import GZipMiddleware
+
+from panoctagon.api.analytics import router as analytics_router
 
 from panoctagon.api.models import (
     EventDetail,
@@ -43,6 +46,8 @@ app = FastAPI(
     description="UFC fight data API",
     version="0.1.0",
 )
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+app.include_router(analytics_router)
 
 
 @app.get("/fighter", response_model=list[FighterSearchResult])
@@ -171,6 +176,10 @@ def list_upcoming() -> list[UpcomingEvent]:
             fighter2_reach=row["fighter2_reach"],
             fighter2_height=row["fighter2_height"],
             fighter2_stance=row["fighter2_stance"],
+            fighter1_closing_odds=row["fighter1_closing_odds"],
+            fighter2_closing_odds=row["fighter2_closing_odds"],
+            fighter1_total_fights=row["fighter1_total_fights"],
+            fighter2_total_fights=row["fighter2_total_fights"],
         )
 
         if event_uid not in events:
