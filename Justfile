@@ -24,6 +24,10 @@ api:
 web:
     npm --prefix frontend run dev
 
+webpreview:
+    npm --prefix frontend run build
+    uv run uvicorn panoctagon.web.server:app --host 127.0.0.1 --port 8080
+
 webcheck:
     npm --prefix frontend run check
     npm --prefix frontend test
