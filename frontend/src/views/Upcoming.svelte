@@ -6,7 +6,7 @@
   import State from '../lib/State.svelte';
   import MatchupCard from '../lib/MatchupCard.svelte';
 
-  let events = $state<UpcomingEvent[]>([]);
+  let events = $state.raw<UpcomingEvent[]>([]);
   let selected = $state('');
   let loading = $state(true);
   let error = $state('');

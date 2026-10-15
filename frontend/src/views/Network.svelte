@@ -2,7 +2,7 @@
   import type { EChartsOption } from 'echarts';
   import { api, errorMessage, isAbort } from '../lib/api';
   import type { Metadata, NetworkData } from '../lib/types';
-  import { divisions, label } from '../lib/format';
+  import { divisions, fighterHref, label } from '../lib/format';
   import { baseOption } from '../lib/chartTheme';
   import State from '../lib/State.svelte';
   import Chart from '../lib/Chart.svelte';
@@ -13,14 +13,29 @@
   let end = $state(2026);
   let loading = $state(true);
   let error = $state('');
-  let data = $state<NetworkData | null>(null);
+  let data = $state.raw<NetworkData | null>(null);
   let selected = $state('');
   let focus = $state(false);
   let retry = $state(0);
+  let graphWidth = $state(1000);
   let minYear = $derived(metadata?.first_year || 1993);
   let maxYear = $derived(Math.max(metadata?.last_year || 2026, new Date().getFullYear()));
   let years = $derived(Array.from({ length: maxYear - minYear + 1 }, (_, i) => minYear + i));
   let selectedNode = $derived(data?.nodes.find((n) => n.id === selected));
+  let byId = $derived(new Map(data?.nodes.map((node) => [node.id, node]) || []));
+  let opponents = $derived(
+    (data?.links || [])
+      .filter((link) => link.source === selected || link.target === selected)
+      .map((link) => ({
+        node: byId.get(link.source === selected ? link.target : link.source)!,
+        fights: link.fights,
+        wins: link.source === selected ? link.source_wins : link.target_wins,
+        losses: link.source === selected ? link.target_wins : link.source_wins,
+        draws: link.draws,
+        no_contests: link.no_contests,
+      }))
+      .sort((a, b) => b.fights - a.fights || a.node.name.localeCompare(b.node.name)),
+  );
   let shown = $derived.by(() => {
     if (!data || !focus || !selected) return data;
     const neighbors = new Set([selected]);
@@ -40,13 +55,14 @@
       trigger: 'item',
       formatter: (params: any) =>
         params.dataType === 'edge'
-          ? `${params.data.fights} ${params.data.fights === 1 ? 'fight' : 'fights'}`
+          ? `${byId.get(params.data.source)?.name} vs. ${byId.get(params.data.target)?.name}\n${params.data.source_wins}–${params.data.target_wins} head-to-head\n${params.data.fights} ${params.data.fights === 1 ? 'fight' : 'fights'} in selected period`
           : `${params.data.name}\n${params.data.wins} wins · ${params.data.losses} losses\n${params.data.fights} fights in selected period\nClick to select fighter`,
     },
     animationDurationUpdate: 220,
     series: [
       {
         type: 'graph',
+        animationThreshold: 300,
         labelLayout: { hideOverlap: true },
         layout: 'none',
         roam: true,
@@ -54,7 +70,12 @@
         draggable: false,
         data: shown?.nodes.map((n) => ({
           ...n,
-          symbolSize: Math.min(12 + Math.sqrt(n.fights) * 5, 40),
+          symbolSize: Math.max(
+            6,
+            Math.min(12 + Math.sqrt(n.fights) * 5, 40) *
+              Math.min(1, graphWidth / 900) *
+              Math.min(1, Math.sqrt(100 / (shown?.nodes.length || 1))),
+          ),
           value: n.fights,
           itemStyle: {
             color: selected === n.id ? '#34574a' : '#4c5347',
@@ -185,7 +206,7 @@
         ><input type="checkbox" bind:checked={focus} disabled={!selected} /> Opponents only</label
       >
     </div>
-    <div class="network-graph" class:updating={loading}>
+    <div class="network-graph" class:updating={loading} bind:clientWidth={graphWidth}>
       <Chart
         {option}
         label={`Network of ${shown?.nodes.length} UFC fighters in ${label(division)}, from ${start} through ${end}`}
@@ -207,10 +228,48 @@
         </p>
         <span class="count-label">Larger node = more fights</span>{/if}
     </div>
+    {#if selectedNode}
+      <section class="opponents" aria-label="Head-to-head records">
+        <h3>Head-to-head</h3>
+        <p>{selectedNode.name} against each opponent in the selected division and period</p>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead><tr><th>Opponent</th><th>Wins–losses</th><th>Fights</th></tr></thead>
+            <tbody
+              >{#each opponents as opponent (opponent.node.id)}<tr>
+                  <td
+                    ><a href={fighterHref(opponent.node.id)} data-fighter={opponent.node.id}
+                      >{opponent.node.name}</a
+                    ></td
+                  >
+                  <td
+                    >{opponent.wins}–{opponent.losses}{#if opponent.draws}<span class="muted">
+                        · {opponent.draws} D</span
+                      >{/if}{#if opponent.no_contests}<span class="muted">
+                        · {opponent.no_contests} NC</span
+                      >{/if}</td
+                  >
+                  <td>{opponent.fights}</td>
+                </tr>{/each}</tbody
+            >
+          </table>
+        </div>
+      </section>
+    {/if}
   </section>
 {/if}
 
 <style>
+  .opponents {
+    margin-top: 20px;
+    border-top: 1px solid var(--line);
+    padding-top: 20px;
+  }
+  .opponents > p {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin: 6px 0 16px;
+  }
   .controls > .year-field {
     min-width: 120px;
   }

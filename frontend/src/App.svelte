@@ -28,7 +28,7 @@
   );
   let viewError = $state(false);
   let loading = $state(initialView !== 'upcoming');
-  let metadata = $state<Metadata | null>(null);
+  let metadata = $state.raw<Metadata | null>(null);
   let fighter = $state(initialParams.get('fighter') || '');
   let sequence = 0;
 
@@ -74,6 +74,7 @@
   function openFighter(uid: string) {
     void show('fighters', uid);
     window.scrollTo({ top: 0, behavior: 'instant' });
+    document.getElementById('main')?.focus({ preventScroll: true });
   }
   function follow(event: MouseEvent) {
     const target = (event.target as Element).closest<HTMLAnchorElement>('a[data-fighter]');
@@ -118,6 +119,7 @@
       class="wordmark"
       href="/"
       onclick={(event) => {
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
         event.preventDefault();
         void show('upcoming');
       }}

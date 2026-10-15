@@ -127,8 +127,24 @@ export const network: NetworkData = {
     { id: 'charlie', name: 'Casey Charlie', wins: 1, losses: 1, fights: 2, x: 200, y: -100 },
   ],
   links: [
-    { source: 'alpha', target: 'bravo', fights: 2 },
-    { source: 'bravo', target: 'charlie', fights: 1 },
+    {
+      source: 'alpha',
+      target: 'bravo',
+      fights: 2,
+      source_wins: 1,
+      target_wins: 1,
+      draws: 0,
+      no_contests: 0,
+    },
+    {
+      source: 'bravo',
+      target: 'charlie',
+      fights: 1,
+      source_wins: 1,
+      target_wins: 0,
+      draws: 0,
+      no_contests: 0,
+    },
   ],
 };
 export const roster: RosterAnalytics = {
@@ -136,7 +152,7 @@ export const roster: RosterAnalytics = {
     fighter_uid: `fighter${i}`,
     fighter_name: i === 0 ? alpha.full_name : `Fighter ${String(i).padStart(2, '0')}`,
     total_fights: 50 - i,
-    wins: 20,
+    wins: Math.min(20, 50 - i),
     landed: 10 + i,
     absorbed: 15 + i / 2,
     opposition_strength: i * 10,

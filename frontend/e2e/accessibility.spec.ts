@@ -8,6 +8,14 @@ test('core views and open fighter search have no WCAG A/AA violations', async ({
     await page.goto(`/?view=${view}`);
     await expect(page.locator('main .state.loading')).toHaveCount(0);
     await expect(page.locator('main h1')).toBeVisible();
+    await page.locator('.view:not([hidden])').evaluate(async (element) => {
+      await Promise.all(
+        element
+          .getAnimations({ subtree: true })
+          .filter((animation) => animation.effect?.getTiming().iterations !== Infinity)
+          .map((animation) => animation.finished.catch(() => {})),
+      );
+    });
     const report = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
       .analyze();

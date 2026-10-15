@@ -5,7 +5,6 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-import networkx as nx
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 from sqlalchemy import text
@@ -113,6 +112,8 @@ def fighter_analytics(fighter_uid: str) -> dict[str, Any]:
 
 @lru_cache(maxsize=24)
 def _network(division: str, start_year: int, end_year: int, period: int) -> dict[str, Any]:
+    import networkx as nx
+
     fights = rows(
         """
         select f.fighter1_uid, f.fighter2_uid, f.fighter1_result, f.fighter2_result,
@@ -141,10 +142,16 @@ def _network(division: str, start_year: int, end_year: int, period: int) -> dict
             node["wins"] += fight[f"fighter{side}_result"] == "WIN"
             node["losses"] += fight[f"fighter{side}_result"] == "LOSS"
         a, b = fight["fighter1_uid"], fight["fighter2_uid"]
-        if graph.has_edge(a, b):
-            graph[a][b]["fights"] += 1
-        else:
-            graph.add_edge(a, b, fights=1)
+        if not graph.has_edge(a, b):
+            graph.add_edge(a, b, fights=0, wins={}, draws=0, no_contests=0)
+        edge = graph[a][b]
+        edge["fights"] += 1
+        for side in (1, 2):
+            if fight[f"fighter{side}_result"] == "WIN":
+                uid = fight[f"fighter{side}_uid"]
+                edge["wins"][uid] = edge["wins"].get(uid, 0) + 1
+        edge["draws"] += fight["fighter1_result"] == "DRAW"
+        edge["no_contests"] += fight["fighter1_result"] == "NO_CONTEST"
     positions = {}
     components = sorted(nx.connected_components(graph), key=len, reverse=True)
     for index, component in enumerate(components):
@@ -164,7 +171,18 @@ def _network(division: str, start_year: int, end_year: int, period: int) -> dict
             {"id": uid, **values, "x": float(positions[uid][0]), "y": float(positions[uid][1])}
             for uid, values in graph.nodes(data=True)
         ],
-        "links": [{"source": a, "target": b, **values} for a, b, values in graph.edges(data=True)],
+        "links": [
+            {
+                "source": a,
+                "target": b,
+                "fights": values["fights"],
+                "source_wins": values["wins"].get(a, 0),
+                "target_wins": values["wins"].get(b, 0),
+                "draws": values["draws"],
+                "no_contests": values["no_contests"],
+            }
+            for a, b, values in graph.edges(data=True)
+        ],
     }
 
 
@@ -235,14 +253,29 @@ def roster_analytics(division: str = "MIDDLEWEIGHT") -> dict[str, Any]:
             where r.result in ('WIN', 'LOSS') and (:division = 'ALL' or r.fight_division = :division)
             group by s.fight_uid, s.fighter_uid, r.result
         ), targets as (
-            select result, 'Head' as target, head * 100.0 / total as pct from totals where total > 0
-            union all select result, 'Body', body * 100.0 / total from totals where total > 0
-            union all select result, 'Leg', leg * 100.0 / total from totals where total > 0
+            select fight_uid, fighter_uid, result, 'Head' as target, head * 100.0 / total as pct from totals where total > 0
+            union all select fight_uid, fighter_uid, result, 'Body', body * 100.0 / total from totals where total > 0
+            union all select fight_uid, fighter_uid, result, 'Leg', leg * 100.0 / total from totals where total > 0
+        ), summaries as (
+            select target, result, count(*) as sample_count,
+                quantile_cont(pct, 0.25) as q1, median(pct) as median,
+                quantile_cont(pct, 0.75) as q3
+            from targets where pct is not null group by target, result
         )
-        select target, result, count(*) as count, min(pct) as low,
-            quantile_cont(pct, 0.25) as q1, median(pct) as median,
-            quantile_cont(pct, 0.75) as q3, max(pct) as high
-        from targets where pct is not null group by target, result order by target, result
+        select s.target, s.result, s.sample_count as count, s.q1, s.median, s.q3,
+            min(t.pct) filter (where t.pct >= s.q1 - 1.5 * (s.q3 - s.q1)) as low,
+            max(t.pct) filter (where t.pct <= s.q3 + 1.5 * (s.q3 - s.q1)) as high,
+            list(struct_pack(value := t.pct, fighter_uid := t.fighter_uid,
+                fighter_name := f.first_name || ' ' || f.last_name,
+                event_title := e.title, event_date := e.event_date))
+                filter (where t.pct < s.q1 - 1.5 * (s.q3 - s.q1)
+                    or t.pct > s.q3 + 1.5 * (s.q3 - s.q1)) as outliers
+        from summaries s join targets t on s.target = t.target and s.result = t.result
+        join ufc_fighters f on t.fighter_uid = f.fighter_uid
+        join ufc_fights fi on t.fight_uid = fi.fight_uid
+        join ufc_events e on fi.event_uid = e.event_uid
+        group by s.target, s.result, s.sample_count, s.q1, s.median, s.q3
+        order by s.target, s.result
     """,
         division=division,
     )
@@ -271,9 +304,13 @@ def roster_analytics(division: str = "MIDDLEWEIGHT") -> dict[str, Any]:
             union all select result, 'Reach', reach from differences
             union all select result, 'Experience', experience from differences
         ), bins as (
-            select *, case when difference <= -10 then 0 when difference <= -5 then 1
+            select *, case when metric = 'Reach' then
+                case when difference <= -6 then 0 when difference <= -3 then 1
+                    when difference <= -1 then 2 when difference <= 1 then 3
+                    when difference <= 3 then 4 when difference <= 6 then 5 else 6 end
+                else case when difference <= -10 then 0 when difference <= -5 then 1
                 when difference <= -2 then 2 when difference <= 0 then 3 when difference <= 2 then 4
-                when difference <= 5 then 5 when difference <= 10 then 6 else 7 end as bin_order
+                when difference <= 5 then 5 when difference <= 10 then 6 else 7 end end as bin_order
             from metrics where difference is not null
         )
         select metric, bin_order, count(*) as count,
@@ -292,6 +329,7 @@ def roster_analytics(division: str = "MIDDLEWEIGHT") -> dict[str, Any]:
         "+5 to +10",
         "> +10",
     ]
+    reach_labels = ["≤ −6", "−6 to −3", "−3 to −1", "Even", "+1 to +3", "+3 to +6", "> +6"]
     return {
         "fighters": fighters,
         "targets": [
@@ -300,13 +338,14 @@ def roster_analytics(division: str = "MIDDLEWEIGHT") -> dict[str, Any]:
                 "result": r["result"],
                 "count": r["count"],
                 "values": [r["low"], r["q1"], r["median"], r["q3"], r["high"]],
+                "outliers": r["outliers"] or [],
             }
             for r in targets
         ],
         "advantages": [
             {
                 "metric": r["metric"],
-                "bin": bin_labels[r["bin_order"]],
+                "bin": (reach_labels if r["metric"] == "Reach" else bin_labels)[r["bin_order"]],
                 "count": r["count"],
                 "win_rate": r["win_rate"],
             }

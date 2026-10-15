@@ -40,6 +40,11 @@ uv run pytest tests/test_dashboard_api.py
 
 Use `npm run preview` to serve the production build at <http://127.0.0.1:4173> with the same API proxy.
 
+For a production-style local run with one Python process, run `just webpreview` from
+the repository root and open <http://127.0.0.1:8080>. FastAPI serves the built frontend
+and `/api` together, with gzip and immutable caching for hashed assets. Node is only
+needed to build the frontend. This does not change or start the production Docker services.
+
 ## Performance choices
 
 - The initial Upcoming view does not import ECharts or fetch analytics for hidden views.

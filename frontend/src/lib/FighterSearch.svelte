@@ -5,7 +5,7 @@
   import { label } from './format';
   let { onselect }: { onselect: (uid: string) => void } = $props();
   let query = $state('');
-  let results = $state<FighterSummary[]>([]);
+  let results = $state.raw<FighterSummary[]>([]);
   let open = $state(false);
   let loading = $state(false);
   let error = $state('');

@@ -14,7 +14,7 @@ from panoctagon.api.server import app
 
 
 @pytest.fixture
-def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest):
     path = tmp_path / "dashboard.duckdb"
     with duckdb.connect(str(path)) as db:
         db.execute("""
@@ -60,6 +60,10 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
                 (1, 'alpha', -110, '2023-12-30', 'old'), (1, 'alpha', -150, '2024-01-01', 'new'),
                 (2, 'alpha', -200, '2098-12-30', 'future');
         """)
+        if getattr(request, "param", None) == "outlier":
+            db.execute(
+                "update ufc_fight_stats set sig_strikes_head_landed = 0, sig_strikes_body_landed = 16 where fight_uid = 'fight1' and fighter_uid = 'alpha'"
+            )
     engine = create_engine(
         f"duckdb:///{path}", poolclass=NullPool, connect_args={"read_only": True}
     )
@@ -112,6 +116,8 @@ def test_network_aggregates_rematches_and_excludes_upcoming(client):
     assert len(data["nodes"]) == 2
     assert len(data["links"]) == 1
     assert data["links"][0]["fights"] == 5
+    assert data["links"][0]["source_wins"] == 4
+    assert data["links"][0]["target_wins"] == 1
     alpha = next(n for n in data["nodes"] if n["id"] == "alpha")
     assert (alpha["wins"], alpha["losses"], alpha["fights"]) == (4, 1, 5)
     assert all(math.isfinite(n["x"]) and math.isfinite(n["y"]) for n in data["nodes"])
@@ -147,3 +153,19 @@ def test_upcoming_includes_odds_and_experience_without_duplicate_fights(client):
 def test_headshots_reject_path_characters(client):
     assert client.get("/fighter/%2e%2e/headshot").status_code == 404
     assert client.get("/fighter/alpha/headshot").status_code == 404
+
+
+@pytest.mark.parametrize("client", ["outlier"], indirect=True)
+def test_target_boxes_use_tukey_whiskers_and_preserve_outlier_context(client):
+    data = client.get("/analytics/roster?division=MIDDLEWEIGHT").json()
+    head = next(t for t in data["targets"] if t["target"] == "Head" and t["result"] == "WIN")
+    assert head["values"] == [50] * 5
+    assert head["outliers"] == [
+        {
+            "value": 0,
+            "fighter_uid": "alpha",
+            "fighter_name": "Alex Alpha",
+            "event_title": "UFC Test",
+            "event_date": "2024-01-01",
+        }
+    ]

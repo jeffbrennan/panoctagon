@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class FighterBio(BaseModel):
@@ -271,6 +271,10 @@ class NetworkLink(BaseModel):
     source: str
     target: str
     fights: int
+    source_wins: int
+    target_wins: int
+    draws: int
+    no_contests: int
 
 
 class NetworkAnalytics(BaseModel):
@@ -288,11 +292,20 @@ class RosterPoint(BaseModel):
     opposition_strength: int
 
 
+class TargetOutlier(BaseModel):
+    value: float
+    fighter_uid: str
+    fighter_name: str
+    event_title: str
+    event_date: str
+
+
 class TargetBox(BaseModel):
     target: str
     result: str
     count: int
     values: tuple[float, float, float, float, float]
+    outliers: list[TargetOutlier] = Field(default_factory=list)
 
 
 class MatchupAdvantage(BaseModel):

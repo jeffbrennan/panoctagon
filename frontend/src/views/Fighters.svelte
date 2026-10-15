@@ -9,7 +9,7 @@
   import { timeline, outcomes, strikes, accuracy, targets } from '../lib/fighterCharts';
   let { fighter = '', openFighter }: { fighter?: string; openFighter: (uid: string) => void } =
     $props();
-  let profile = $state<FighterProfile | null>(null);
+  let profile = $state.raw<FighterProfile | null>(null);
   let error = $state('');
   let loading = $state(true);
   let tab = $state('profile');

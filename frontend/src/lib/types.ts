@@ -102,7 +102,15 @@ export interface NetworkData {
     x: number;
     y: number;
   }[];
-  links: { source: string; target: string; fights: number }[];
+  links: {
+    source: string;
+    target: string;
+    fights: number;
+    source_wins: number;
+    target_wins: number;
+    draws: number;
+    no_contests: number;
+  }[];
 }
 export interface RosterPoint {
   fighter_uid: string;
@@ -113,11 +121,19 @@ export interface RosterPoint {
   absorbed: number;
   opposition_strength: number;
 }
+export interface TargetOutlier {
+  value: number;
+  fighter_uid: string;
+  fighter_name: string;
+  event_title: string;
+  event_date: string;
+}
 export interface TargetBox {
   target: string;
   result: string;
   count: number;
   values: number[];
+  outliers?: TargetOutlier[];
 }
 export interface Advantage {
   metric: string;

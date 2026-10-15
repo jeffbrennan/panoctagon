@@ -5,7 +5,6 @@ from typing import Optional
 import polars as pl
 from sqlalchemy import text
 
-from panoctagon.api.cli import SortBy
 from panoctagon.common import get_read_engine
 
 
@@ -498,7 +497,7 @@ def get_roster(
     min_win_rate: Optional[float] = None,
     max_win_rate: Optional[float] = None,
     limit: int = 100,
-    sort_by: str = SortBy.full_name,
+    sort_by: str = "full_name",
 ) -> pl.DataFrame:
     sort_columns = {
         "win_rate": "fs.wins * 1.0 / fs.total_fights desc, fs.total_fights desc",

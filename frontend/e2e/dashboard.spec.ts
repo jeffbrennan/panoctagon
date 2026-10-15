@@ -27,7 +27,7 @@ test('matchup filters, event switching, and profile links work', async ({ page }
   await expect(page.locator('.matchup')).toHaveCount(1);
   await expect(page.getByText('Casey Charlie', { exact: true })).toBeVisible();
   await division.selectOption('ALL');
-  if (testInfo.project.name === 'mobile') {
+  if (testInfo.project.name.includes('mobile')) {
     const card = page.locator('.matchup').first();
     await expect(card.locator('.comparison')).toBeHidden();
     await card.getByRole('button', { name: 'Compare fighters' }).click();
@@ -85,6 +85,11 @@ test('network selection and opponent filtering do not refetch data', async ({ pa
   await page.getByRole('combobox', { name: 'Select a fighter' }).selectOption('alpha');
   await page.getByRole('checkbox', { name: 'Opponents only' }).check();
   await expect(page.getByRole('img', { name: /Network of 2 UFC fighters/ })).toBeVisible();
+  await expect(
+    page
+      .getByRole('region', { name: 'Head-to-head records' })
+      .getByRole('link', { name: 'Blair Bravo' }),
+  ).toBeVisible();
   expect(requests.length).toBe(before);
   await page.getByRole('button', { name: 'View profile' }).click();
   await expect(page.getByRole('heading', { name: 'Alex Alpha', exact: true })).toBeVisible();

@@ -7,7 +7,7 @@
   import State from '../lib/State.svelte';
   let { openFighter }: { openFighter: (uid: string) => void } = $props();
   let division = $state('MIDDLEWEIGHT');
-  let data = $state<RosterAnalytics | null>(null);
+  let data = $state.raw<RosterAnalytics | null>(null);
   let loading = $state(true);
   let error = $state('');
   let retry = $state(0);
@@ -132,6 +132,9 @@
             option={strikeTargets(data.targets)}
             label="Head, body, and leg strike percentages for wins and losses"
             height={340}
+            onselect={(point) => {
+              if (point?.outlier) openFighter(point.outlier.fighter_uid);
+            }}
           />
         </section>
         <section class="panel">
