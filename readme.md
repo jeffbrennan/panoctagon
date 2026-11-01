@@ -80,3 +80,13 @@ Python, FastAPI, Dash, DuckDB, Dagster, dbt
 
 - [ufcstats.com](http://ufcstats.com) - fight stats and decisions
 - [bestfightodds.com](https://www.bestfightodds.com) - betting odds
+
+### Svelte dashboard checks
+
+With Python 3.12.12, Node 26.13.0 and uv installed, run `uv sync --frozen`,
+`cd frontend && npm ci`, then `npm run check`, `npm test`, and `npm run build`.
+Install browsers with `npx playwright install --with-deps chromium firefox webkit`.
+`npx playwright test` runs the fixture-based interaction suite; `npx playwright
+test -c playwright.integration.config.ts` runs the built application against an
+isolated database under `.scratch/integration`. The integration server requires
+port 8765 and never opens the working ingestion database.

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+import os
 from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
@@ -17,7 +18,7 @@ from panoctagon.api.models import (
     RosterAnalytics,
 )
 from panoctagon.api.queries import get_fighter_detail
-from panoctagon.common import get_read_engine
+from panoctagon.api.database import get_read_engine
 
 router = APIRouter(tags=["Dashboard analytics"])
 
@@ -52,7 +53,7 @@ def metadata() -> dict[str, Any]:
 def headshot(fighter_uid: str) -> FileResponse:
     if not fighter_uid.isalnum() or len(fighter_uid) > 64:
         raise HTTPException(status_code=404, detail="Headshot not found")
-    directory = Path(__file__).parents[2] / "data" / "raw" / "ufc" / "fighter_headshots"
+    directory = Path(os.environ.get("PANOCTAGON_API_HEADSHOTS", Path(__file__).parents[2] / "data" / "raw" / "ufc" / "fighter_headshots"))
     for extension in ("png", "jpg", "jpeg", "webp"):
         path = directory / f"{fighter_uid}_headshot.{extension}"
         if path.is_file():

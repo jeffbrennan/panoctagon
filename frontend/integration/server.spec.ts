@@ -1,0 +1,29 @@
+import { test, expect } from '@playwright/test';
+
+test('built application and API work together', async ({ page, request }) => {
+  const metadata = await request.get('/api/metadata');
+  expect(metadata.ok()).toBeTruthy();
+  expect((await metadata.json()).fighters).toBe(3);
+  expect((await request.get('/api/fighter/alpha/headshot')).status()).toBe(200);
+  expect((await request.get('/api/fighter/bravo/headshot')).status()).toBe(404);
+  expect((await request.get('/api/not-a-route')).status()).toBe(404);
+  expect((await request.get('/assets/missing.js')).status()).toBe(404);
+  const html = await request.get('/');
+  expect(html.headers()['cache-control']).toBe('no-cache');
+  const script = (await html.text()).match(/src="([^"]+\.js)"/);
+  expect(script).toBeTruthy();
+  const asset = await request.get(script![1], { headers: { 'Accept-Encoding': 'gzip' } });
+  expect(asset.headers()['cache-control']).toContain('immutable');
+  expect(asset.headers()['content-encoding']).toBe('gzip');
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'UFC Future' })).toBeVisible();
+  await page.getByRole('link', { name: 'Alex Alpha', exact: true }).first().click();
+  await expect(page.getByRole('heading', { name: 'Alex Alpha' })).toBeVisible();
+  await expect(page.locator('canvas').first()).toBeVisible();
+  await page.getByRole('link', { name: 'Network', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Network', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Roster', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Roster', exact: true })).toBeVisible();
+  await page.goto('/?view=fighters&fighter=bravo');
+  await expect(page.getByRole('heading', { name: 'Blair Bravo' })).toBeVisible();
+});

@@ -5,7 +5,7 @@ from typing import Optional
 import polars as pl
 from sqlalchemy import text
 
-from panoctagon.common import get_read_engine
+from panoctagon.api.database import get_read_engine
 
 
 def search_fighters(
