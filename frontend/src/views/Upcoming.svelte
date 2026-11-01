@@ -1,16 +1,22 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { api, errorMessage, isAbort } from '../lib/api';
+  import { onDestroy } from 'svelte';
+  import { createRefresh } from '../lib/refresh';
+  import { api, errorMessage } from '../lib/api';
   import type { UpcomingEvent } from '../lib/types';
   import { date, label } from '../lib/format';
   import State from '../lib/State.svelte';
   import MatchupCard from '../lib/MatchupCard.svelte';
 
+  let { active, refresh }: { active: boolean; refresh: number } = $props();
+  let loaded = $state(false);
+  let refreshing = $state(false);
+  let notice = $state('');
+  let retry = $state(0);
+  let lastRetry = 0;
   let events = $state.raw<UpcomingEvent[]>([]);
   let selected = $state('');
   let loading = $state(true);
   let error = $state('');
-  let controller: AbortController;
   let event = $derived(events.find((item) => item.event_uid === selected) || events[0]);
   let division = $state('ALL');
   let fights = $derived(
@@ -20,25 +26,28 @@
     ...new Set(event?.fights.map((f) => f.fight_division).filter((d): d is string => !!d)),
   ]);
 
-  async function load() {
-    controller?.abort();
-    const request = new AbortController();
-    controller = request;
-    loading = true;
-    error = '';
-    try {
-      const value = await api<UpcomingEvent[]>('/upcoming', request.signal);
-      if (!request.signal.aborted) events = value;
-    } catch (e) {
-      if (!isAbort(e)) error = errorMessage(e);
-    } finally {
-      if (!request.signal.aborted) loading = false;
-    }
-  }
-  onMount(() => {
-    void load();
-    return () => controller?.abort();
+  const request = createRefresh<UpcomingEvent[]>({
+    load: (key, signal, bypass) => api(key, signal, bypass),
+    success: (value) => {
+      events = value;
+      loaded = true;
+      error = '';
+      if (selected && !value.some((item) => item.event_uid === selected)) {
+        selected = '';
+        division = 'ALL';
+        notice = 'The selected event is no longer available; showing the next event.';
+      }
+    },
+    failure: (e) => (error = errorMessage(e)),
+    loading: (value) => { refreshing = value; loading = value && !loaded; },
   });
+  $effect(() => {
+    refresh;
+    const force = retry !== lastRetry;
+    lastRetry = retry;
+    request.update('/upcoming', active, force);
+  });
+  onDestroy(request.cancel);
 </script>
 
 <div class="page-heading">
@@ -47,11 +56,14 @@
   </div>
   <span class="count-label">{events.length} {events.length === 1 ? 'event' : 'events'}</span>
 </div>
+{#if notice}<p role="status">{notice}</p>{/if}
+{#if loaded && refreshing}<p role="status">Refreshing upcoming events…</p>{/if}
+{#if loaded && error}<p role="alert">Could not update upcoming events: {error} <button onclick={() => retry++}>Retry</button></p>{/if}
 {#if loading}
   <div class="card-skeleton" aria-hidden="true"></div>
   <State loading message="Loading upcoming fights…" />
-{:else if error}
-  <State title="Unable to load upcoming events" message={error} retry={() => void load()} />
+{:else if error && !loaded}
+  <State title="Unable to load upcoming events" message={error} retry={() => retry++} />
 {:else if events.length === 0}
   <State
     title="No upcoming events"

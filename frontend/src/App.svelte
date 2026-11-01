@@ -3,6 +3,7 @@
   import type { Component } from 'svelte';
   import type { Metadata, View } from './lib/types';
   import { api } from './lib/api';
+  import { createRefresh } from './lib/refresh';
   import State from './lib/State.svelte';
   import Upcoming from './views/Upcoming.svelte';
 
@@ -31,6 +32,8 @@
   let metadata = $state.raw<Metadata | null>(null);
   let fighter = $state(initialParams.get('fighter') || '');
   let sequence = 0;
+  let refresh = $state(0);
+  let visible = $state(!document.hidden);
 
   async function show(next: View, uid?: string, push = true) {
     view = next;
@@ -98,14 +101,29 @@
   }
   onMount(() => {
     readLocation();
-    const controller = new AbortController();
-    void api<Metadata>('/metadata', controller.signal)
-      .then((value) => (metadata = value))
-      .catch(() => {});
+    const metadataRequest = createRefresh<Metadata>({
+      load: (key, signal, bypass) => api(key, signal, bypass),
+      success: (value) => (metadata = value),
+      failure: () => {},
+      loading: () => {},
+    });
+    function revalidate() {
+      visible = !document.hidden;
+      if (!visible) return;
+      refresh++;
+      metadataRequest.update('/metadata', true);
+    }
+    revalidate();
+    const timer = setInterval(revalidate, 120_000);
+    window.addEventListener('focus', revalidate);
+    document.addEventListener('visibilitychange', revalidate);
     document.addEventListener('click', follow);
     window.addEventListener('popstate', readLocation);
     return () => {
-      controller.abort();
+      metadataRequest.cancel();
+      clearInterval(timer);
+      window.removeEventListener('focus', revalidate);
+      document.removeEventListener('visibilitychange', revalidate);
       document.removeEventListener('click', follow);
       window.removeEventListener('popstate', readLocation);
     };
@@ -150,7 +168,7 @@
     {#each views as item}
       <a
         href={item === 'upcoming' ? '/' : `?view=${item}`}
-        class:active={view === item}
+        class:active={visible && view === item}
         aria-current={view === item ? 'page' : undefined}
         onclick={(event) => {
           if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -176,7 +194,7 @@
       {#if pages[item]}
         {@const Page = pages[item]!}
         <div class="view" hidden={view !== item}>
-          <Page {fighter} {openFighter} {metadata} />
+          <Page {fighter} {openFighter} {metadata} active={visible && view === item} {refresh} />
         </div>
       {/if}
     {/each}

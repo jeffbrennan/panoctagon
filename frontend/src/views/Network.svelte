@@ -1,12 +1,14 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
+  import { createRefresh } from '../lib/refresh';
   import type { EChartsOption } from 'echarts';
-  import { api, errorMessage, isAbort } from '../lib/api';
+  import { api, errorMessage } from '../lib/api';
   import type { Metadata, NetworkData } from '../lib/types';
   import { divisions, fighterHref, label } from '../lib/format';
   import { baseOption } from '../lib/chartTheme';
   import State from '../lib/State.svelte';
   import Chart from '../lib/Chart.svelte';
-  let { metadata, openFighter }: { metadata: Metadata | null; openFighter: (uid: string) => void } =
+  let { metadata, openFighter, active, refresh }: { metadata: Metadata | null; openFighter: (uid: string) => void; active: boolean; refresh: number } =
     $props();
   let division = $state('HEAVYWEIGHT');
   let start = $state(new Date().getUTCFullYear() - 5);
@@ -114,36 +116,30 @@
       },
     ],
   });
-  $effect(() => {
-    const d = division,
-      a = start,
-      b = end;
-    retry;
-    const controller = new AbortController();
-    loading = true;
-    error = '';
-    const timer = setTimeout(async () => {
-      try {
-        const value = await api<NetworkData>(
-          `/analytics/network?division=${d}&start_year=${a}&end_year=${b}`,
-          controller.signal,
-        );
-        if (!controller.signal.aborted) {
-          data = value;
-          selected = '';
-          focus = false;
-        }
-      } catch (e) {
-        if (!isAbort(e)) error = errorMessage(e);
-      } finally {
-        if (!controller.signal.aborted) loading = false;
+  let lastRetry = 0;
+  let dataKey = '';
+  let notice = $state('');
+  const request = createRefresh<NetworkData>({
+    load: (key, signal, bypass) => api(key, signal, bypass),
+    success: (value, key) => {
+      data = value;
+      error = '';
+      if (key !== dataKey) { selected = ''; focus = false; }
+      else if (selected && !value.nodes.some((node) => node.id === selected)) {
+        selected = ''; focus = false; notice = 'The selected fighter is no longer in this network.';
       }
-    }, 120);
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
+      dataKey = key;
+    },
+    failure: (e) => (error = errorMessage(e)),
+    loading: (value) => (loading = value),
   });
+  $effect(() => {
+    refresh;
+    const force = retry !== lastRetry;
+    lastRetry = retry;
+    request.update(`/analytics/network?division=${division}&start_year=${start}&end_year=${end}`, active, force);
+  });
+  onDestroy(request.cancel);
 </script>
 
 <div class="page-heading">
@@ -179,7 +175,9 @@
     ></label
   >
 </div>
-{#if error}<State title="Unable to load the network" message={error} retry={() => retry++} />
+{#if notice}<p role="status">{notice}</p>{/if}
+{#if error && data}<p role="alert">Could not update data: {error} <button onclick={() => retry++}>Retry</button></p>{/if}
+{#if error && !data}<State title="Unable to load the network" message={error} retry={() => retry++} />
 {:else if !data && loading}<State loading message="Building fighter connections…" />
 {:else if data && !data.nodes.length}<State
     title="No connections in this period"

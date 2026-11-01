@@ -286,3 +286,27 @@ test('resetting the network clears local focus and selection', async ({ page }) 
   await expect(page.getByRole('checkbox', { name: 'Opponents only' })).not.toBeChecked();
   await expect(page.getByRole('region', { name: 'Head-to-head records' })).toHaveCount(0);
 });
+
+test('stale upcoming data refreshes on return and retains content after a failed update', async ({ page }) => {
+  await page.addInitScript(() => {
+    const initial = Date.now();
+    (window as any).testNow = initial;
+    Date.now = () => (window as any).testNow;
+  });
+  let attempts = 0;
+  await page.route('**/api/upcoming', (route) => {
+    attempts++;
+    if (attempts === 2) return route.fulfill({ status: 503, body: '{}' });
+    return route.fulfill({ json: attempts === 1 ? upcoming : [upcoming[1]] });
+  });
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: upcoming[0].event_title })).toBeVisible();
+  await page.getByRole('link', { name: 'Roster', exact: true }).click();
+  await page.evaluate(() => { (window as any).testNow += 120_001; });
+  await page.getByRole('link', { name: 'Upcoming', exact: true }).click();
+  await expect(page.getByText(/Could not update upcoming events/)).toBeVisible();
+  await expect(page.getByRole('heading', { name: upcoming[0].event_title })).toBeVisible();
+  await page.getByRole('button', { name: 'Retry', exact: true }).click();
+  await expect(page.getByRole('heading', { name: upcoming[1].event_title })).toBeVisible();
+  expect(attempts).toBe(3);
+});

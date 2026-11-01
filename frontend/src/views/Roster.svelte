@@ -1,11 +1,13 @@
 <script lang="ts">
-  import { api, errorMessage, isAbort } from '../lib/api';
+  import { onDestroy } from 'svelte';
+  import { createRefresh } from '../lib/refresh';
+  import { api, errorMessage } from '../lib/api';
   import type { RosterAnalytics } from '../lib/types';
   import { divisions, fighterHref, label, number } from '../lib/format';
   import { strikingType, strikeTargets, discrepancy } from '../lib/rosterCharts';
   import Chart from '../lib/Chart.svelte';
   import State from '../lib/State.svelte';
-  let { openFighter }: { openFighter: (uid: string) => void } = $props();
+  let { openFighter, active, refresh }: { openFighter: (uid: string) => void; active: boolean; refresh: number } = $props();
   let division = $state('MIDDLEWEIGHT');
   let data = $state.raw<RosterAnalytics | null>(null);
   let loading = $state(true);
@@ -61,24 +63,20 @@
       descending = key !== 'fighter_name';
     }
   }
-  $effect(() => {
-    const d = division;
-    retry;
-    const controller = new AbortController();
-    loading = true;
-    error = '';
-    void api<RosterAnalytics>(`/analytics/roster?division=${d}`, controller.signal)
-      .then((value) => {
-        if (!controller.signal.aborted) data = value;
-      })
-      .catch((e) => {
-        if (!isAbort(e)) error = errorMessage(e);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) loading = false;
-      });
-    return () => controller.abort();
+  let lastRetry = 0;
+  const request = createRefresh<RosterAnalytics>({
+    load: (key, signal, bypass) => api(key, signal, bypass),
+    success: (value) => { data = value; error = ''; },
+    failure: (e) => (error = errorMessage(e)),
+    loading: (value) => (loading = value),
   });
+  $effect(() => {
+    refresh;
+    const force = retry !== lastRetry;
+    lastRetry = retry;
+    request.update(`/analytics/roster?division=${division}`, active, force);
+  });
+  onDestroy(request.cancel);
 </script>
 
 <div class="page-heading">
@@ -98,7 +96,8 @@
     >{loading ? 'Updating…' : `${data?.fighters.length || 0} fighters`}</span
   >
 </div>
-{#if error}<State title="Unable to load roster statistics" message={error} retry={() => retry++} />
+{#if error && data}<p role="alert">Could not update data: {error} <button onclick={() => retry++}>Retry</button></p>{/if}
+{#if error && !data}<State title="Unable to load roster statistics" message={error} retry={() => retry++} />
 {:else if !data && loading}<State loading message="Loading roster analytics…" />
 {:else if data}
   <div aria-busy={loading} class:updating={loading}>

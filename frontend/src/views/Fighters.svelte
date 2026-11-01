@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { api, errorMessage, isAbort } from '../lib/api';
+  import { onDestroy } from 'svelte';
+  import { createRefresh } from '../lib/refresh';
+  import { api, errorMessage } from '../lib/api';
   import type { FighterProfile, FighterSummary } from '../lib/types';
   import { date, fighterHref, inches, label, number, odds } from '../lib/format';
   import State from '../lib/State.svelte';
@@ -7,7 +9,7 @@
   import FighterSearch from '../lib/FighterSearch.svelte';
   import Chart from '../lib/Chart.svelte';
   import { timeline, outcomes, strikes, accuracy, targets } from '../lib/fighterCharts';
-  let { fighter = '', openFighter }: { fighter?: string; openFighter: (uid: string) => void } =
+  let { fighter = '', openFighter, active, refresh }: { fighter?: string; openFighter: (uid: string) => void; active: boolean; refresh: number } =
     $props();
   let profile = $state.raw<FighterProfile | null>(null);
   let error = $state('');
@@ -46,36 +48,25 @@
   let finishes = $derived(
     fights.filter((f) => ['KO', 'TKO', 'SUB', 'Submission'].includes(f.decision || '')).length,
   );
-  $effect(() => {
-    const selected = fighter;
-    retry;
-    const controller = new AbortController();
-    loading = true;
-    error = '';
-    void (async () => {
-      try {
-        const id =
-          selected ||
-          (
-            await api<FighterSummary[]>('/fighter?name=Max%20Holloway&limit=1', controller.signal)
-          )[0]?.fighter_uid;
-        if (!id) throw new Error('No fighter records are available.');
-        const value = await api<FighterProfile>(
-          `/fighter/${encodeURIComponent(id)}/analytics`,
-          controller.signal,
-        );
-        if (!controller.signal.aborted) {
-          profile = value;
-          uid = id;
-        }
-      } catch (e) {
-        if (!isAbort(e)) error = errorMessage(e);
-      } finally {
-        if (!controller.signal.aborted) loading = false;
-      }
-    })();
-    return () => controller.abort();
+  let lastRetry = 0;
+  const request = createRefresh<{ profile: FighterProfile; id: string }>({
+    load: async (key, signal, bypass) => {
+      const selected = key.slice('/fighter/'.length, -'/analytics'.length);
+      const id = selected ? decodeURIComponent(selected) : (await api<FighterSummary[]>('/fighter?name=Max%20Holloway&limit=1', signal, bypass))[0]?.fighter_uid;
+      if (!id) throw new Error('No fighter records are available.');
+      return { id, profile: await api<FighterProfile>(`/fighter/${encodeURIComponent(id)}/analytics`, signal, bypass) };
+    },
+    success: (value) => { profile = value.profile; uid = value.id; error = ''; },
+    failure: (e) => (error = errorMessage(e)),
+    loading: (value) => (loading = value),
   });
+  $effect(() => {
+    refresh;
+    const force = retry !== lastRetry;
+    lastRetry = retry;
+    request.update(`/fighter/${encodeURIComponent(fighter)}/analytics`, active, force);
+  });
+  onDestroy(request.cancel);
 </script>
 
 <div class="page-heading fighter-toolbar">
@@ -85,7 +76,8 @@
   </div>
   <FighterSearch onselect={openFighter} />
 </div>
-{#if error}
+{#if error && profile}<p role="alert">Could not update fighter: {error} <button onclick={() => retry++}>Retry</button></p>{/if}
+{#if error && !profile}
   <State title="Unable to load this fighter" message={error} retry={() => retry++} />
 {:else if loading && !profile}
   <div class="profile-skeleton card-skeleton" aria-hidden="true"></div>
