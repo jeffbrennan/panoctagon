@@ -179,6 +179,7 @@ export async function mockApi(page: Page) {
     let data: unknown;
     if (path === '/metadata')
       data = {
+        current_year: 2026,
         last_refresh: '2026-10-11',
         fighters: 2637,
         fights: 8512,

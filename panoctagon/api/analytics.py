@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -31,15 +32,20 @@ def rows(sql: str, **params: Any) -> list[dict[str, Any]]:
     return _cached_rows(sql, tuple(sorted(params.items())), int(time.monotonic() // 120))
 
 
+def current_year() -> int:
+    return datetime.now(timezone.utc).year
+
+
 @router.get("/metadata", response_model=DashboardMetadata)
 def metadata() -> dict[str, Any]:
-    return rows("""
+    result = rows("""
         select (select max(substr(downloaded_ts, 1, 10)) from ufc_events) as last_refresh,
             (select count(*) from ufc_fighters) as fighters,
             (select count(*) from ufc_fights where fighter1_result is not null) as fights,
             (select min(year(cast(event_date as date))) from ufc_events) as first_year,
             (select max(year(cast(event_date as date))) from ufc_events) as last_year
     """)[0]
+    return {**result, "current_year": current_year()}
 
 
 @router.get("/fighter/{fighter_uid}/headshot", response_class=FileResponse)
@@ -189,9 +195,12 @@ def _network(division: str, start_year: int, end_year: int, period: int) -> dict
 @router.get("/analytics/network", response_model=NetworkAnalytics)
 def network(
     division: str = "HEAVYWEIGHT",
-    start_year: int = Query(2021, ge=1993, le=2100),
-    end_year: int = Query(2026, ge=1993, le=2100),
+    start_year: int | None = Query(None, ge=1993, le=2100),
+    end_year: int | None = Query(None, ge=1993, le=2100),
 ) -> dict[str, Any]:
+    year = current_year()
+    start_year = start_year if start_year is not None else year - 5
+    end_year = end_year if end_year is not None else year
     if start_year > end_year:
         raise HTTPException(status_code=422, detail="Start year must not exceed end year")
     return _network(division, start_year, end_year, int(time.monotonic() // 120))

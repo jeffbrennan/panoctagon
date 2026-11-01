@@ -9,8 +9,13 @@
   let { metadata, openFighter }: { metadata: Metadata | null; openFighter: (uid: string) => void } =
     $props();
   let division = $state('HEAVYWEIGHT');
-  let start = $state(2021);
-  let end = $state(2026);
+  let start = $state(new Date().getUTCFullYear() - 5);
+  let end = $state(new Date().getUTCFullYear());
+  let rangeEdited = false;
+  $effect(() => {
+    const year = metadata?.current_year;
+    if (year && !rangeEdited) { start = year - 5; end = year; }
+  });
   let loading = $state(true);
   let error = $state('');
   let data = $state.raw<NetworkData | null>(null);
@@ -20,7 +25,7 @@
   let graphWidth = $state(1000);
   let graph = $state.raw<{ resetGraphView: () => void }>();
   let minYear = $derived(metadata?.first_year || 1993);
-  let maxYear = $derived(Math.max(metadata?.last_year || 2026, new Date().getFullYear()));
+  let maxYear = $derived(Math.max(metadata?.last_year || 1993, metadata?.current_year || new Date().getUTCFullYear()));
   let years = $derived(Array.from({ length: maxYear - minYear + 1 }, (_, i) => minYear + i));
   let selectedNode = $derived(data?.nodes.find((n) => n.id === selected));
   let byId = $derived(new Map(data?.nodes.map((node) => [node.id, node]) || []));
@@ -158,6 +163,7 @@
     >From<select
       bind:value={start}
       onchange={() => {
+        rangeEdited = true;
         if (start > end) end = start;
       }}
       >{#each years as year}<option value={year}>{year}</option>{/each}</select
@@ -166,6 +172,7 @@
     >Through<select
       bind:value={end}
       onchange={() => {
+        rangeEdited = true;
         if (end < start) start = end;
       }}
       >{#each years as year}<option value={year}>{year}</option>{/each}</select
