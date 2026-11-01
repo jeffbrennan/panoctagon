@@ -37,6 +37,11 @@
         division = 'ALL';
         notice = 'The selected event is no longer available; showing the next event.';
       }
+      const selectedEvent = value.find((item) => item.event_uid === selected) || value[0];
+      if (division !== 'ALL' && !selectedEvent?.fights.some((fight) => fight.fight_division === division)) {
+        division = 'ALL';
+        notice = 'The selected division is no longer available; showing all divisions.';
+      }
     },
     failure: (e) => (error = errorMessage(e)),
     loading: (value) => { refreshing = value; loading = value && !loaded; },
