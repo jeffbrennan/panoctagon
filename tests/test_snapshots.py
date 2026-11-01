@@ -53,7 +53,7 @@ def test_api_switches_revisions_and_isolates_cached_metadata(tmp_path: Path, mon
         assert metadata['fighters'] == 3
 
 
-def test_snapshot_readers_are_isolated_from_a_separate_working_writer(tmp_path: Path):
+def test_snapshot_readers_are_isolated_from_a_separate_working_writer(tmp_path: Path, monkeypatch):
     import subprocess
     import sys
 
@@ -68,10 +68,17 @@ with duckdb.connect(sys.argv[1]) as db:
     print('writing', flush=True)
     input()
 """
+    from fastapi.testclient import TestClient
+    from panoctagon.api.server import app
+    monkeypatch.setenv('PANOCTAGON_API_SNAPSHOT_DIR', str(directory))
     process = subprocess.Popen([sys.executable, '-c', script, str(working)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
     try:
         assert process.stdout.readline().strip() == 'writing'
-        for _ in range(3):
+        with TestClient(app) as client:
+            for _ in range(3):
+                response = client.get('/metadata')
+                assert response.status_code == 200
+                assert response.json()['revision'] == snapshot['revision']
             with duckdb.connect(str(directory / snapshot['file']), read_only=True) as db:
                 assert db.execute('select count(*) from ufc_events').fetchone()[0] == 2
     finally:
