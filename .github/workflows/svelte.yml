@@ -86,6 +86,7 @@ jobs:
       - run: uv sync --frozen
       - run: npm ci && npx playwright install --with-deps chromium
         working-directory: frontend
+      - run: uv run pytest -q tests/test_cutover_config.py
       - run: |
           PYTHONPATH=. .venv/bin/python scripts/seed_dashboard_integration.py
           .venv/bin/python -c "from pathlib import Path; from panoctagon.api.snapshots import publish_snapshot; publish_snapshot(Path('.scratch/integration/dashboard.duckdb'), Path('.scratch/integration/snapshots'))"
