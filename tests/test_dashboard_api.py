@@ -5,6 +5,7 @@ from pathlib import Path
 from functools import lru_cache
 
 import pytest
+import duckdb
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.pool import NullPool
@@ -136,3 +137,16 @@ def test_network_default_range_uses_current_utc_year(client, monkeypatch):
     assert client.get("/metadata").json()["current_year"] == 2027
     assert client.get("/analytics/network").status_code == 200
     assert calls == [(2022, 2027)]
+
+
+def test_same_day_tournament_fights_follow_reverse_card_order(client, tmp_path):
+    # UFC 2's source card lists the final first: lower numbers are later bouts.
+    with duckdb.connect(str(tmp_path / "dashboard.duckdb")) as db:
+        db.execute("""
+            insert into ufc_fights values
+              ('a_final', 'past', 'alpha', 'bravo', 'WIN', 'LOSS', 'MIDDLEWEIGHT', 'REGULAR', 'TKO', 1, 1),
+              ('z_first', 'past', 'alpha', 'charlie', 'WIN', 'LOSS', 'MIDDLEWEIGHT', 'REGULAR', 'TKO', 1, 15)
+        """)
+    profile = client.get('/fighter/alpha/analytics').json()
+    order = [fight['fight_uid'] for fight in profile['fights']]
+    assert order.index('z_first') < order.index('a_final')

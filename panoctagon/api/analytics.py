@@ -83,11 +83,11 @@ def fighter_analytics(fighter_uid: str) -> dict[str, Any]:
             from ufc_fight_stats group by fight_uid, fighter_uid
         ), fighter_fights as (
             select fight_uid, event_uid, fighter2_uid as opponent_uid,
-                fighter1_result as result, decision, decision_round, fight_division
+                fighter1_result as result, decision, decision_round, fight_division, fight_order
             from ufc_fights where fighter1_uid = :uid and fighter1_result is not null
             union all
             select fight_uid, event_uid, fighter1_uid as opponent_uid,
-                fighter2_result as result, decision, decision_round, fight_division
+                fighter2_result as result, decision, decision_round, fight_division, fight_order
             from ufc_fights where fighter2_uid = :uid and fighter2_result is not null
         ), odds as (
             select bl.fight_uid, bo.closing_odds,
@@ -107,7 +107,7 @@ def fighter_analytics(fighter_uid: str) -> dict[str, Any]:
         left join totals t on f.fight_uid = t.fight_uid and t.fighter_uid = :uid
         left join totals ot on f.fight_uid = ot.fight_uid and ot.fighter_uid = f.opponent_uid
         left join odds on f.fight_uid = odds.fight_uid and odds.rn = 1
-        order by e.event_date, f.fight_uid
+        order by e.event_date, e.event_uid, f.fight_order desc nulls last, f.fight_uid
     """,
         uid=fighter_uid,
     )
@@ -294,12 +294,12 @@ def roster_analytics(division: str = "MIDDLEWEIGHT") -> dict[str, Any]:
         """
         with long_fights as (
             select fight_uid, fighter1_uid as fighter_uid, fighter2_uid as opponent_uid,
-                fighter1_result as result, fight_division, event_uid from ufc_fights
+                fighter1_result as result, fight_division, event_uid, fight_order from ufc_fights
             union all
-            select fight_uid, fighter2_uid, fighter1_uid, fighter2_result, fight_division, event_uid from ufc_fights
+            select fight_uid, fighter2_uid, fighter1_uid, fighter2_result, fight_division, event_uid, fight_order from ufc_fights
         ), experience as (
             select l.*, e.event_date,
-                row_number() over (partition by l.fighter_uid order by e.event_date, l.fight_uid) as experience
+                row_number() over (partition by l.fighter_uid order by e.event_date, e.event_uid, l.fight_order desc nulls last, l.fight_uid) as experience
             from long_fights l join ufc_events e on l.event_uid = e.event_uid
         ), differences as (
             select a.result,
