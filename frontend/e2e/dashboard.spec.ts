@@ -310,3 +310,32 @@ test('stale upcoming data refreshes on return and retains content after a failed
   await expect(page.getByRole('heading', { name: upcoming[1].event_title })).toBeVisible();
   expect(attempts).toBe(3);
 });
+
+test('late metadata updates the UTC default but preserves an explicitly chosen range', async ({ page }) => {
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => (release = resolve));
+  await page.route('**/api/metadata', async (route) => {
+    await pending;
+    await route.fulfill({ json: { current_year: 2027, last_refresh: '2027-01-01', fighters: 3, fights: 6, first_year: 1993, last_year: 2099 } });
+  });
+  await page.goto('/?view=network');
+  const from = page.getByRole('combobox', { name: 'From' });
+  const through = page.getByRole('combobox', { name: 'Through' });
+  await expect(from).toBeVisible();
+  await from.selectOption('2020');
+  await through.selectOption('2025');
+  const response = page.waitForResponse('**/api/metadata');
+  release();
+  await response;
+  await expect(page.getByText('Data as of 2027-01-01')).toBeVisible();
+  await expect(from).toHaveValue('2020');
+  await expect(through).toHaveValue('2025');
+});
+
+
+test('network defaults to the six UTC calendar years supplied by metadata', async ({ page }) => {
+  await page.route('**/api/metadata', (route) => route.fulfill({ json: { current_year: 2027, last_refresh: null, fighters: 3, fights: 6, first_year: 1993, last_year: 2099 } }));
+  await page.goto('/?view=network');
+  await expect(page.getByRole('combobox', { name: 'From' })).toHaveValue('2022');
+  await expect(page.getByRole('combobox', { name: 'Through' })).toHaveValue('2027');
+});
