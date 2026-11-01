@@ -1,0 +1,26 @@
+[
+  {
+    "phase": "legacy",
+    "root": 200,
+    "api_metadata": 200,
+    "api_health": 200,
+    "double_api": 404,
+    "dagster_path": "/dagster/server_info"
+  },
+  {
+    "phase": "cutover",
+    "root": 200,
+    "api_metadata": 200,
+    "api_health": 200,
+    "double_api": 404,
+    "dagster_path": "/dagster/server_info"
+  },
+  {
+    "phase": "legacy",
+    "root": 200,
+    "api_metadata": 200,
+    "api_health": 200,
+    "double_api": 404,
+    "dagster_path": "/dagster/server_info"
+  }
+]

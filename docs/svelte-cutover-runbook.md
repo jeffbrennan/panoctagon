@@ -2,7 +2,8 @@
 
 This is an opt-in configuration; do not switch traffic until the parity,
 performance, concurrent-read and rollback gates in the implementation plan are
-complete. Record the exact immutable image digests and Compose configuration for
+complete. See the [local gate report](release-gates/2026-11-01.md) for evidence
+and remaining work. Record the exact immutable image digests and Compose configuration for
 both the prior Dash/API services and the new service in the deployment record.
 
 1. Inventory consumers of `panoctagon_api:8000` outside this repository. A

@@ -1,0 +1,302 @@
+[
+  {
+    "sample": 0,
+    "upcoming": {
+      "ms": 177.43012495338917,
+      "bytes": 2
+    },
+    "roster": {
+      "ms": 274.16000002995133,
+      "bytes": 53109
+    },
+    "network_all_years": {
+      "ms": 172.2322499845177,
+      "bytes": 132515
+    }
+  },
+  {
+    "sample": 1,
+    "upcoming": {
+      "ms": 171.70333303511143,
+      "bytes": 2
+    },
+    "roster": {
+      "ms": 269.52683296985924,
+      "bytes": 53109
+    },
+    "network_all_years": {
+      "ms": 168.23862493038177,
+      "bytes": 132517
+    }
+  },
+  {
+    "sample": 2,
+    "upcoming": {
+      "ms": 181.77408282645047,
+      "bytes": 2
+    },
+    "roster": {
+      "ms": 267.33029214665294,
+      "bytes": 53109
+    },
+    "network_all_years": {
+      "ms": 172.1063330769539,
+      "bytes": 132516
+    }
+  },
+  {
+    "sample": 3,
+    "upcoming": {
+      "ms": 170.37287494167686,
+      "bytes": 2
+    },
+    "roster": {
+      "ms": 261.51487487368286,
+      "bytes": 53109
+    },
+    "network_all_years": {
+      "ms": 178.72583284042776,
+      "bytes": 132517
+    }
+  },
+  {
+    "sample": 4,
+    "upcoming": {
+      "ms": 174.92379201576114,
+      "bytes": 2
+    },
+    "roster": {
+      "ms": 268.2389582041651,
+      "bytes": 53109
+    },
+    "network_all_years": {
+      "ms": 171.54741613194346,
+      "bytes": 132520
+    }
+  },
+  {
+    "sample": 5,
+    "upcoming": {
+      "ms": 174.11937494762242,
+      "bytes": 2
+    },
+    "roster": {
+      "ms": 267.02729193493724,
+      "bytes": 53109
+    },
+    "network_all_years": {
+      "ms": 170.49208283424377,
+      "bytes": 132519
+    }
+  },
+  {
+    "sample": 6,
+    "upcoming": {
+      "ms": 169.60837482474744,
+      "bytes": 2
+    },
+    "roster": {
+      "ms": 253.52100003510714,
+      "bytes": 53109
+    },
+    "network_all_years": {
+      "ms": 164.7297500167042,
+      "bytes": 132514
+    }
+  },
+  {
+    "sample": 7,
+    "upcoming": {
+      "ms": 173.15266700461507,
+      "bytes": 2
+    },
+    "roster": {
+      "ms": 267.33870804309845,
+      "bytes": 53109
+    },
+    "network_all_years": {
+      "ms": 170.25379184633493,
+      "bytes": 132517
+    }
+  },
+  {
+    "sample": 8,
+    "upcoming": {
+      "ms": 171.98320804163814,
+      "bytes": 2
+    },
+    "roster": {
+      "ms": 265.0434169918299,
+      "bytes": 53109
+    },
+    "network_all_years": {
+      "ms": 169.9038331862539,
+      "bytes": 132521
+    }
+  },
+  {
+    "sample": 9,
+    "upcoming": {
+      "ms": 170.46833294443786,
+      "bytes": 2
+    },
+    "roster": {
+      "ms": 257.539999904111,
+      "bytes": 53109
+    },
+    "network_all_years": {
+      "ms": 171.49579199030995,
+      "bytes": 132519
+    }
+  },
+  {
+    "sample": 10,
+    "upcoming": {
+      "ms": 171.53062508441508,
+      "bytes": 2
+    },
+    "roster": {
+      "ms": 262.61616707779467,
+      "bytes": 53109
+    },
+    "network_all_years": {
+      "ms": 171.74383299425244,
+      "bytes": 132517
+    }
+  },
+  {
+    "sample": 11,
+    "upcoming": {
+      "ms": 172.55970812402666,
+      "bytes": 2
+    },
+    "roster": {
+      "ms": 258.3722919225693,
+      "bytes": 53109
+    },
+    "network_all_years": {
+      "ms": 169.5081249345094,
+      "bytes": 132517
+    }
+  },
+  {
+    "sample": 12,
+    "upcoming": {
+      "ms": 173.01870812661946,
+      "bytes": 2
+    },
+    "roster": {
+      "ms": 260.35595894791186,
+      "bytes": 53109
+    },
+    "network_all_years": {
+      "ms": 170.51612515933812,
+      "bytes": 132522
+    }
+  },
+  {
+    "sample": 13,
+    "upcoming": {
+      "ms": 174.7130409348756,
+      "bytes": 2
+    },
+    "roster": {
+      "ms": 276.7343749292195,
+      "bytes": 53109
+    },
+    "network_all_years": {
+      "ms": 176.70687497593462,
+      "bytes": 132521
+    }
+  },
+  {
+    "sample": 14,
+    "upcoming": {
+      "ms": 184.50687499716878,
+      "bytes": 2
+    },
+    "roster": {
+      "ms": 275.456374976784,
+      "bytes": 53109
+    },
+    "network_all_years": {
+      "ms": 172.46250016614795,
+      "bytes": 132517
+    }
+  },
+  {
+    "sample": 15,
+    "upcoming": {
+      "ms": 179.03274996206164,
+      "bytes": 2
+    },
+    "roster": {
+      "ms": 262.75824988260865,
+      "bytes": 53109
+    },
+    "network_all_years": {
+      "ms": 171.40587512403727,
+      "bytes": 132523
+    }
+  },
+  {
+    "sample": 16,
+    "upcoming": {
+      "ms": 176.46037484519184,
+      "bytes": 2
+    },
+    "roster": {
+      "ms": 263.24608409777284,
+      "bytes": 53109
+    },
+    "network_all_years": {
+      "ms": 172.48174990527332,
+      "bytes": 132517
+    }
+  },
+  {
+    "sample": 17,
+    "upcoming": {
+      "ms": 177.19108401797712,
+      "bytes": 2
+    },
+    "roster": {
+      "ms": 258.09533311985433,
+      "bytes": 53109
+    },
+    "network_all_years": {
+      "ms": 177.97987489029765,
+      "bytes": 132518
+    }
+  },
+  {
+    "sample": 18,
+    "upcoming": {
+      "ms": 170.76241597533226,
+      "bytes": 2
+    },
+    "roster": {
+      "ms": 269.4925838150084,
+      "bytes": 53109
+    },
+    "network_all_years": {
+      "ms": 175.9089999832213,
+      "bytes": 132519
+    }
+  },
+  {
+    "sample": 19,
+    "upcoming": {
+      "ms": 174.2392498999834,
+      "bytes": 2
+    },
+    "roster": {
+      "ms": 263.4720830246806,
+      "bytes": 53109
+    },
+    "network_all_years": {
+      "ms": 167.3884589690715,
+      "bytes": 132520
+    }
+  }
+]
