@@ -63,3 +63,29 @@ it('honors cancellation even when the response is already cached', async () => {
   await expect(api('/upcoming', controller.signal)).rejects.toSatisfy(isAbort);
   expect(fetch).toHaveBeenCalledTimes(1);
 });
+
+it('does not cache a response aborted while its body is being read', async () => {
+  let finish!: (value: unknown) => void;
+  const fetch = vi.fn().mockResolvedValue({
+    ok: true,
+    json: () => new Promise((resolve) => (finish = resolve)),
+  });
+  vi.stubGlobal('fetch', fetch);
+  const { api } = await import('./api');
+  const controller = new AbortController();
+  const pending = api('/upcoming', controller.signal);
+  await Promise.resolve();
+  controller.abort();
+  finish([]);
+  await expect(pending).rejects.toThrow();
+  fetch.mockResolvedValueOnce(new Response('[1]'));
+  expect(await api('/upcoming')).toEqual([1]);
+});
+
+it('allows an explicit cache bypass', async () => {
+  const fetch = vi.fn().mockResolvedValueOnce(new Response('[1]')).mockResolvedValueOnce(new Response('[2]'));
+  vi.stubGlobal('fetch', fetch);
+  const { api } = await import('./api');
+  await api('/upcoming');
+  expect(await api('/upcoming', undefined, true)).toEqual([2]);
+});

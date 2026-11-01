@@ -11,10 +11,14 @@ export class ApiError extends Error {
   }
 }
 
-export async function api<T>(path: string, signal?: AbortSignal): Promise<T> {
+export function isFresh(path: string): boolean {
+  return (cache.get(path)?.expires ?? 0) > Date.now();
+}
+
+export async function api<T>(path: string, signal?: AbortSignal, bypass = false): Promise<T> {
   signal?.throwIfAborted();
   const cached = cache.get(path);
-  if (cached && cached.expires > Date.now()) return cached.value as T;
+  if (!bypass && cached && cached.expires > Date.now()) return cached.value as T;
   const response = await fetch(`/api${path}`, {
     signal,
     headers: { Accept: 'application/json' },
@@ -28,6 +32,7 @@ export async function api<T>(path: string, signal?: AbortSignal): Promise<T> {
     );
   }
   const value: T = await response.json();
+  signal?.throwIfAborted();
   if (cache.size >= MAX_ENTRIES) cache.delete(cache.keys().next().value!);
   cache.set(path, { value, expires: Date.now() + TTL });
   return value;
