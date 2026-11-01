@@ -26,7 +26,7 @@ jobs:
         working-directory: frontend
       - run: npm run check && npm test && npm run build
         working-directory: frontend
-      - run: uv run pytest -q tests/test_dashboard_api.py tests/test_web_server.py
+      - run: uv run pytest -q tests/test_dashboard_api.py tests/test_web_server.py tests/test_snapshots.py
   browser:
     runs-on: ubuntu-latest
     strategy:
@@ -68,3 +68,42 @@ jobs:
             .scratch/playwright-report
             .scratch/integration-results
             .scratch/integration-report
+  release-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26.13.0
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.12.12
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: npm ci && npx playwright install --with-deps chromium
+        working-directory: frontend
+      - run: |
+          PYTHONPATH=. .venv/bin/python scripts/seed_dashboard_integration.py
+          .venv/bin/python -c "from pathlib import Path; from panoctagon.api.snapshots import publish_snapshot; publish_snapshot(Path('.scratch/integration/dashboard.duckdb'), Path('.scratch/integration/snapshots'))"
+          docker build -f Dockerfile-frontend -t panoctagon-release-test .
+          docker run -d --name panoctagon-release-test -p 8766:8050 --mount type=bind,src="$PWD/.scratch/integration/snapshots",dst=/snapshots,readonly --mount type=bind,src="$PWD/.scratch/integration/headshots",dst=/headshots,readonly -e PANOCTAGON_API_SNAPSHOT_DIR=/snapshots -e PANOCTAGON_API_HEADSHOTS=/headshots panoctagon-release-test
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8766/readyz && exit 0; sleep 1; done
+          docker logs panoctagon-release-test
+          exit 1
+      - run: npx playwright test -c playwright.integration.config.ts --project=desktop-chromium --project=mobile-chromium
+        working-directory: frontend
+        env:
+          PANOCTAGON_INTEGRATION_URL: http://127.0.0.1:8766
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: release-image-browser
+          path: |
+            .scratch/integration-results
+            .scratch/integration-report
+      - if: always()
+        run: docker rm -f panoctagon-release-test || true

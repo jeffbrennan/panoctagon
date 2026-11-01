@@ -15,5 +15,5 @@ export default defineConfig({
     { name: 'firefox', use: { browserName: 'firefox', viewport: { width: 1440, height: 900 } } },
     { name: 'mobile-webkit', use: { ...devices['iPhone 13'], browserName: 'webkit' } },
   ],
-  webServer: { command: 'npm run dev', url: 'http://127.0.0.1:5173', reuseExistingServer: true },
+  webServer: { command: 'npm run dev', url: 'http://127.0.0.1:5173', reuseExistingServer: !process.env.CI },
 });

@@ -3,7 +3,10 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from sqlalchemy import text
+
+from panoctagon.api.database import get_read_engine
 from fastapi.middleware.gzip import GZipMiddleware
 from starlette.responses import Response
 from starlette.staticfiles import StaticFiles
@@ -29,6 +32,23 @@ class FrontendFiles(StaticFiles):
 def create_app(frontend_directory: Path = FRONTEND_DIRECTORY) -> FastAPI:
     app = FastAPI(title="Panoctagon", docs_url=None, redoc_url=None, openapi_url=None)
     app.add_middleware(GZipMiddleware, minimum_size=1000)
+    @app.get("/healthz")
+    def healthz():
+        return {"status": "ok"}
+
+    @app.get("/readyz")
+    def readyz():
+        if not (frontend_directory / "index.html").is_file():
+            raise HTTPException(status_code=503, detail="Frontend build unavailable")
+        try:
+            engine = get_read_engine()
+            with engine.connect() as connection:
+                connection.execute(text("select count(*) from ufc_events"))
+            engine.dispose()
+        except Exception:
+            raise HTTPException(status_code=503, detail="Database unavailable")
+        return {"status": "ready"}
+
     app.mount("/api", api)
     app.mount("/", FrontendFiles(directory=frontend_directory, html=True, check_dir=False))
     return app

@@ -4,6 +4,8 @@ test('built application and API work together', async ({ page, request }) => {
   const metadata = await request.get('/api/metadata');
   expect(metadata.ok()).toBeTruthy();
   expect((await metadata.json()).fighters).toBe(3);
+  const roster = await request.get('/api/analytics/roster?division=MIDDLEWEIGHT');
+  expect((await roster.json()).advantages.length).toBeGreaterThan(0);
   expect((await request.get('/api/fighter/alpha/headshot')).status()).toBe(200);
   expect((await request.get('/api/fighter/bravo/headshot')).status()).toBe(404);
   expect((await request.get('/api/not-a-route')).status()).toBe(404);
@@ -19,6 +21,7 @@ test('built application and API work together', async ({ page, request }) => {
   await expect(page.getByRole('heading', { name: 'UFC Future' })).toBeVisible();
   await page.getByRole('link', { name: 'Alex Alpha', exact: true }).first().click();
   await expect(page.getByRole('heading', { name: 'Alex Alpha' })).toBeVisible();
+  await page.locator('.chart').first().scrollIntoViewIfNeeded();
   await expect(page.locator('canvas').first()).toBeVisible();
   await page.getByRole('link', { name: 'Network', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Network', exact: true })).toBeVisible();

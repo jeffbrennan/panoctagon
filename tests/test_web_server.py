@@ -42,3 +42,19 @@ def test_unknown_api_and_static_paths_stay_404(client):
     assert client.get("/not-a-route").status_code == 404
     assert client.get("/assets/missing.js").status_code == 404
     assert client.get("/assets/%2e%2e/%2e%2e/outside.txt").status_code == 404
+
+
+def test_readiness_requires_build_and_usable_database(tmp_path: Path, monkeypatch):
+    from tests.dashboard_seed import seed_dashboard
+    database = tmp_path / 'test.duckdb'
+    seed_dashboard(database)
+    monkeypatch.setenv('PANOCTAGON_API_DATABASE', str(database))
+    build = tmp_path / 'build'
+    build.mkdir()
+    with TestClient(create_app(build)) as client:
+        assert client.get('/healthz').status_code == 200
+        assert client.get('/readyz').status_code == 503
+        (build / 'index.html').write_text('ready')
+        assert client.get('/readyz').status_code == 200
+        database.unlink()
+        assert client.get('/readyz').status_code == 503
