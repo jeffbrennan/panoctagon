@@ -21,6 +21,7 @@ test('built application and API work together', async ({ page, request }) => {
   await expect(page.getByRole('heading', { name: 'UFC Future' })).toBeVisible();
   await page.getByRole('link', { name: 'Alex Alpha', exact: true }).first().click();
   await expect(page.getByRole('heading', { name: 'Alex Alpha' })).toBeVisible();
+  await expect(page.locator('.fighter-header .headshot img.loaded')).toBeVisible();
   await page.locator('.chart').first().scrollIntoViewIfNeeded();
   await expect(page.locator('canvas').first()).toBeVisible();
   await page.getByRole('link', { name: 'Network', exact: true }).click();
@@ -29,4 +30,6 @@ test('built application and API work together', async ({ page, request }) => {
   await expect(page.getByRole('heading', { name: 'Roster', exact: true })).toBeVisible();
   await page.goto('/?view=fighters&fighter=bravo');
   await expect(page.getByRole('heading', { name: 'Blair Bravo' })).toBeVisible();
+  await expect(page.locator('.fighter-header .headshot span')).toHaveText('BB');
+  await expect(page.locator('.fighter-header .headshot img')).toHaveCount(0);
 });
