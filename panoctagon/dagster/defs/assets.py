@@ -168,3 +168,17 @@ def upcoming_fights_not_empty() -> AssetCheckResult:
     return AssetCheckResult(
         passed=(n_upcoming or 0) > 0, metadata={"n_upcoming_fights": n_upcoming}
     )
+
+
+@asset(
+    compute_kind="python",
+    key="api_snapshot",
+    deps=["mart_striking_stats", "bfo_ufc_link", "ufc_fighters", "ufc_fight_stats"],
+    pool=POOL,
+)
+def publish_api_snapshot(context: AssetExecutionContext) -> None:
+    """Run only after the serialized refresh and its blocking checks succeed."""
+    from panoctagon.api.snapshots import publish_snapshot
+
+    manifest = publish_snapshot(db_path, db_path.parent / "api_snapshots")
+    context.add_output_metadata(manifest)

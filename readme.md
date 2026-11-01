@@ -90,3 +90,17 @@ Install browsers with `npx playwright install --with-deps chromium firefox webki
 test -c playwright.integration.config.ts` runs the built application against an
 isolated database under `.scratch/integration`. The integration server requires
 port 8765 and never opens the working ingestion database.
+
+### API snapshots
+
+The refresh job publishes a checkpointed copy to `data/api_snapshots` only after
+its upstream assets and blocking checks pass. The existing blocking check still
+requires at least one upcoming fight: an empty calendar is valid for readers,
+but ingestion currently treats it as a failed refresh pending an operational
+policy change. Dagster is configured to run one job at a time and publication
+uses the `duckdb_write` pool. Manual production writers must stop and drain
+Dagster runs and all other working-database writers before writing or publishing;
+they must maintain that boundary until checkpoint, copy, and validation finish.
+Set `PANOCTAGON_API_SNAPSHOT_DIR` on API readers to use the manifest. Bootstrap
+and validate a snapshot before enabling this setting. Keep old snapshot files
+until readers have drained; cleanup is a controlled maintenance action.

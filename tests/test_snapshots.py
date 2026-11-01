@@ -51,3 +51,29 @@ def test_api_switches_revisions_and_isolates_cached_metadata(tmp_path: Path, mon
         metadata = client.get('/metadata').json()
         assert metadata['revision'] == first['revision']
         assert metadata['fighters'] == 3
+
+
+def test_snapshot_readers_are_isolated_from_a_separate_working_writer(tmp_path: Path):
+    import subprocess
+    import sys
+
+    working = tmp_path / 'working.duckdb'
+    directory = tmp_path / 'published'
+    seed_dashboard(working)
+    snapshot = publish_snapshot(working, directory)
+    script = """
+import duckdb, sys
+with duckdb.connect(sys.argv[1]) as db:
+    db.execute("insert into ufc_events values ('new', 'New', '2099-01-02', 'City', '2025')")
+    print('writing', flush=True)
+    input()
+"""
+    process = subprocess.Popen([sys.executable, '-c', script, str(working)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+    try:
+        assert process.stdout.readline().strip() == 'writing'
+        for _ in range(3):
+            with duckdb.connect(str(directory / snapshot['file']), read_only=True) as db:
+                assert db.execute('select count(*) from ufc_events').fetchone()[0] == 2
+    finally:
+        process.communicate('\n', timeout=10)
+    assert process.returncode == 0
