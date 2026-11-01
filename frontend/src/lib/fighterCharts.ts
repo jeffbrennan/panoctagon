@@ -60,26 +60,26 @@ export function timeline(fights: CareerFight[]): EChartsOption {
       ...baseOption.tooltip,
       trigger: 'item',
       formatter: (p: any) =>
-        `${fightTip(fights[p.dataIndex])}\nStrikes absorbed: ${number(fights[p.dataIndex].strikes_absorbed)}\nCareer total: ${number(p.value[1])}`,
+        `${fightTip(fights[p.dataIndex])}\nStrikes absorbed: ${number(fights[p.dataIndex].strikes_absorbed)}\nRecorded career total: ${number(p.value[1])}`,
     },
     xAxis: timeAxis(),
-    yAxis: valueAxis('Strikes absorbed'),
+    yAxis: valueAxis('Recorded strikes absorbed'),
     dataZoom: zoom(fights),
     series: [
       {
-        name: 'Career strikes absorbed',
+        name: 'Recorded career strikes absorbed',
         id: 'career-strikes',
         type: 'line',
-        smooth: 0.18,
+        connectNulls: false,
         symbolSize: 9,
         symbol: 'circle',
         lineStyle: { color: '#4b4f43', width: 1.5 },
         areaStyle: { color: '#8d9b8b', opacity: 0.15 },
         data: fights.map((f) => {
-          total += f.strikes_absorbed || 0;
+          if (f.strikes_absorbed != null) total += f.strikes_absorbed;
           return {
             name: f.fight_uid,
-            value: [f.event_date, total],
+            value: [f.event_date, f.strikes_absorbed == null ? null : total],
             itemStyle: {
               color: f.result === 'WIN' ? '#253b32' : f.result === 'LOSS' ? '#f2f0e3' : '#b4a58a',
               borderColor: '#253b32',

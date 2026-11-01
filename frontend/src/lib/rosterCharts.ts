@@ -168,7 +168,7 @@ export function discrepancy(advantages: Advantage[], metric: string): EChartsOpt
       nameGap: 30,
       axisLabel: { ...axis.axisLabel, rotate: 25, fontSize: 11 },
     },
-    yAxis: { ...axis, type: 'value', min: 20, max: 80, name: 'Win rate (%)' },
+    yAxis: { ...axis, type: 'value', min: 0, max: 100, name: 'Win rate (%)' },
     series: [
       {
         type: 'line',
@@ -176,7 +176,6 @@ export function discrepancy(advantages: Advantage[], metric: string): EChartsOpt
         id: 'matchup-advantage',
         data: data.map((a) => a.win_rate),
         symbolSize: 8,
-        smooth: 0.15,
         lineStyle: { width: 2 },
         markLine: {
           silent: true,

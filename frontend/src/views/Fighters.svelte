@@ -41,6 +41,8 @@
   let targetOption = $derived(targets(fights));
   let landed = $derived(fights.reduce((sum, f) => sum + (f.strikes_landed || 0), 0));
   let absorbed = $derived(fights.reduce((sum, f) => sum + (f.strikes_absorbed || 0), 0));
+  let landedCoverage = $derived(fights.filter((f) => f.strikes_landed != null).length);
+  let absorbedCoverage = $derived(fights.filter((f) => f.strikes_absorbed != null).length);
   let finishes = $derived(
     fights.filter((f) => ['KO', 'TKO', 'SUB', 'Submission'].includes(f.decision || '')).length,
   );
@@ -165,12 +167,14 @@
               <dd>{fights.length ? `${((finishes / fights.length) * 100).toFixed(1)}%` : '—'}</dd>
             </div>
             <div class="metric">
-              <dt>Strikes landed</dt>
-              <dd>{number(landed)}</dd>
+              <dt>Recorded strikes landed</dt>
+              <dd>{landedCoverage ? number(landed) : 'Unavailable'}</dd>
+              {#if landedCoverage < fights.length}<small>Stats available for {landedCoverage} of {fights.length} fights.</small>{/if}
             </div>
             <div class="metric">
-              <dt>Strikes absorbed</dt>
-              <dd>{number(absorbed)}</dd>
+              <dt>Recorded strikes absorbed</dt>
+              <dd>{absorbedCoverage ? number(absorbed) : 'Unavailable'}</dd>
+              {#if absorbedCoverage < fights.length}<small>Stats available for {absorbedCoverage} of {fights.length} fights.</small>{/if}
             </div>
           </dl>
           <div class="chart-grid">
@@ -178,13 +182,13 @@
               <div class="panel-heading">
                 <div>
                   <h3>Career timeline</h3>
-                  <p>Cumulative total strikes absorbed</p>
+                  <p>Cumulative recorded strikes absorbed; missing fights appear as gaps</p>
                 </div>
                 <span class="chart-key"><i></i> Win <i class="hollow"></i> Loss</span>
               </div>
               <Chart
                 option={timelineOption}
-                label={`${profile.bio.full_name}: cumulative strikes absorbed across ${fights.length} UFC fights`}
+                label={`${profile.bio.full_name}: cumulative recorded strikes absorbed across ${fights.length} UFC fights; statistics available for ${absorbedCoverage} of ${fights.length} fights, with gaps for missing data`}
                 height={340}
               />
             </section>

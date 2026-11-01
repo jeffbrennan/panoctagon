@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { strikeTargets } from './rosterCharts';
+import { strikeTargets, discrepancy } from './rosterCharts';
 
 it('keeps outlier fighter and event data attached to the plotted point', () => {
   const outlier = {
@@ -19,4 +19,12 @@ it('keeps outlier fighter and event data attached to the plotted point', () => {
   expect(tooltip).toContain('Alex Alpha');
   expect(tooltip).toContain('UFC Test');
   expect(tooltip).toContain('Head strikes: 99.0%');
+});
+
+
+it('shows the entire possible win rate range without smoothing', () => {
+  const option = discrepancy([0, 10, 90, 100].map((win_rate, index) => ({ metric: 'Age', bin: String(index), count: 20, win_rate })), 'Age');
+  expect(option.yAxis).toMatchObject({ min: 0, max: 100 });
+  expect((option.series as any[])[0].data).toEqual([0, 10, 90, 100]);
+  expect((option.series as any[])[0].smooth).toBeUndefined();
 });

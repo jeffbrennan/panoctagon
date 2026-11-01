@@ -32,7 +32,12 @@ describe('fighter charts', () => {
       fight('missing', {}),
       fight('last', { strikes_absorbed: 20 }),
     ]);
-    expect((option.series as any[])[0].data.map((p: any) => p.value[1])).toEqual([10, 10, 30]);
+    expect((option.series as any[])[0].data.map((p: any) => p.value[1])).toEqual([10, null, 30]);
+  });
+  it('preserves a recorded zero and leaves missing observations as gaps', () => {
+    const option = timeline([fight('zero', { strikes_absorbed: 0 }), fight('missing', {})]);
+    expect((option.series as any[])[0].data.map((p: any) => p.value[1])).toEqual([0, null]);
+    expect((option.series as any[])[0].connectNulls).toBe(false);
   });
   it('excludes unknown and zero-attempt accuracy rather than plotting false zeroes', () => {
     const option = accuracy([
