@@ -1,0 +1,19 @@
+http:
+  routers:
+    frontend:
+      rule: "Host(`panoctagon.test`)"
+      priority: 1
+      service: svelte
+      entryPoints: [web]
+    dagster:
+      rule: "Host(`panoctagon.test`) && PathPrefix(`/dagster`)"
+      priority: 20
+      service: dagster
+      entryPoints: [web]
+  services:
+    svelte:
+      loadBalancer:
+        servers: [{url: "http://host.docker.internal:18751"}]
+    dagster:
+      loadBalancer:
+        servers: [{url: "http://host.docker.internal:18753"}]
