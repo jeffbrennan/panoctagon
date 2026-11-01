@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
+from starlette.responses import JSONResponse
+
+from panoctagon.api.database import _active, resolve_revision
 from fastapi.middleware.gzip import GZipMiddleware
 
 from panoctagon.api.analytics import router as analytics_router
@@ -47,6 +50,19 @@ app = FastAPI(
     version="0.1.0",
 )
 app.add_middleware(GZipMiddleware, minimum_size=1000)
+@app.middleware("http")
+async def pin_database_revision(request: Request, call_next):
+    try:
+        revision = resolve_revision()
+    except (OSError, ValueError, KeyError):
+        return JSONResponse({"detail": "Database snapshot unavailable"}, status_code=503)
+    token = _active.set(revision)
+    try:
+        return await call_next(request)
+    finally:
+        _active.reset(token)
+
+
 app.include_router(analytics_router)
 
 

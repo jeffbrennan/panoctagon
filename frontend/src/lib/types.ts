@@ -39,6 +39,8 @@ export interface UpcomingEvent {
   fights: Matchup[];
 }
 export interface Metadata {
+  revision?: string | null;
+  published_at?: string | null;
   current_year: number;
   last_refresh: string | null;
   fighters: number;

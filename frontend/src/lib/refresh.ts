@@ -1,4 +1,4 @@
-import { isFresh, isAbort } from './api';
+import { isFresh, isAbort, cacheGeneration } from './api';
 
 /** Coordinates a view's current request without tying the lifetime of its content to it. */
 export function createRefresh<T>(handlers: {
@@ -7,6 +7,7 @@ export function createRefresh<T>(handlers: {
   failure: (error: unknown) => void;
   loading: (value: boolean) => void;
 }) {
+  let generation = cacheGeneration();
   let key = '';
   let successfulKey = '';
   let lastAttempt = 0;
@@ -21,6 +22,12 @@ export function createRefresh<T>(handlers: {
     handlers.loading(false);
   }
   function update(next: string, active: boolean, force = false) {
+    if (generation !== cacheGeneration()) {
+      cancel();
+      generation = cacheGeneration();
+      successfulKey = '';
+      lastAttempt = 0;
+    }
     if (!active) { cancel(); return; }
     if (key !== next) { cancel(); key = next; lastAttempt = 0; }
     if (pending) return;

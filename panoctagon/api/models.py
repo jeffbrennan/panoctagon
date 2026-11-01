@@ -220,6 +220,8 @@ class FighterFightSummary(BaseModel):
 
 
 class DashboardMetadata(BaseModel):
+    revision: Optional[str] = None
+    published_at: Optional[str] = None
     current_year: int
     last_refresh: Optional[str]
     fighters: int

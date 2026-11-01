@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import type { Component } from 'svelte';
   import type { Metadata, View } from './lib/types';
-  import { api } from './lib/api';
+  import { api, invalidateCache } from './lib/api';
   import { createRefresh } from './lib/refresh';
   import State from './lib/State.svelte';
   import Upcoming from './views/Upcoming.svelte';
@@ -103,7 +103,13 @@
     readLocation();
     const metadataRequest = createRefresh<Metadata>({
       load: (key, signal, bypass) => api(key, signal, bypass),
-      success: (value) => (metadata = value),
+      success: (value) => {
+        if (metadata && value.revision !== metadata.revision) {
+          invalidateCache();
+          refresh++;
+        }
+        metadata = value;
+      },
       failure: () => {},
       loading: () => {},
     });

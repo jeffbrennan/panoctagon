@@ -35,6 +35,8 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request: pytest.Fixt
 
 def test_metadata_counts_completed_fights(client):
     assert client.get("/metadata").json() == {
+        "revision": None,
+        "published_at": None,
         "current_year": analytics.current_year(),
         "last_refresh": "2024-01-03",
         "fighters": 3,
@@ -130,7 +132,7 @@ def test_target_boxes_use_tukey_whiskers_and_preserve_outlier_context(client):
 def test_network_default_range_uses_current_utc_year(client, monkeypatch):
     monkeypatch.setattr(analytics, "current_year", lambda: 2027)
     calls = []
-    monkeypatch.setattr(analytics, "_network", lru_cache()(lambda division, start, end, period: calls.append((start, end)) or {"nodes": [], "links": []}))
+    monkeypatch.setattr(analytics, "_network", lru_cache()(lambda division, start, end, period, revision: calls.append((start, end)) or {"nodes": [], "links": []}))
     assert client.get("/metadata").json()["current_year"] == 2027
     assert client.get("/analytics/network").status_code == 200
     assert calls == [(2022, 2027)]

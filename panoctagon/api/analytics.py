@@ -18,19 +18,19 @@ from panoctagon.api.models import (
     RosterAnalytics,
 )
 from panoctagon.api.queries import get_fighter_detail
-from panoctagon.api.database import get_read_engine
+from panoctagon.api.database import current_revision, get_read_engine
 
 router = APIRouter(tags=["Dashboard analytics"])
 
 
 @lru_cache(maxsize=64)
-def _cached_rows(sql: str, params: tuple, period: int) -> list[dict[str, Any]]:
+def _cached_rows(sql: str, params: tuple, period: int, revision: str) -> list[dict[str, Any]]:
     with get_read_engine().connect() as conn:
         return [dict(row) for row in conn.execute(text(sql), dict(params)).mappings()]
 
 
 def rows(sql: str, **params: Any) -> list[dict[str, Any]]:
-    return _cached_rows(sql, tuple(sorted(params.items())), int(time.monotonic() // 120))
+    return _cached_rows(sql, tuple(sorted(params.items())), int(time.monotonic() // 120), current_revision().revision)
 
 
 def current_year() -> int:
@@ -46,7 +46,8 @@ def metadata() -> dict[str, Any]:
             (select min(year(cast(event_date as date))) from ufc_events) as first_year,
             (select max(year(cast(event_date as date))) from ufc_events) as last_year
     """)[0]
-    return {**result, "current_year": current_year()}
+    revision = current_revision()
+    return {**result, "current_year": current_year(), "revision": revision.revision if revision.published_at else None, "published_at": revision.published_at}
 
 
 @router.get("/fighter/{fighter_uid}/headshot", response_class=FileResponse)
@@ -118,7 +119,7 @@ def fighter_analytics(fighter_uid: str) -> dict[str, Any]:
 
 
 @lru_cache(maxsize=24)
-def _network(division: str, start_year: int, end_year: int, period: int) -> dict[str, Any]:
+def _network(division: str, start_year: int, end_year: int, period: int, revision: str) -> dict[str, Any]:
     import networkx as nx
 
     fights = rows(
@@ -204,7 +205,7 @@ def network(
     end_year = end_year if end_year is not None else year
     if start_year > end_year:
         raise HTTPException(status_code=422, detail="Start year must not exceed end year")
-    return _network(division, start_year, end_year, int(time.monotonic() // 120))
+    return _network(division, start_year, end_year, int(time.monotonic() // 120), current_revision().revision)
 
 
 @router.get("/analytics/roster", response_model=RosterAnalytics)

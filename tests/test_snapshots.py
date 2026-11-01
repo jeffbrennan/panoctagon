@@ -27,3 +27,27 @@ def test_publish_checkpoints_and_keeps_previous_revision_after_failure(tmp_path:
         publish_snapshot(working, directory)
     assert json.loads((directory / 'manifest.json').read_text()) == second
     assert len(list(directory.glob('*.duckdb'))) == 2
+
+
+def test_api_switches_revisions_and_isolates_cached_metadata(tmp_path: Path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from panoctagon.api.server import app
+
+    working = tmp_path / 'working.duckdb'
+    directory = tmp_path / 'published'
+    seed_dashboard(working)
+    first = publish_snapshot(working, directory)
+    monkeypatch.setenv('PANOCTAGON_API_SNAPSHOT_DIR', str(directory))
+    with TestClient(app) as client:
+        assert client.get('/metadata').json()['revision'] == first['revision']
+        assert client.get('/metadata').json()['fighters'] == 3
+        with duckdb.connect(str(working)) as db:
+            db.execute("insert into ufc_fighters values ('delta', 'D', 'Delta', null, null, null, null, null, 70, 70, null)")
+        second = publish_snapshot(working, directory)
+        metadata = client.get('/metadata').json()
+        assert metadata['revision'] == second['revision']
+        assert metadata['fighters'] == 4
+        (directory / 'manifest.json').write_text(json.dumps(first))
+        metadata = client.get('/metadata').json()
+        assert metadata['revision'] == first['revision']
+        assert metadata['fighters'] == 3

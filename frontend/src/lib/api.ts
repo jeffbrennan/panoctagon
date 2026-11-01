@@ -1,3 +1,4 @@
+let generation = 0;
 const cache = new Map<string, { value: unknown; expires: number }>();
 const MAX_ENTRIES = 60;
 const TTL = 120_000;
@@ -10,6 +11,12 @@ export class ApiError extends Error {
     super(message);
   }
 }
+
+export function invalidateCache(): void {
+  cache.clear();
+  generation++;
+}
+export function cacheGeneration(): number { return generation; }
 
 export function isFresh(path: string): boolean {
   return (cache.get(path)?.expires ?? 0) > Date.now();
