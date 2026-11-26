@@ -172,23 +172,20 @@
               <dd>{fights.length ? `${((finishes / fights.length) * 100).toFixed(1)}%` : '—'}</dd>
             </div>
             <div class="metric">
-              <dt>Recorded strikes landed</dt>
+              <dt>Strikes landed</dt>
               <dd>{landedCoverage ? number(landed) : 'Unavailable'}</dd>
-              {#if landedCoverage < fights.length}<small>Stats available for {landedCoverage} of {fights.length} fights.</small>{/if}
+              {#if landedCoverage < fights.length}<small>{landedCoverage}/{fights.length} fights</small>{/if}
             </div>
             <div class="metric">
-              <dt>Recorded strikes absorbed</dt>
+              <dt>Strikes absorbed</dt>
               <dd>{absorbedCoverage ? number(absorbed) : 'Unavailable'}</dd>
-              {#if absorbedCoverage < fights.length}<small>Stats available for {absorbedCoverage} of {fights.length} fights.</small>{/if}
+              {#if absorbedCoverage < fights.length}<small>{absorbedCoverage}/{fights.length} fights</small>{/if}
             </div>
           </dl>
           <div class="chart-grid">
             <section class="panel full">
               <div class="panel-heading">
-                <div>
-                  <h3>Career timeline</h3>
-                  <p>Cumulative recorded strikes absorbed; missing fights appear as gaps</p>
-                </div>
+                <h3>Career timeline</h3>
                 <span class="chart-key"><i></i> Win <i class="hollow"></i> Loss</span>
               </div>
               <Chart

@@ -307,6 +307,12 @@ select.control:focus,
 input.control:focus {
   border-color: var(--accent);
 }
+.field select:focus-visible,
+.field input:focus-visible,
+select.control:focus-visible,
+input.control:focus-visible {
+  outline: none;
+}
 .field.inline select {
   width: auto;
   max-width: 260px;
@@ -547,7 +553,7 @@ input.control:focus {
 }
 .panel-heading {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 18px;

@@ -188,13 +188,9 @@
     color: var(--ink);
     flex-shrink: 0;
   }
-  .search-input-wrap:hover {
-    border-color: var(--accent);
-  }
+  .search-input-wrap:hover,
   .search-input-wrap:focus-within {
     border-color: var(--accent);
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
   }
   .search-input-wrap input {
     padding: 10px 0;
@@ -205,6 +201,9 @@
     outline: none;
     font-size: 0.875rem;
     color: var(--ink);
+  }
+  .search-input-wrap input:focus-visible {
+    outline: none;
   }
   .search-results {
     position: absolute;

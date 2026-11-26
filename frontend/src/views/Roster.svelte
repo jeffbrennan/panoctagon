@@ -83,7 +83,7 @@
   <div>
     <h1>Roster</h1>
   </div>
-  <span class="count-label">Minimum 5 UFC fights</span>
+  <span class="count-label">Min. 5 UFC fights</span>
 </div>
 <div class="controls">
   <label class="field"
@@ -109,10 +109,7 @@
       <div class="chart-grid">
         <section class="panel full">
           <div class="panel-heading">
-            <div>
-              <h2>Striking type</h2>
-              <p>Strikes landed vs. absorbed per round. Larger circles = more fights.</p>
-            </div>
+            <h2>Striking type</h2>
           </div>
           <Chart
             family="roster"
@@ -126,10 +123,7 @@
         </section>
         <section class="panel">
           <div class="panel-heading">
-            <div>
-              <h2>Striking target vs. result</h2>
-              <p>Distribution of significant strikes by target</p>
-            </div>
+            <h2>Striking target vs. result</h2>
           </div>
           <Chart
             family="roster"
@@ -143,10 +137,7 @@
         </section>
         <section class="panel">
           <div class="panel-heading">
-            <div>
-              <h2>Matchup discrepancy</h2>
-              <p>At least 20 appearances in each group</p>
-            </div>
+            <h2>Matchup discrepancy</h2>
           </div>
           <label class="field inline discrepancy-control"
             >Advantage<select bind:value={metric}
@@ -216,7 +207,7 @@
           </div>
         </nav>
         <p class="table-note">
-          Opposition strength: total UFC wins held by opponents a fighter has beaten.
+          Opposition: total UFC wins held by beaten opponents.
         </p>
       </section>
     {/if}

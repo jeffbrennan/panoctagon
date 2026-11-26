@@ -194,13 +194,9 @@
 {:else if data}
   <section class="panel network-panel" aria-busy={loading}>
     <div class="panel-heading">
-      <div>
+      <div class="network-title">
         <h2>{label(division)}</h2>
-        <p>
-          {loading
-            ? 'Updating network…'
-            : `${start}–${end} · Drag to pan. Scroll or pinch to zoom.`}
-        </p>
+        <span class="count-label">{loading ? 'Updating…' : `${start}–${end}`}</span>
       </div>
       <button
         class="button secondary"
@@ -214,8 +210,8 @@
     <div class="network-toolbar">
       <label class="field"
         >Select a fighter<select bind:value={selected}
-          ><option value="">All connections</option
-          >{#each [...data.nodes].sort((a, b) => a.name.localeCompare(b.name)) as node}<option
+          ><option value="">All connections</option>
+          {#each [...data.nodes].sort((a, b) => a.name.localeCompare(b.name)) as node}<option
               value={node.id}>{node.name}</option
             >{/each}</select
         ></label
@@ -238,19 +234,16 @@
     <div class="network-detail" aria-live="polite">
       {#if selectedNode}<div>
           <strong>{selectedNode.name}</strong><span
-            >{selectedNode.wins} wins · {selectedNode.losses} losses · {selectedNode.fights} fights in
-            period</span
+            >{selectedNode.wins}W–{selectedNode.losses}L · {selectedNode.fights} fights</span
           >
         </div>
         <button class="button" onclick={() => openFighter(selected)}>View profile</button>{:else}<p>
-          Select a fighter to highlight their connections and explore their profile.
-        </p>
-        <span class="count-label">Larger node = more fights</span>{/if}
+          Select a fighter to inspect connections
+        </p>{/if}
     </div>
     {#if selectedNode}
       <section class="opponents" aria-label="Head-to-head records">
         <h3>Head-to-head</h3>
-        <p>{selectedNode.name} against each opponent in the selected division and period</p>
         <div class="table-scroll opponents-scroll">
           <table class="data-table opponents-table">
             <thead><tr><th>Opponent</th><th class="num">Wins–losses</th><th class="num">Fights</th></tr></thead>
@@ -279,15 +272,19 @@
 {/if}
 
 <style>
+  .network-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
   .opponents {
     margin-top: 20px;
     border-top: 2px solid var(--ink);
     padding-top: 20px;
   }
-  .opponents > p {
-    font-size: 0.75rem;
-    color: var(--muted);
-    margin: 6px 0 16px;
+  .opponents > h3 {
+    margin-bottom: 14px;
   }
   .opponents-table .num {
     text-align: right;

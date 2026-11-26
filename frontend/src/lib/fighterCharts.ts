@@ -69,14 +69,14 @@ export function timeline(fights: CareerFight[]): EChartsOption {
       ...baseOption.tooltip,
       trigger: 'item',
       formatter: (p: any) =>
-        `${fightTip(fights[p.dataIndex])}\nStrikes absorbed: ${number(fights[p.dataIndex].strikes_absorbed)}\nRecorded career total: ${number(p.value[1])}`,
+        `${fightTip(fights[p.dataIndex])}\nStrikes absorbed: ${number(fights[p.dataIndex].strikes_absorbed)}\nCareer total: ${number(p.value[1])}`,
     },
     xAxis: timeAxis(),
-    yAxis: valueAxis('Recorded strikes absorbed'),
+    yAxis: valueAxis('Strikes absorbed'),
     dataZoom: zoom(fights),
     series: [
       {
-        name: 'Recorded career strikes absorbed',
+        name: 'Career strikes absorbed',
         id: 'career-strikes',
         type: 'line',
         connectNulls: false,
@@ -104,7 +104,7 @@ export function outcomes(fights: CareerFight[]): EChartsOption {
   const methods = [...new Set(fights.map((f) => f.decision).filter((d): d is string => !!d))];
   return {
     ...baseOption,
-    grid: { ...baseOption.grid, top: 64 },
+    grid: { ...baseOption.grid, top: 48, bottom: 34 },
     legend: { ...baseOption.legend, type: 'scroll', formatter: label },
     tooltip: {
       ...baseOption.tooltip,
@@ -114,7 +114,7 @@ export function outcomes(fights: CareerFight[]): EChartsOption {
           .map((p: any) => `${label(p.seriesName)}: ${p.value}`)
           .join('\n')}`,
     },
-    xAxis: { ...valueAxis('Fights'), nameLocation: 'middle', nameGap: 26 },
+    xAxis: { ...valueAxis('Fights'), nameLocation: 'middle', nameGap: 24 },
     yAxis: { ...axis, type: 'category', data: ['Losses', 'Wins'] },
     series: methods.map((method, i) => ({
       name: method,
