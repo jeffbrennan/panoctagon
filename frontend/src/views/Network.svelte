@@ -21,6 +21,7 @@
   let loading = $state(true);
   let error = $state('');
   let data = $state.raw<NetworkData | null>(null);
+  let dataKey = $state('');
   let selected = $state('');
   let focus = $state(false);
   let retry = $state(0);
@@ -75,7 +76,7 @@
     series: [
       {
         type: 'graph',
-        id: `connections-${division}-${start}-${end}`,
+        id: `connections-${dataKey}`,
         animationThreshold: 300,
         labelLayout: { hideOverlap: true },
         layout: 'none',
@@ -121,7 +122,6 @@
     ],
   });
   let lastRetry = 0;
-  let dataKey = '';
   let notice = $state('');
   const request = createRefresh<NetworkData>({
     load: (key, signal, bypass) => api(key, signal, bypass),

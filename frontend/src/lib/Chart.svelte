@@ -98,7 +98,7 @@
           initializing = false;
         }
       },
-      { rootMargin: '100px' },
+      { rootMargin: '150px' },
     );
     visibility.observe(container);
     return () => {
@@ -136,7 +136,7 @@
             animation: !reducedMotion,
             aria: { enabled: true, label: { description: label } },
           },
-          { replaceMerge: ['series', ...(family === 'fighter' ? ['dataZoom'] : family === 'roster' ? ['visualMap'] : [])], lazyUpdate: true },
+          { replaceMerge: ['series', ...(family === 'fighter' ? ['dataZoom'] : family === 'roster' ? ['visualMap'] : [])] },
         );
       } else if (renderedLabel !== label || renderedMotion !== reducedMotion)
         chart.setOption({

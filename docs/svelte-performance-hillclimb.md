@@ -212,7 +212,7 @@ repeatable measurements.
   Validation: `svelte-check` (0 errors), Vitest (13/13), Playwright desktop +
   mobile + axe (36/36).
 
-### Experiment 3: Eliminate default-fighter waterfall, cache fighter bio/record, and overlap view data with module load (kept)
+### Experiment 3: Eliminate default-fighter waterfall, cache fighter bio/record, and overlap view data with module load (kept — `dc5585e`)
 
 - **Hypothesis:** Resolving `default_fighter_uid` inside cached `DashboardMetadata`,
   caching fighter bio/record in `fighter_analytics()` (instead of running uncached
@@ -257,12 +257,59 @@ repeatable measurements.
   activation of an unloaded view. On desktop, `fighterDataMs` p95 dropped by
   80 ms (`desktop-immediate`) and 60 ms (`desktop-hover`), bringing `desktop-hover`
   `fighterChartMs` p95 under 100 ms (97.1 ms). On `mobile-touch`, Playwright's
-  `link.tap()` actionability check accounts for ~90 ms of the measured window
+  `link.tap()` actionability check accounts for ~50 ms of the measured window
   and `set-option` → `data-frame` still takes ~54 ms (44 ms on desktop) because
   of ECharts `lazyUpdate: true` + initial paint scheduling (next target: Experiment 4).
 - **Decision:** Kept. Artifacts: `.scratch/release-gates/transition-{exp2b,exp3}-*.json`.
   Validation: Python suite (18/18), `svelte-check` (0 errors), Vitest (14/14),
   Playwright desktop + mobile + axe (36/36), Playwright integration (2/2).
+
+### Experiment 4: Synchronous chart option flush, Network series-key dedupe, and near-fold intersection margin (kept)
+
+- **Hypothesis:** `Chart.svelte` marks showed `set-option` → `data-frame` taking
+  33–55 ms because `lazyUpdate: true` defers ECharts rendering to a subsequent
+  animation frame even though Svelte `$effect` already coalesces updates. In
+  addition, `Network.svelte` derived series `id` from pending `division`/`start`/`end`
+  controls, causing a spurious `setOption` with stale data before the new division
+  response arrived; and on mobile (`390×844`), the first fighter chart sits at
+  `y = 948 px`—just 4 px past `rootMargin: '100px'` (`844 + 100 = 944 px`),
+  delaying initialization until scroll.
+- **Change:**
+  - `frontend/src/lib/Chart.svelte`: remove `lazyUpdate: true` from
+    `chart.setOption(...)` and raise `IntersectionObserver` `rootMargin` from
+    `100px` to `150px` (keeping below-fold secondary charts deferred while
+    catching the first fighter chart on mobile).
+  - `frontend/src/views/Network.svelte`: track `dataKey` as `$state` and key the
+    graph series `id` on `dataKey` so switching division/years triggers one
+    `setOption` (on response arrival) instead of two.
+- **Controlled A/B results (`transition-benchmark.cjs`, 20 fresh contexts per
+  scenario, warm local server, 0 errors/failures):**
+
+| Scenario / Metric | Baseline (`dc5585e`) p50 / p95 / max (ms) | Candidate p50 / p95 / max (ms) |
+| --- | ---: | ---: |
+| `desktop-immediate` Fighter chart | **112.1 / 130.4 / 130.4** | **114.0 / 116.8 / 126.3** |
+| `desktop-immediate` Network chart | **67.5 / 83.6 / 84.2** | **50.5 / 51.3 / 67.0** |
+| `desktop-immediate` Roster data | 38.6 / 43.4 / 54.4 | 37.9 / 38.7 / 39.1 |
+| `desktop-immediate` Roster chart | 84.0 / 85.4 / 100.0 | 83.9 / 99.1 / 100.4 |
+| `desktop-hover` Fighter chart | **96.0 / 97.1 / 97.5** | **80.6 / 97.0 / 98.0** |
+| `desktop-hover` Network chart | **64.7 / 80.3 / 81.9** | **48.0 / 63.0 / 63.3** |
+| `desktop-hover` Roster chart | 80.6 / 96.9 / 97.1 | 80.8 / 97.0 / 97.7 |
+| `mobile-touch` Fighter chart | **213.6 / 230.5 / 230.7** | **160.6 / 164.1 / 164.5** |
+| `mobile-touch` Network chart | **150.5 / 151.2 / 151.3** | **133.9 / 149.7 / 150.8** |
+| `mobile-touch` Roster chart | **165.5 / 166.4 / 167.1** | **150.5 / 166.4 / 167.5** |
+| `mobile-touch` Roster switch | **64.5 / 65.8 / 66.0** | **55.7 / 63.2 / 63.2** |
+| `mobile-touch` Network switch | **61.0 / 61.6 / 61.8** | **43.4 / 60.4 / 60.5** |
+
+- **Cost and trade-offs:** Upcoming transfer dropped 3 bytes (27,298 → 27,295 B)
+  and total transfer dropped 72 bytes (377,402 → 377,330 B); zero ECharts chunks
+  load on Upcoming. `canvasCount` across all visited views increased by 1
+  (`5 → 6` desktop, `4 → 5` mobile) due to `rootMargin: '150px'`. Every
+  first-view transition, rendered chart frame, and parameter change across
+  desktop immediate, desktop hover, and mobile touch is now **under 167 ms at
+  p95** (and under 168 ms max).
+- **Decision:** Kept. Artifacts: `.scratch/release-gates/transition-{exp3,exp4b}-*.json`.
+  Validation: `svelte-check` (0 errors), Vitest (14/14), Playwright desktop +
+  mobile + axe (36/36), Playwright integration (2/2).
 
 ## Keep-or-revert loop
 
