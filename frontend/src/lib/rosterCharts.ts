@@ -1,6 +1,6 @@
 import type { EChartsOption } from 'echarts';
 import type { Advantage, RosterPoint, TargetBox } from './types';
-import { axis, baseOption } from './chartTheme';
+import { axis, baseOption, fontFamily } from './chartTheme';
 import { date, number } from './format';
 
 export function strikingType(fighters: RosterPoint[]): EChartsOption {
@@ -35,8 +35,8 @@ export function strikingType(fighters: RosterPoint[]): EChartsOption {
       itemWidth: 10,
       itemHeight: 140,
       text: ['Stronger opposition', ''],
-      textStyle: { fontSize: 10, color: '#69685f' },
-      inRange: { color: ['#d2d4c9', '#7b8875', '#263f31'] },
+      textStyle: { fontSize: 10, fontFamily, color: '#1a1a1a' },
+      inRange: { color: ['#c8c8c8', '#7a7a7a', '#1a1a1a'] },
       calculable: false,
     },
     series: [
@@ -54,13 +54,13 @@ export function strikingType(fighters: RosterPoint[]): EChartsOption {
         })),
         symbolSize: (_value: any, params: any) =>
           Math.min(8 + params.data.fighter.total_fights * 0.65, 32),
-        itemStyle: { borderColor: '#4b4f43', borderWidth: 1, opacity: 0.85 },
-        emphasis: { scale: 1.3, itemStyle: { opacity: 1, borderWidth: 2 } },
+        itemStyle: { borderColor: '#1a1a1a', borderWidth: 1, opacity: 0.85 },
+        emphasis: { scale: 1.3, itemStyle: { opacity: 1, borderWidth: 2, borderColor: '#d20a0a' } },
         markLine: {
           symbol: 'none',
           silent: true,
           label: { show: false },
-          lineStyle: { color: '#a6aa9a', type: 'dashed' },
+          lineStyle: { color: '#7a7a7a', type: 'dashed' },
           data: [[{ coord: [0, 0] }, { coord: [80, 80] }]],
         },
       },
@@ -115,8 +115,8 @@ export function strikeTargets(targets: TargetBox[]): EChartsOption {
           value: t.values,
           distribution: t,
           itemStyle: {
-            color: t.result === 'WIN' ? '#6b7c6d' : '#f2f0e3',
-            borderColor: '#4b4f43',
+            color: t.result === 'WIN' ? '#5c5c5c' : '#f2f0e3',
+            borderColor: '#1a1a1a',
             borderWidth: 1.5,
           },
         })),
@@ -126,7 +126,7 @@ export function strikeTargets(targets: TargetBox[]): EChartsOption {
         id: 'target-outliers',
         type: 'scatter',
         symbolSize: 5,
-        itemStyle: { color: '#4b4f43', opacity: 0.65 },
+        itemStyle: { color: '#1a1a1a', opacity: 0.65 },
         data: boxes.flatMap((t, index) =>
           (t.outliers || []).map((outlier) => ({
             value: [index, outlier.value],
@@ -176,12 +176,13 @@ export function discrepancy(advantages: Advantage[], metric: string): EChartsOpt
         id: 'matchup-advantage',
         data: data.map((a) => a.win_rate),
         symbolSize: 8,
-        lineStyle: { width: 2 },
+        lineStyle: { color: '#1a1a1a', width: 2 },
+        itemStyle: { color: '#1a1a1a' },
         markLine: {
           silent: true,
           symbol: 'none',
           label: { show: false },
-          lineStyle: { color: '#a4a697', type: 'dashed' },
+          lineStyle: { color: '#7a7a7a', type: 'dashed' },
           data: [{ yAxis: 50 }],
         },
       },

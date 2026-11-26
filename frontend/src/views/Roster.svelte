@@ -169,28 +169,30 @@
           >
         </div>
         <!-- svelte-ignore a11y_no_noninteractive_tabindex (Scrollable tables need keyboard access.) -->
-        <div class="table-scroll" tabindex="0" role="region" aria-label="Roster statistics">
-          <table class="data-table">
-            <thead
-              ><tr
+        <div class="table-scroll roster-scroll" tabindex="0" role="region" aria-label="Roster statistics">
+          <!-- svelte-ignore a11y_no_redundant_roles (Explicit roles preserve table semantics when mobile CSS changes display.) -->
+          <table class="data-table roster-table" role="table">
+            <thead role="rowgroup"
+              ><tr role="row"
                 >{#each [['fighter_name', 'Fighter'], ['total_fights', 'Fights'], ['win_rate', 'Win %'], ['landed', 'Landed / round'], ['absorbed', 'Absorbed / round'], ['opposition_strength', 'Opposition']] as [key, title]}<th
+                    role="columnheader"
                     aria-sort={sort === key ? (descending ? 'descending' : 'ascending') : 'none'}
                     ><button onclick={() => toggleSort(key)}
                       >{title}{sort === key ? (descending ? ' ↓' : ' ↑') : ''}</button
                     ></th
                   >{/each}</tr
               ></thead
-            ><tbody
-              >{#each visible as f (f.fighter_uid)}<tr
-                  ><td
+            ><tbody role="rowgroup"
+              >{#each visible as f (f.fighter_uid)}<tr role="row"
+                  ><td role="cell" class="col-fighter"
                     ><a href={fighterHref(f.fighter_uid)} data-fighter={f.fighter_uid}
                       >{f.fighter_name}</a
                     ></td
-                  ><td>{f.total_fights}</td><td>{Math.round((f.wins / f.total_fights) * 100)}%</td
-                  ><td>{number(f.landed, 1)}</td><td>{number(f.absorbed, 1)}</td><td
+                  ><td role="cell" class="col-fights" data-label="Fights">{f.total_fights}</td><td role="cell" class="col-winrate" data-label="Win %">{Math.round((f.wins / f.total_fights) * 100)}%</td
+                  ><td role="cell" class="col-landed" data-label="Land/rd">{number(f.landed, 1)}</td><td role="cell" class="col-absorbed" data-label="Abs/rd">{number(f.absorbed, 1)}</td><td role="cell" class="col-opp" data-label="Opp."
                     >{f.opposition_strength}</td
                   ></tr
-                >{:else}<tr><td colspan="6">No fighters match “{search}”.</td></tr>{/each}</tbody
+                >{:else}<tr role="row" class="empty-row"><td role="cell" colspan="6">No fighters match “{search}”.</td></tr>{/each}</tbody
             >
           </table>
         </div>
@@ -250,9 +252,9 @@
   .roster-table-section input {
     max-width: 260px;
     background: var(--surface);
-    border: 1px solid var(--line);
+    border: 2px solid var(--ink);
     padding: 10px 12px;
-    border-radius: 3px;
+    border-radius: 2px;
     min-height: 44px;
     color: var(--ink);
   }
@@ -282,6 +284,143 @@
     .roster-table-section input {
       width: 100%;
       max-width: 240px;
+      font-size: 1rem;
+    }
+    .roster-scroll {
+      overflow: visible;
+      border: 0;
+      background: transparent;
+    }
+    .roster-table {
+      display: block;
+      white-space: normal;
+    }
+    .roster-table thead {
+      display: block;
+      margin-bottom: 12px;
+    }
+    .roster-table thead tr {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .roster-table thead th {
+      display: block;
+      padding: 0;
+      background: transparent;
+      color: var(--ink);
+    }
+    .roster-table thead th button {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
+      padding: 8px 10px;
+      border: 2px solid var(--ink);
+      border-radius: 2px;
+      background: var(--surface);
+      color: var(--ink);
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: none;
+      letter-spacing: 0;
+      transition:
+        background-color 140ms ease,
+        color 140ms ease,
+        border-color 140ms ease;
+    }
+    .roster-table thead th button:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .roster-table thead th[aria-sort='ascending'] button,
+    .roster-table thead th[aria-sort='descending'] button {
+      background: var(--ink);
+      color: var(--bg);
+      border-color: var(--ink);
+      font-weight: 700;
+    }
+    .roster-table tbody {
+      display: grid;
+      gap: 10px;
+    }
+    .roster-table tbody tr {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 10px 6px;
+      align-items: baseline;
+      background: var(--surface);
+      border: 2px solid var(--ink);
+      border-radius: 2px;
+      padding: 12px 14px;
+    }
+    .roster-table tbody tr:hover td {
+      background: transparent;
+    }
+    .roster-table td {
+      display: block;
+      padding: 0;
+      border: 0;
+      min-width: 0;
+    }
+    .roster-table .col-fighter {
+      grid-column: 1 / 9;
+      grid-row: 1;
+      font-size: 0.9375rem;
+      overflow-wrap: anywhere;
+    }
+    .roster-table .col-winrate {
+      grid-column: 9 / 13;
+      grid-row: 1;
+      text-align: right;
+      font-size: 0.9375rem;
+      font-weight: 700;
+    }
+    .roster-table .col-winrate::before {
+      content: 'WIN ';
+      font-size: 0.6875rem;
+      font-weight: 600;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+    .roster-table .col-fights,
+    .roster-table .col-landed,
+    .roster-table .col-absorbed,
+    .roster-table .col-opp {
+      grid-row: 2;
+      border-top: 1px solid var(--line);
+      padding-top: 8px;
+      font-weight: 600;
+    }
+    .roster-table .col-fights {
+      grid-column: 1 / 4;
+    }
+    .roster-table .col-landed {
+      grid-column: 4 / 7;
+    }
+    .roster-table .col-absorbed {
+      grid-column: 7 / 10;
+    }
+    .roster-table .col-opp {
+      grid-column: 10 / 13;
+      text-align: right;
+    }
+    .roster-table .col-fights::before,
+    .roster-table .col-landed::before,
+    .roster-table .col-absorbed::before,
+    .roster-table .col-opp::before {
+      content: attr(data-label);
+      display: block;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+    .roster-table .empty-row td {
+      grid-column: 1 / -1;
+      color: var(--muted);
     }
   }
 </style>

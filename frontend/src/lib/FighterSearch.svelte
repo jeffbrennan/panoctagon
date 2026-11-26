@@ -110,7 +110,7 @@
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      stroke-width="1.5"
+      stroke-width="2"
       aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></svg
     ><input
       id="fighter-search"
@@ -177,37 +177,44 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    border: 1px solid var(--line);
-    border-radius: 3px;
+    border: 2px solid var(--ink);
+    border-radius: 2px;
     background: var(--surface);
     padding: 0 12px;
+    min-height: 44px;
+    transition: border-color 140ms ease;
   }
   .search-input-wrap svg {
-    color: var(--muted);
+    color: var(--ink);
     flex-shrink: 0;
   }
+  .search-input-wrap:hover {
+    border-color: var(--accent);
+  }
   .search-input-wrap:focus-within {
+    border-color: var(--accent);
     outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
   .search-input-wrap input {
-    padding: 11px 0;
+    padding: 10px 0;
     min-width: 0;
     width: 100%;
     border: 0;
     background: transparent;
     outline: none;
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
+    color: var(--ink);
   }
   .search-results {
     position: absolute;
     left: 0;
     right: 0;
     top: calc(100% + 6px);
-    border: 1px solid var(--line);
+    border: 2px solid var(--ink);
     background: var(--surface);
-    box-shadow: 0 12px 30px #1a1a1a12;
-    border-radius: 3px;
+    box-shadow: 0 12px 30px #1a1a1a18;
+    border-radius: 2px;
   }
   .search-results ul {
     list-style: none;
@@ -227,15 +234,17 @@
     background: transparent;
     text-align: left;
     padding: 12px 14px;
+    min-height: 44px;
+    transition: background-color 120ms ease;
   }
   .search-results button:hover,
   .search-results button.selected {
-    background: #e8e6da;
+    background: rgba(210, 10, 10, 0.09);
   }
   .search-results strong {
     display: block;
     font-size: 0.8125rem;
-    font-weight: 600;
+    font-weight: 700;
   }
   .search-results small {
     display: block;
@@ -250,10 +259,14 @@
   .search-results .record {
     white-space: nowrap;
     font-size: 0.75rem;
+    font-weight: 600;
   }
   @media (max-width: 640px) {
     .fighter-search {
       width: 100%;
+    }
+    .search-input-wrap input {
+      font-size: 1rem;
     }
   }
 </style>

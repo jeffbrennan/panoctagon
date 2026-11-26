@@ -104,10 +104,9 @@
         {#if profile.bio.nickname}<p class="eyebrow">“{profile.bio.nickname}”</p>{/if}
         <h2 id="fighter-name">{profile.bio.full_name}</h2>
         <p class="profile-record">
-          {profile.record.wins}-{profile.record.losses}-{profile.record
-            .draws}{#if profile.record.no_contests}<span class="muted">
-              · {profile.record.no_contests} NC</span
-            >{/if}<span class="muted"> · UFC record</span>
+          <strong>{profile.record.wins}-{profile.record.losses}-{profile.record.draws}</strong>
+          {#if profile.record.no_contests}<span class="muted">· {profile.record.no_contests} NC</span>{/if}
+          <span class="muted">· UFC record</span>
         </p>
         <dl class="bio">
           <div>
@@ -208,30 +207,31 @@
       {#if tab === 'history'}
         <div role="tabpanel" tabindex="0" id="panel-history" aria-labelledby="tab-history">
           <!-- svelte-ignore a11y_no_noninteractive_tabindex (Scrollable tables need keyboard access.) -->
-          <div class="table-scroll" tabindex="0" role="region" aria-label="Fight history">
-            <table class="data-table">
-              <thead
-                ><tr
-                  ><th>Result</th><th>Opponent</th><th>Event</th><th>Date</th><th>Method</th><th
+          <div class="table-scroll history-scroll" tabindex="0" role="region" aria-label="Fight history">
+            <!-- svelte-ignore a11y_no_redundant_roles (Explicit roles preserve table semantics when mobile CSS changes display.) -->
+            <table class="data-table history-table" role="table">
+              <thead role="rowgroup"
+                ><tr role="row"
+                  ><th role="columnheader">Result</th><th role="columnheader">Opponent</th><th role="columnheader">Event</th><th role="columnheader">Date</th><th role="columnheader">Method</th><th role="columnheader"
                     >Round</th
-                  ><th>Odds</th></tr
+                  ><th role="columnheader">Odds</th></tr
                 ></thead
-              ><tbody
-                >{#each reversed as f (f.fight_uid)}<tr
-                    ><td
+              ><tbody role="rowgroup"
+                >{#each reversed as f (f.fight_uid)}<tr role="row"
+                    ><td role="cell" class="col-result"
                       ><span
                         class="result"
                         class:win={f.result === 'WIN'}
                         class:loss={f.result === 'LOSS'}
                         >{f.result === 'NO_CONTEST' ? 'NC' : f.result}</span
                       ></td
-                    ><td
+                    ><td role="cell" class="col-opponent"
                       ><a href={fighterHref(f.opponent_uid)} data-fighter={f.opponent_uid}
                         >{f.opponent_name}</a
                       ></td
-                    ><td>{f.event_title}</td><td>{date(f.event_date, true)}</td><td
+                    ><td role="cell" class="col-event">{f.event_title}</td><td role="cell" class="col-date">{date(f.event_date, true)}</td><td role="cell" class="col-method" data-label="Method"
                       >{label(f.decision)}</td
-                    ><td>{f.decision_round ?? '—'}</td><td>{odds(f.closing_odds)}</td></tr
+                    ><td role="cell" class="col-round" data-label="Round">{f.decision_round ?? '—'}</td><td role="cell" class="col-odds" data-label="Odds">{odds(f.closing_odds)}</td></tr
                   >{/each}</tbody
               >
             </table>
@@ -311,12 +311,20 @@
   }
   .fighter-details h2 {
     font-size: 2rem;
-    letter-spacing: -0.06em;
-    line-height: 1.3;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.2;
   }
   .profile-record {
-    font-size: 0.8125rem;
-    margin-top: 6px;
+    font-size: 0.875rem;
+    margin-top: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .profile-record strong {
+    font-weight: 700;
   }
   .bio {
     display: flex;
@@ -326,30 +334,33 @@
   }
   .bio dt {
     font-size: 0.75rem;
+    font-weight: 600;
     color: var(--muted);
   }
   .bio dd {
     margin: 0;
     font-size: 0.8125rem;
+    font-weight: 600;
   }
   .chart-key {
     font-size: 0.75rem;
+    font-weight: 600;
     display: flex;
     align-items: center;
     gap: 6px;
     white-space: nowrap;
-    color: var(--muted);
+    color: var(--ink);
   }
   .chart-key i {
     width: 9px;
     height: 9px;
-    border: 1px solid var(--ink);
+    border: 1.5px solid var(--ink);
     background: var(--ink);
     border-radius: 50%;
     display: inline-block;
   }
   .chart-key i.hollow {
-    background: transparent;
+    background: var(--surface);
     margin-left: 8px;
   }
   .profile-skeleton {
@@ -394,8 +405,101 @@
       width: 92px;
       height: 92px;
     }
-    .chart-key {
-      display: none;
+    .history-scroll {
+      overflow: visible;
+      border: 0;
+      background: transparent;
+    }
+    .history-table {
+      display: block;
+      white-space: normal;
+    }
+    .history-table thead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    .history-table tbody {
+      display: grid;
+      gap: 12px;
+    }
+    .history-table tbody tr {
+      display: grid;
+      grid-template-columns: 50px minmax(0, 1fr) 48px auto;
+      gap: 8px;
+      align-items: center;
+      background: var(--surface);
+      border: 2px solid var(--ink);
+      border-radius: 2px;
+      padding: 12px 14px;
+    }
+    .history-table tbody tr:hover td {
+      background: transparent;
+    }
+    .history-table td {
+      display: block;
+      padding: 0;
+      border: 0;
+      min-width: 0;
+    }
+    .history-table .col-result {
+      grid-column: 1 / 2;
+      grid-row: 1;
+    }
+    .history-table .col-opponent {
+      grid-column: 2 / 4;
+      grid-row: 1;
+      font-size: 0.875rem;
+      overflow-wrap: anywhere;
+    }
+    .history-table .col-date {
+      grid-column: 4 / 5;
+      grid-row: 1;
+      text-align: right;
+      color: var(--muted);
+      white-space: nowrap;
+      font-size: 0.75rem;
+    }
+    .history-table .col-event {
+      grid-column: 1 / -1;
+      grid-row: 2;
+      color: var(--muted);
+      font-size: 0.75rem;
+      line-height: 1.4;
+    }
+    .history-table .col-method,
+    .history-table .col-round,
+    .history-table .col-odds {
+      grid-row: 3;
+      border-top: 1px solid var(--line);
+      padding-top: 8px;
+      font-weight: 600;
+    }
+    .history-table .col-method {
+      grid-column: 1 / 3;
+    }
+    .history-table .col-round {
+      grid-column: 3 / 4;
+    }
+    .history-table .col-odds {
+      grid-column: 4 / 5;
+      text-align: right;
+    }
+    .history-table td[data-label]::before {
+      content: attr(data-label);
+      display: block;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      margin-bottom: 2px;
     }
   }
 </style>

@@ -42,10 +42,19 @@ function zoom(fights: CareerFight[]) {
         {
           type: 'slider' as const,
           id: 'career-zoom-slider',
-          height: 14,
+          height: 16,
           bottom: 0,
-          borderColor: '#d5d3c7',
-          fillerColor: '#d5d3c740',
+          borderColor: '#1a1a1a',
+          fillerColor: 'rgba(26, 26, 26, 0.14)',
+          handleStyle: { color: '#f2f0e3', borderColor: '#1a1a1a', borderWidth: 1.5 },
+          dataBackground: {
+            lineStyle: { color: '#7a7a7a' },
+            areaStyle: { color: '#d0cec2' },
+          },
+          selectedDataBackground: {
+            lineStyle: { color: '#1a1a1a' },
+            areaStyle: { color: '#a8a69a' },
+          },
         },
       ]
     : [];
@@ -55,7 +64,7 @@ export function timeline(fights: CareerFight[]): EChartsOption {
   return {
     ...baseOption,
     legend: { show: false },
-    grid: { ...baseOption.grid, top: 28, bottom: fights.length > 20 ? 40 : 12 },
+    grid: { ...baseOption.grid, top: 28, bottom: fights.length > 20 ? 42 : 12 },
     tooltip: {
       ...baseOption.tooltip,
       trigger: 'item',
@@ -73,16 +82,16 @@ export function timeline(fights: CareerFight[]): EChartsOption {
         connectNulls: false,
         symbolSize: 9,
         symbol: 'circle',
-        lineStyle: { color: '#4b4f43', width: 1.5 },
-        areaStyle: { color: '#8d9b8b', opacity: 0.15 },
+        lineStyle: { color: '#1a1a1a', width: 2 },
+        areaStyle: { color: '#1a1a1a', opacity: 0.07 },
         data: fights.map((f) => {
           if (f.strikes_absorbed != null) total += f.strikes_absorbed;
           return {
             name: f.fight_uid,
             value: [f.event_date, f.strikes_absorbed == null ? null : total],
             itemStyle: {
-              color: f.result === 'WIN' ? '#253b32' : f.result === 'LOSS' ? '#f2f0e3' : '#b4a58a',
-              borderColor: '#253b32',
+              color: f.result === 'WIN' ? '#1a1a1a' : f.result === 'LOSS' ? '#f2f0e3' : '#7a7a7a',
+              borderColor: '#1a1a1a',
               borderWidth: 2,
             },
           };
@@ -123,7 +132,7 @@ export function outcomes(fights: CareerFight[]): EChartsOption {
 export function strikes(fights: CareerFight[]): EChartsOption {
   return {
     ...baseOption,
-    grid: { ...baseOption.grid, top: 44, bottom: fights.length > 20 ? 40 : 12 },
+    grid: { ...baseOption.grid, top: 44, bottom: fights.length > 20 ? 42 : 12 },
     tooltip: {
       ...baseOption.tooltip,
       formatter: (params: any) => {
@@ -143,6 +152,7 @@ export function strikes(fights: CareerFight[]): EChartsOption {
         type: 'bar',
         data: fights.map((f) => f.strikes_landed),
         barMaxWidth: 20,
+        itemStyle: { color: '#1a1a1a' },
       },
       {
         name: 'Absorbed',
@@ -150,7 +160,7 @@ export function strikes(fights: CareerFight[]): EChartsOption {
         type: 'bar',
         data: fights.map((f) => f.strikes_absorbed),
         barMaxWidth: 20,
-        itemStyle: { color: '#b8b7a9' },
+        itemStyle: { color: '#9a9a9a' },
       },
     ],
   };
@@ -179,11 +189,13 @@ export function accuracy(fights: CareerFight[]): EChartsOption {
         type: 'line',
         smooth: 0.2,
         symbolSize: 6,
+        lineStyle: { color: '#1a1a1a', width: 2 },
+        itemStyle: { color: '#1a1a1a' },
         data: eligible.map((f) => [
           f.event_date,
           ((f.strikes_landed || 0) / f.strikes_attempted!) * 100,
         ]),
-        areaStyle: { opacity: 0.06 },
+        areaStyle: { color: '#1a1a1a', opacity: 0.06 },
       },
     ],
   };
@@ -191,7 +203,7 @@ export function accuracy(fights: CareerFight[]): EChartsOption {
 export function targets(fights: CareerFight[]): EChartsOption {
   return {
     ...baseOption,
-    grid: { ...baseOption.grid, top: 44, bottom: fights.length > 20 ? 40 : 12 },
+    grid: { ...baseOption.grid, top: 44, bottom: fights.length > 20 ? 42 : 12 },
     tooltip: {
       ...baseOption.tooltip,
       formatter: (params: any) => {
@@ -210,7 +222,7 @@ export function targets(fights: CareerFight[]): EChartsOption {
       type: 'bar',
       stack: 'targets',
       barMaxWidth: 32,
-      itemStyle: { color: ['#a6a88e', '#788476', '#2c4438'][i] },
+      itemStyle: { color: ['#9a9a9a', '#5c5c5c', '#1a1a1a'][i] },
       data: fights.map((f) => f[key]),
     })),
   };

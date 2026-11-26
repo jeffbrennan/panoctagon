@@ -5,7 +5,7 @@
   import { api, errorMessage } from '../lib/api';
   import type { Metadata, NetworkData } from '../lib/types';
   import { divisions, fighterHref, label } from '../lib/format';
-  import { baseOption } from '../lib/chartTheme';
+  import { baseOption, fontFamily } from '../lib/chartTheme';
   import State from '../lib/State.svelte';
   import Chart from '../lib/Chart.svelte';
   let { metadata, openFighter, active, refresh }: { metadata: Metadata | null; openFighter: (uid: string) => void; active: boolean; refresh: number } =
@@ -30,6 +30,7 @@
   $effect(() => {
     if (measuredGraphWidth > 0 && measuredGraphWidth !== graphWidth) graphWidth = measuredGraphWidth;
   });
+  let graphHeight = $derived(measuredGraphWidth > 0 && measuredGraphWidth <= 560 ? 360 : 500);
   let graph = $state.raw<{ resetGraphView: () => void }>();
   let minYear = $derived(metadata?.first_year || 1993);
   let maxYear = $derived(Math.max(metadata?.last_year || 1993, metadata?.current_year || new Date().getUTCFullYear()));
@@ -93,31 +94,34 @@
           ),
           value: n.fights,
           itemStyle: {
-            color: selected === n.id ? '#34574a' : '#4c5347',
-            borderColor: selected === n.id ? '#f2f0e3' : '#f2f0e3',
+            color: selected === n.id ? '#d20a0a' : '#1a1a1a',
+            borderColor: '#f2f0e3',
             borderWidth: selected === n.id ? 3 : 1.5,
           },
           label: {
             show: n.fights >= 10 || selected === n.id || !!(focus && selected),
             position: 'bottom',
             fontSize: 10,
-            color: '#4b4f43',
+            fontFamily,
+            fontWeight: selected === n.id ? 700 : 600,
+            color: selected === n.id ? '#d20a0a' : '#1a1a1a',
           },
         })),
         links: shown?.links.map((l) => ({
           ...l,
           lineStyle: {
             width: l.fights > 1 ? 2 : 1,
-            opacity: selected && (l.source === selected || l.target === selected) ? 0.9 : 0.2,
+            color: selected && (l.source === selected || l.target === selected) ? '#1a1a1a' : '#555555',
+            opacity: selected && (l.source === selected || l.target === selected) ? 0.85 : 0.2,
           },
         })),
         emphasis: {
           focus: 'adjacency',
           label: { show: true },
-          lineStyle: { opacity: 0.8, width: 2 },
+          lineStyle: { color: '#1a1a1a', opacity: 0.85, width: 2 },
         },
         blur: { itemStyle: { opacity: 0.2 }, lineStyle: { opacity: 0.05 } },
-        lineStyle: { color: '#777d6c', curveness: 0.06 },
+        lineStyle: { color: '#555555', curveness: 0.06 },
       },
     ],
   });
@@ -225,7 +229,7 @@
         bind:this={graph}
         {option}
         label={`Network of ${shown?.nodes.length} UFC fighters in ${label(division)}, from ${start} through ${end}`}
-        height={500}
+        height={graphHeight}
         onselect={(node) => {
           if (node?.id) selected = node.id;
         }}
@@ -247,24 +251,24 @@
       <section class="opponents" aria-label="Head-to-head records">
         <h3>Head-to-head</h3>
         <p>{selectedNode.name} against each opponent in the selected division and period</p>
-        <div class="table-scroll">
-          <table class="data-table">
-            <thead><tr><th>Opponent</th><th>Wins–losses</th><th>Fights</th></tr></thead>
+        <div class="table-scroll opponents-scroll">
+          <table class="data-table opponents-table">
+            <thead><tr><th>Opponent</th><th class="num">Wins–losses</th><th class="num">Fights</th></tr></thead>
             <tbody
               >{#each opponents as opponent (opponent.node.id)}<tr>
-                  <td
+                  <td class="col-opp-name"
                     ><a href={fighterHref(opponent.node.id)} data-fighter={opponent.node.id}
                       >{opponent.node.name}</a
                     ></td
                   >
-                  <td
+                  <td class="num"
                     >{opponent.wins}–{opponent.losses}{#if opponent.draws}<span class="muted">
                         · {opponent.draws} D</span
                       >{/if}{#if opponent.no_contests}<span class="muted">
                         · {opponent.no_contests} NC</span
                       >{/if}</td
                   >
-                  <td>{opponent.fights}</td>
+                  <td class="num">{opponent.fights}</td>
                 </tr>{/each}</tbody
             >
           </table>
@@ -277,13 +281,17 @@
 <style>
   .opponents {
     margin-top: 20px;
-    border-top: 1px solid var(--line);
+    border-top: 2px solid var(--ink);
     padding-top: 20px;
   }
   .opponents > p {
     font-size: 0.75rem;
     color: var(--muted);
     margin: 6px 0 16px;
+  }
+  .opponents-table .num {
+    text-align: right;
+    white-space: nowrap;
   }
   .controls > .year-field {
     min-width: 120px;
@@ -304,12 +312,13 @@
     align-items: center;
     gap: 8px;
     font-size: 0.75rem;
+    font-weight: 600;
     min-height: 44px;
   }
   .focus-toggle input {
-    width: 16px;
-    height: 16px;
-    accent-color: var(--ink);
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent);
   }
   .network-graph {
     transition: opacity 160ms ease;
@@ -330,6 +339,7 @@
   .network-detail strong {
     display: block;
     font-size: 0.875rem;
+    font-weight: 700;
   }
   .network-detail span,
   .network-detail p {
@@ -365,10 +375,34 @@
     }
     .network-panel > .panel-heading > .button {
       font-size: 0.75rem;
-      padding: 8px;
+      padding: 8px 12px;
     }
     .network-graph {
       margin: 0 -8px;
+    }
+    .opponents-scroll {
+      overflow-x: visible;
+    }
+    .opponents-table {
+      white-space: normal;
+      table-layout: fixed;
+    }
+    .opponents-table th,
+    .opponents-table td {
+      padding: 10px;
+    }
+    .opponents-table th:first-child,
+    .opponents-table .col-opp-name {
+      width: 52%;
+      overflow-wrap: anywhere;
+    }
+    .opponents-table th:nth-child(2),
+    .opponents-table td:nth-child(2) {
+      width: 30%;
+    }
+    .opponents-table th:nth-child(3),
+    .opponents-table td:nth-child(3) {
+      width: 18%;
     }
   }
 </style>
