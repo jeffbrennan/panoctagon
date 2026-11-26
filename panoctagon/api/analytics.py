@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import deque
 import time
 import os
 from datetime import datetime, timezone
@@ -9,7 +10,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
-import networkx as nx
+import numpy as np
 from sqlalchemy import text
 
 from panoctagon.api.models import (
@@ -21,6 +22,78 @@ from panoctagon.api.models import (
 from panoctagon.api.database import current_revision, get_read_engine
 
 router = APIRouter(tags=["Dashboard analytics"])
+
+
+def _connected_components(adjacency: dict[str, list[str]]) -> list[list[str]]:
+    visited: set[str] = set()
+    components: list[list[str]] = []
+    for start in adjacency:
+        if start in visited:
+            continue
+        component: list[str] = []
+        queue = deque([start])
+        visited.add(start)
+        while queue:
+            node = queue.popleft()
+            component.append(node)
+            for neighbor in adjacency[node]:
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append(neighbor)
+        components.append(component)
+    return sorted(components, key=len, reverse=True)
+
+
+def _spring_layout(
+    component: list[str],
+    adjacency: dict[str, list[str]],
+    *,
+    seed: int = 42,
+    iterations: int = 60,
+    scale: float = 400.0,
+    threshold: float = 1e-4,
+) -> dict[str, tuple[float, float]]:
+    nnodes = len(component)
+    if nnodes == 0:
+        return {}
+    if nnodes == 1:
+        return {component[0]: (0.0, 0.0)}
+
+    index = {uid: i for i, uid in enumerate(component)}
+    matrix = np.zeros((nnodes, nnodes), dtype=np.float64)
+    for uid in component:
+        i = index[uid]
+        for neighbor in adjacency[uid]:
+            j = index.get(neighbor)
+            if j is not None and i != j:
+                matrix[i, j] = 1.0
+
+    rng = np.random.RandomState(seed)
+    pos = np.asarray(rng.rand(nnodes, 2), dtype=np.float64)
+    k = np.sqrt(1.0 / nnodes)
+    t = max(pos[:, 0].max() - pos[:, 0].min(), pos[:, 1].max() - pos[:, 1].min()) * 0.1
+    dt = t / (iterations + 1)
+
+    for _ in range(iterations):
+        delta = pos[:, np.newaxis, :] - pos[np.newaxis, :, :]
+        distance = np.linalg.norm(delta, axis=-1)
+        np.clip(distance, 0.01, None, out=distance)
+        displacement = np.einsum(
+            "ijk,ij->ik", delta, (k * k / (distance * distance) - matrix * distance / k)
+        )
+        length = np.linalg.norm(displacement, axis=-1)
+        length = np.where(length < 0.01, 0.1, length)
+        delta_pos = np.einsum("ij,i->ij", displacement, t / length)
+        pos += delta_pos
+        t -= dt
+        if (np.linalg.norm(delta_pos) / nnodes) < threshold:
+            break
+
+    pos -= pos.mean(axis=0)
+    lim = np.abs(pos).max()
+    if lim > 0:
+        pos *= scale / lim
+    return {uid: (float(pos[i, 0]), float(pos[i, 1])) for i, uid in enumerate(component)}
 
 
 @lru_cache(maxsize=64)
@@ -206,20 +279,29 @@ def _network(division: str, start_year: int, end_year: int, period: int, revisio
         start_year=start_year,
         end_year=end_year,
     )
-    graph = nx.Graph()
+    nodes: dict[str, dict[str, Any]] = {}
+    adjacency: dict[str, list[str]] = {}
+    edges: dict[tuple[str, str], dict[str, Any]] = {}
     for fight in fights:
         for side in (1, 2):
             uid = fight[f"fighter{side}_uid"]
-            if uid not in graph:
-                graph.add_node(uid, name=fight[f"fighter{side}_name"], fights=0, wins=0, losses=0)
-            node = graph.nodes[uid]
+            node = nodes.get(uid)
+            if node is None:
+                node = {"name": fight[f"fighter{side}_name"], "fights": 0, "wins": 0, "losses": 0}
+                nodes[uid] = node
+                adjacency[uid] = []
             node["fights"] += 1
             node["wins"] += fight[f"fighter{side}_result"] == "WIN"
             node["losses"] += fight[f"fighter{side}_result"] == "LOSS"
         a, b = fight["fighter1_uid"], fight["fighter2_uid"]
-        if not graph.has_edge(a, b):
-            graph.add_edge(a, b, fights=0, wins={}, draws=0, no_contests=0)
-        edge = graph[a][b]
+        key = (a, b) if (a, b) in edges else (b, a) if (b, a) in edges else (a, b)
+        edge = edges.get(key)
+        if edge is None:
+            edge = {"fights": 0, "wins": {}, "draws": 0, "no_contests": 0}
+            edges[key] = edge
+            adjacency[a].append(b)
+            if a != b:
+                adjacency[b].append(a)
         edge["fights"] += 1
         for side in (1, 2):
             if fight[f"fighter{side}_result"] == "WIN":
@@ -227,10 +309,10 @@ def _network(division: str, start_year: int, end_year: int, period: int, revisio
                 edge["wins"][uid] = edge["wins"].get(uid, 0) + 1
         edge["draws"] += fight["fighter1_result"] == "DRAW"
         edge["no_contests"] += fight["fighter1_result"] == "NO_CONTEST"
-    positions = {}
-    components = sorted(nx.connected_components(graph), key=len, reverse=True)
+    positions: dict[str, tuple[float, float]] = {}
+    components = _connected_components(adjacency)
     for index, component in enumerate(components):
-        layout = nx.spring_layout(graph.subgraph(component), seed=42, iterations=60, scale=400)
+        layout = _spring_layout(component, adjacency, seed=42, iterations=60, scale=400.0)
         if index == 0:
             positions.update(layout)
         else:
@@ -244,7 +326,7 @@ def _network(division: str, start_year: int, end_year: int, period: int, revisio
     return {
         "nodes": [
             {"id": uid, **values, "x": float(positions[uid][0]), "y": float(positions[uid][1])}
-            for uid, values in graph.nodes(data=True)
+            for uid, values in nodes.items()
         ],
         "links": [
             {
@@ -256,7 +338,7 @@ def _network(division: str, start_year: int, end_year: int, period: int, revisio
                 "draws": values["draws"],
                 "no_contests": values["no_contests"],
             }
-            for a, b, values in graph.edges(data=True)
+            for (a, b), values in edges.items()
         ],
     }
 

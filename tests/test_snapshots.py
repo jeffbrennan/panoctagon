@@ -1,9 +1,12 @@
+from concurrent.futures import ThreadPoolExecutor
 import json
 from pathlib import Path
 
 import duckdb
 import pytest
+from sqlalchemy import text
 
+from panoctagon.api.database import dispose_cached_engines, get_read_engine
 from panoctagon.api.snapshots import publish_snapshot
 from tests.dashboard_seed import seed_dashboard
 
@@ -91,3 +94,25 @@ with duckdb.connect(sys.argv[1]) as db:
     finally:
         process.communicate('\n', timeout=10)
     assert process.returncode == 0
+
+
+def test_concurrent_read_connections_apply_duckdb_config_without_mutation(tmp_path: Path, monkeypatch):
+    database = tmp_path / 'concurrent.duckdb'
+    seed_dashboard(database)
+    monkeypatch.delenv('PANOCTAGON_API_SNAPSHOT_DIR', raising=False)
+    monkeypatch.setenv('PANOCTAGON_API_DATABASE', str(database))
+    dispose_cached_engines()
+    try:
+        engine = get_read_engine()
+
+        def query_once(_: int) -> tuple[int, int]:
+            with engine.connect() as conn:
+                count = conn.execute(text('select count(*) from ufc_events')).scalar_one()
+                threads = conn.execute(text("select current_setting('threads')")).scalar_one()
+                return int(count), int(threads)
+
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            results = list(executor.map(query_once, range(24)))
+        assert results == [(2, 2)] * 24
+    finally:
+        dispose_cached_engines()

@@ -1,6 +1,7 @@
 # Opt in with: docker compose -f docker-compose.yaml -f docker-compose.svelte.yaml ...
 services:
   panoctagon_api:
+    profiles: ["legacy"]
     environment:
       PANOCTAGON_API_SNAPSHOT_DIR: /panoctagon/data/api_snapshots
       PANOCTAGON_API_HEADSHOTS: /panoctagon/data/raw/ufc/fighter_headshots
@@ -12,6 +13,10 @@ services:
     environment:
       PANOCTAGON_API_SNAPSHOT_DIR: /panoctagon/data/api_snapshots
       PANOCTAGON_API_HEADSHOTS: /panoctagon/data/raw/ufc/fighter_headshots
+    deploy:
+      resources:
+        limits:
+          memory: 512M
     volumes:
       - panoctagon_data:/panoctagon/data:ro
     command: []

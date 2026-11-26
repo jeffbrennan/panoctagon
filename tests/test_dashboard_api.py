@@ -160,3 +160,40 @@ def test_same_day_tournament_fights_follow_reverse_card_order(client, tmp_path):
     profile = client.get('/fighter/alpha/analytics').json()
     order = [fight['fight_uid'] for fight in profile['fights']]
     assert order.index('z_first') < order.index('a_final')
+
+
+def test_polars_free_query_endpoints_and_404s(client):
+    fighters = client.get("/fighter?name=alpha").json()
+    assert [f["fighter_uid"] for f in fighters] == ["alpha"]
+
+    detail = client.get("/fighter/alpha").json()
+    assert detail["bio"]["full_name"] == "Alex Alpha"
+    assert detail["record"]["wins"] == 4
+    assert len(detail["recent_fights"]) == 7
+    assert client.get("/fighter/notfound").status_code == 404
+
+    fights = client.get("/fighter/alpha/fights?limit=3").json()
+    assert len(fights) == 3
+
+    events = client.get("/events?limit=10").json()
+    assert {e["event_uid"] for e in events} == {"past", "future"}
+    assert [e["event_uid"] for e in client.get("/events?upcoming_only=true").json()] == ["future"]
+    assert [e["event_uid"] for e in client.get("/event/search?name=Future").json()] == ["future"]
+
+    event_detail = client.get("/event/past").json()
+    assert event_detail["title"] == "UFC Test"
+    assert len(event_detail["fights"]) == 6
+    assert client.get("/event/notfound").status_code == 404
+
+    assert client.get("/divisions").json() == ["HEAVYWEIGHT", "MIDDLEWEIGHT"]
+
+
+def test_spring_layout_handles_large_components_without_scipy():
+    nodes = [f"f{i}" for i in range(510)]
+    adjacency = {uid: [] for uid in nodes}
+    for i in range(len(nodes) - 1):
+        adjacency[nodes[i]].append(nodes[i + 1])
+        adjacency[nodes[i + 1]].append(nodes[i])
+    positions = analytics._spring_layout(nodes, adjacency, seed=42, iterations=5, scale=400.0)
+    assert len(positions) == 510
+    assert all(math.isfinite(x) and math.isfinite(y) for x, y in positions.values())

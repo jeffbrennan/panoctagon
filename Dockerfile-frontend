@@ -5,14 +5,19 @@ RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
+FROM python:3.12-slim AS python-deps
+ENV UV_PYTHON_DOWNLOADS=never
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+WORKDIR /panoctagon
+COPY pyproject.toml uv.lock readme.md ./
+RUN uv sync --frozen --only-group web --no-install-project
+
 FROM python:3.12-slim AS runtime
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH="/panoctagon"
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 WORKDIR /panoctagon
-COPY pyproject.toml uv.lock readme.md ./
-RUN uv sync --frozen --no-dev --no-install-project
+COPY --from=python-deps /panoctagon/.venv ./.venv
 COPY panoctagon/ ./panoctagon
 COPY --from=frontend-build /build/dist ./frontend/dist
 EXPOSE 8050

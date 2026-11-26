@@ -5,9 +5,13 @@ import json
 import os
 from pathlib import Path
 import threading
+from typing import Any
 
-from sqlalchemy import Engine, create_engine, text
+from sqlalchemy import Engine, create_engine, event, text
 from sqlalchemy.pool import NullPool
+
+DEFAULT_DUCKDB_MEMORY_LIMIT = '128MB'
+DEFAULT_DUCKDB_THREADS = '2'
 
 
 @dataclass(frozen=True)
@@ -19,9 +23,20 @@ class DatabaseRevision:
 
 _active: ContextVar[DatabaseRevision | None] = ContextVar('api_database_revision', default=None)
 _engine_lock = threading.Lock()
-_cached_engine_key: tuple[str, int, int, int, int] | None = None
+_cached_engine_key: tuple[Any, ...] | None = None
 _cached_engine: Engine | None = None
 _runtime_warmed = False
+
+
+def _duckdb_config() -> dict[str, Any]:
+    config: dict[str, Any] = {}
+    memory_limit = os.environ.get('PANOCTAGON_DUCKDB_MEMORY_LIMIT', DEFAULT_DUCKDB_MEMORY_LIMIT).strip()
+    if memory_limit:
+        config['memory_limit'] = memory_limit
+    threads = os.environ.get('PANOCTAGON_DUCKDB_THREADS', DEFAULT_DUCKDB_THREADS).strip()
+    if threads:
+        config['threads'] = int(threads)
+    return config
 
 
 def resolve_revision() -> DatabaseRevision:
@@ -82,7 +97,15 @@ def get_read_engine() -> Engine:
     except FileNotFoundError:
         dispose_cached_engines()
         raise
-    key = (str(path), st.st_dev, st.st_ino, st.st_mtime_ns, st.st_size)
+    config = _duckdb_config()
+    key = (
+        str(path),
+        st.st_dev,
+        st.st_ino,
+        st.st_mtime_ns,
+        st.st_size,
+        tuple(sorted(config.items())),
+    )
     old_engine: Engine | None = None
     with _engine_lock:
         if _cached_engine is not None and _cached_engine_key == key:
@@ -93,6 +116,12 @@ def get_read_engine() -> Engine:
             poolclass=NullPool,
             connect_args={'read_only': True},
         )
+        if config:
+            # duckdb-engine mutates connect_args['config'] in place (custom_user_agent),
+            # which breaks concurrent DuckDB opens unless each connection gets a fresh copy.
+            @event.listens_for(engine, 'do_connect')
+            def _inject_fresh_config(_dialect, _conn_rec, _cargs, cparams, cfg=dict(config)):
+                cparams['config'] = dict(cfg)
         _cached_engine = engine
         _cached_engine_key = key
     if old_engine is not None:

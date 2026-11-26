@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional
 
-import polars as pl
 from sqlalchemy import text
 
 from panoctagon.api.database import get_read_engine
@@ -12,7 +11,7 @@ def search_fighters(
     name: Optional[str] = None,
     division: Optional[str] = None,
     limit: int = 50,
-) -> pl.DataFrame:
+) -> list[dict[str, Any]]:
     engine = get_read_engine()
     with engine.connect() as conn:
         query = """
@@ -63,7 +62,7 @@ def search_fighters(
         where 1=1
         """
 
-        params: dict = {}
+        params: dict[str, Any] = {"limit": limit}
         if name:
             query += " and lower(f.first_name || ' ' || f.last_name) like lower(:name)"
             params["name"] = f"%{name}%"
@@ -71,17 +70,14 @@ def search_fighters(
             query += " and lower(fdc.fight_division) = lower(:division)"
             params["division"] = division
 
-        query += f" order by coalesce(fr.wins, 0) + coalesce(fr.losses, 0) desc limit {limit}"
+        query += " order by coalesce(fr.wins, 0) + coalesce(fr.losses, 0) desc limit :limit"
 
-        stmt = text(query)
-        if params:
-            stmt = stmt.bindparams(**params)
-        return pl.read_database(stmt, connection=conn)
+        return [dict(row) for row in conn.execute(text(query), params).mappings()]
 
 
 def get_fighter_detail(
     fighter_uid: str,
-) -> tuple[pl.DataFrame, pl.DataFrame, pl.DataFrame]:
+) -> tuple[Optional[dict[str, Any]], Optional[dict[str, Any]], list[dict[str, Any]]]:
     engine = get_read_engine()
     with engine.connect() as conn:
         bio_query = """
@@ -101,16 +97,16 @@ def get_fighter_detail(
         from ufc_fighters
         where fighter_uid = :fighter_uid
         """
-        bio_df = pl.read_database(
-            text(bio_query).bindparams(fighter_uid=fighter_uid), connection=conn
-        )
+        bio_mapping = conn.execute(text(bio_query), {"fighter_uid": fighter_uid}).mappings().first()
+        if bio_mapping is None:
+            return None, None, []
 
         record_query = """
         select
-            sum(case when result = 'WIN' then 1 else 0 end) as wins,
-            sum(case when result = 'LOSS' then 1 else 0 end) as losses,
-            sum(case when result = 'DRAW' then 1 else 0 end) as draws,
-            sum(case when result = 'NO_CONTEST' then 1 else 0 end) as no_contests,
+            coalesce(sum(case when result = 'WIN' then 1 else 0 end), 0) as wins,
+            coalesce(sum(case when result = 'LOSS' then 1 else 0 end), 0) as losses,
+            coalesce(sum(case when result = 'DRAW' then 1 else 0 end), 0) as draws,
+            coalesce(sum(case when result = 'NO_CONTEST' then 1 else 0 end), 0) as no_contests,
             count(*) as total_fights
         from (
             select fighter1_result as result from ufc_fights where fighter1_uid = :fighter_uid and fighter1_result is not null
@@ -118,8 +114,8 @@ def get_fighter_detail(
             select fighter2_result as result from ufc_fights where fighter2_uid = :fighter_uid and fighter2_result is not null
         )
         """
-        record_df = pl.read_database(
-            text(record_query).bindparams(fighter_uid=fighter_uid), connection=conn
+        record_mapping = (
+            conn.execute(text(record_query), {"fighter_uid": fighter_uid}).mappings().first()
         )
 
         fights_query = """
@@ -164,14 +160,15 @@ def get_fighter_detail(
         order by e.event_date desc
         limit 10
         """
-        fights_df = pl.read_database(
-            text(fights_query).bindparams(fighter_uid=fighter_uid), connection=conn
-        )
+        fights = [
+            dict(row)
+            for row in conn.execute(text(fights_query), {"fighter_uid": fighter_uid}).mappings()
+        ]
 
-        return bio_df, record_df, fights_df
+        return dict(bio_mapping), dict(record_mapping) if record_mapping is not None else None, fights
 
 
-def get_fighter_stats(fighter_uid: str) -> Optional[pl.DataFrame]:
+def get_fighter_stats(fighter_uid: str) -> Optional[dict[str, Any]]:
     engine = get_read_engine()
     with engine.connect() as conn:
         query = """
@@ -223,9 +220,9 @@ def get_fighter_stats(fighter_uid: str) -> Optional[pl.DataFrame]:
         ),
         win_types as (
             select
-                sum(case when result = 'WIN' and decision = 'TKO' then 1 else 0 end) as ko_wins,
-                sum(case when result = 'WIN' and decision = 'SUB' then 1 else 0 end) as sub_wins,
-                sum(case when result = 'WIN' and decision in ('UNANIMOUS_DECISION', 'SPLIT_DECISION', 'MAJORITY_DECISION') then 1 else 0 end) as dec_wins
+                coalesce(sum(case when result = 'WIN' and decision = 'TKO' then 1 else 0 end), 0) as ko_wins,
+                coalesce(sum(case when result = 'WIN' and decision = 'SUB' then 1 else 0 end), 0) as sub_wins,
+                coalesce(sum(case when result = 'WIN' and decision in ('UNANIMOUS_DECISION', 'SPLIT_DECISION', 'MAJORITY_DECISION') then 1 else 0 end), 0) as dec_wins
             from fighter_results
         )
         select
@@ -237,12 +234,14 @@ def get_fighter_stats(fighter_uid: str) -> Optional[pl.DataFrame]:
             wt.sub_wins,
             wt.dec_wins,
             os.avg_opp_win_rate
-        from fight_stats fs, win_types wt, opp_strength os
+        from ufc_fighters f
+        cross join fight_stats fs
+        cross join win_types wt
+        cross join opp_strength os
+        where f.fighter_uid = :fighter_uid
         """
-        df = pl.read_database(text(query).bindparams(fighter_uid=fighter_uid), connection=conn)
-        if df.height == 0:
-            return None
-        return df
+        row = conn.execute(text(query), {"fighter_uid": fighter_uid}).mappings().first()
+        return dict(row) if row is not None else None
 
 
 _UPCOMING_FIGHTS_SQL = """
@@ -351,16 +350,10 @@ order by u.event_date asc, u.fight_order asc nulls last
 """
 
 
-def get_upcoming_rows() -> list[dict]:
+def get_upcoming_rows() -> list[dict[str, Any]]:
     engine = get_read_engine()
     with engine.connect() as conn:
         return [dict(row) for row in conn.execute(text(_UPCOMING_FIGHTS_SQL)).mappings()]
-
-
-def get_upcoming_fights() -> pl.DataFrame:
-    engine = get_read_engine()
-    with engine.connect() as conn:
-        return pl.read_database(_UPCOMING_FIGHTS_SQL, connection=conn)
 
 
 def get_rankings(
@@ -368,7 +361,7 @@ def get_rankings(
     min_fights: int = 5,
     limit: int = 15,
     sort_by: str = "win_rate",
-) -> pl.DataFrame:
+) -> list[dict[str, Any]]:
     sort_columns = {
         "win_rate": "fs.wins * 1.0 / fs.total_fights desc, fs.total_fights desc",
         "sig_strikes": "coalesce(fsa.avg_sig_strikes, 0) desc",
@@ -486,7 +479,7 @@ def get_rankings(
                 on f.fighter_uid = fsa.fighter_uid
             left join fighter_opp_strength fos
                 on f.fighter_uid = fos.fighter_uid
-            where fs.total_fights >= {min_fights}
+            where fs.total_fights >= :min_fights
         )
         select
             rank,
@@ -510,17 +503,14 @@ def get_rankings(
         where 1=1
         """
 
-        params: dict = {}
+        params: dict[str, Any] = {"min_fights": min_fights, "limit": limit}
         if division:
             query += " and lower(division) = lower(:division)"
             params["division"] = division
 
-        query += f" and rank <= {limit} order by division, rank"
+        query += " and rank <= :limit order by division, rank"
 
-        stmt = text(query)
-        if params:
-            stmt = stmt.bindparams(**params)
-        return pl.read_database(stmt, connection=conn)
+        return [dict(row) for row in conn.execute(text(query), params).mappings()]
 
 
 def get_roster(
@@ -530,7 +520,7 @@ def get_roster(
     max_win_rate: Optional[float] = None,
     limit: int = 100,
     sort_by: str = "full_name",
-) -> pl.DataFrame:
+) -> list[dict[str, Any]]:
     sort_columns = {
         "win_rate": "fs.wins * 1.0 / fs.total_fights desc, fs.total_fights desc",
         "sig_strikes": "coalesce(fsa.avg_sig_strikes, 0) desc",
@@ -645,27 +635,26 @@ def get_roster(
             on f.fighter_uid = fsa.fighter_uid
         left join fighter_opp_strength fos
             on f.fighter_uid = fos.fighter_uid
-        where fs.total_fights >= {min_fights}
+        where fs.total_fights >= :min_fights
         """
 
-        params: dict = {}
+        params: dict[str, Any] = {"min_fights": min_fights, "limit": limit}
         if division:
             query += " and lower(fdc.fight_division) = lower(:division)"
             params["division"] = division
         if min_win_rate is not None:
-            query += f" and (fs.wins * 100.0 / fs.total_fights) >= {min_win_rate}"
+            query += " and (fs.wins * 100.0 / fs.total_fights) >= :min_win_rate"
+            params["min_win_rate"] = min_win_rate
         if max_win_rate is not None:
-            query += f" and (fs.wins * 100.0 / fs.total_fights) <= {max_win_rate}"
+            query += " and (fs.wins * 100.0 / fs.total_fights) <= :max_win_rate"
+            params["max_win_rate"] = max_win_rate
 
-        query += f" order by {order_by} limit {limit}"
+        query += f" order by {order_by} limit :limit"
 
-        stmt = text(query)
-        if params:
-            stmt = stmt.bindparams(**params)
-        return pl.read_database(stmt, connection=conn)
+        return [dict(row) for row in conn.execute(text(query), params).mappings()]
 
 
-def get_events(upcoming_only: bool = False, limit: int = 20) -> pl.DataFrame:
+def get_events(upcoming_only: bool = False, limit: int = 20) -> list[dict[str, Any]]:
     engine = get_read_engine()
     with engine.connect() as conn:
         query = """
@@ -682,12 +671,12 @@ def get_events(upcoming_only: bool = False, limit: int = 20) -> pl.DataFrame:
         if upcoming_only:
             query += " where exists (select 1 from ufc_fights uf where uf.event_uid = e.event_uid and uf.fighter1_result is null) and e.event_date::date >= current_date"
 
-        query += f" group by e.event_uid, e.title, e.event_date, e.event_location order by e.event_date desc limit {limit}"
+        query += " group by e.event_uid, e.title, e.event_date, e.event_location order by e.event_date desc limit :limit"
 
-        return pl.read_database(query, connection=conn)
+        return [dict(row) for row in conn.execute(text(query), {"limit": limit}).mappings()]
 
 
-def search_events(name: Optional[str] = None, limit: int = 20) -> pl.DataFrame:
+def search_events(name: Optional[str] = None, limit: int = 20) -> list[dict[str, Any]]:
     engine = get_read_engine()
     with engine.connect() as conn:
         query = """
@@ -702,107 +691,144 @@ def search_events(name: Optional[str] = None, limit: int = 20) -> pl.DataFrame:
         where 1=1
         """
 
-        params: dict = {}
+        params: dict[str, Any] = {"limit": limit}
         if name:
             query += " and lower(e.title) like lower(:name)"
             params["name"] = f"%{name}%"
 
-        query += f" group by e.event_uid, e.title, e.event_date, e.event_location order by e.event_date desc limit {limit}"
+        query += " group by e.event_uid, e.title, e.event_date, e.event_location order by e.event_date desc limit :limit"
 
-        stmt = text(query)
-        if params:
-            stmt = stmt.bindparams(**params)
-        return pl.read_database(stmt, connection=conn)
+        return [dict(row) for row in conn.execute(text(query), params).mappings()]
 
 
-def get_event_fights(event_uid: str) -> pl.DataFrame:
+def get_event_by_uid(event_uid: str) -> Optional[dict[str, Any]]:
     engine = get_read_engine()
     with engine.connect() as conn:
-        return pl.read_database(
-            text("""
-            select
-                f.fight_uid,
-                f.fight_division,
-                f.fight_type,
-                f.fight_order,
-                f1.first_name || ' ' || f1.last_name as fighter1_name,
-                f.fighter1_result,
-                f2.first_name || ' ' || f2.last_name as fighter2_name,
-                f.fighter2_result,
-                f.decision,
-                f.decision_round
-            from ufc_fights f
-            inner join ufc_fighters f1 on f.fighter1_uid = f1.fighter_uid
-            inner join ufc_fighters f2 on f.fighter2_uid = f2.fighter_uid
-            where f.event_uid = :event_uid
-            order by f.fight_order asc nulls last
-            """).bindparams(event_uid=event_uid),
-            connection=conn,
-        )
-
-
-def get_fighter_fights(fighter_uid: str, limit: int = 10) -> pl.DataFrame:
-    engine = get_read_engine()
-    with engine.connect() as conn:
-        return pl.read_database(
-            text(f"""
-            with fighter_fights as (
-                select
-                    f.fight_uid,
-                    f.event_uid,
-                    f.fight_division,
-                    f.decision,
-                    f.decision_round,
-                    f.fighter2_uid as opponent_uid,
-                    f.fighter1_result as result
-                from ufc_fights f
-                where f.fighter1_uid = :fighter_uid
-                union all
-                select
-                    f.fight_uid,
-                    f.event_uid,
-                    f.fight_division,
-                    f.decision,
-                    f.decision_round,
-                    f.fighter1_uid as opponent_uid,
-                    f.fighter2_result as result
-                from ufc_fights f
-                where f.fighter2_uid = :fighter_uid
+        row = (
+            conn.execute(
+                text(
+                    """
+                    select
+                        e.event_uid,
+                        e.title,
+                        e.event_date,
+                        e.event_location
+                    from ufc_events e
+                    where e.event_uid = :event_uid
+                    """
+                ),
+                {"event_uid": event_uid},
             )
-            select
-                ff.fight_uid,
-                e.title as event_title,
-                e.event_date,
-                ff.fight_division,
-                opp.first_name || ' ' || opp.last_name as opponent_name,
-                ff.result,
-                ff.decision,
-                ff.decision_round
-            from fighter_fights ff
-            inner join ufc_events e on ff.event_uid = e.event_uid
-            inner join ufc_fighters opp on ff.opponent_uid = opp.fighter_uid
-            order by e.event_date desc
-            limit {limit}
-            """).bindparams(fighter_uid=fighter_uid),
-            connection=conn,
+            .mappings()
+            .first()
         )
+        return dict(row) if row is not None else None
 
 
-def get_divisions() -> pl.DataFrame:
+def get_event_fights(event_uid: str) -> list[dict[str, Any]]:
     engine = get_read_engine()
     with engine.connect() as conn:
-        return pl.read_database(
-            """
-            select distinct fight_division as division
-            from ufc_fights
-            where fight_division is not null
-            order by fight_division
-            """,
-            connection=conn,
-        )
+        return [
+            dict(row)
+            for row in conn.execute(
+                text(
+                    """
+                    select
+                        f.fight_uid,
+                        f.fight_division,
+                        f.fight_type,
+                        f.fight_order,
+                        f1.first_name || ' ' || f1.last_name as fighter1_name,
+                        f.fighter1_result,
+                        f2.first_name || ' ' || f2.last_name as fighter2_name,
+                        f.fighter2_result,
+                        f.decision,
+                        f.decision_round
+                    from ufc_fights f
+                    inner join ufc_fighters f1 on f.fighter1_uid = f1.fighter_uid
+                    inner join ufc_fighters f2 on f.fighter2_uid = f2.fighter_uid
+                    where f.event_uid = :event_uid
+                    order by f.fight_order asc nulls last
+                    """
+                ),
+                {"event_uid": event_uid},
+            ).mappings()
+        ]
 
 
-def get_fight_detail(fight_uid: str) -> tuple[Optional[pl.DataFrame], Optional[pl.DataFrame]]:
+def get_fighter_fights(fighter_uid: str, limit: int = 10) -> list[dict[str, Any]]:
+    engine = get_read_engine()
+    with engine.connect() as conn:
+        return [
+            dict(row)
+            for row in conn.execute(
+                text(
+                    """
+                    with fighter_fights as (
+                        select
+                            f.fight_uid,
+                            f.event_uid,
+                            f.fight_division,
+                            f.decision,
+                            f.decision_round,
+                            f.fighter2_uid as opponent_uid,
+                            f.fighter1_result as result
+                        from ufc_fights f
+                        where f.fighter1_uid = :fighter_uid
+                        union all
+                        select
+                            f.fight_uid,
+                            f.event_uid,
+                            f.fight_division,
+                            f.decision,
+                            f.decision_round,
+                            f.fighter1_uid as opponent_uid,
+                            f.fighter2_result as result
+                        from ufc_fights f
+                        where f.fighter2_uid = :fighter_uid
+                    )
+                    select
+                        ff.fight_uid,
+                        e.title as event_title,
+                        e.event_date,
+                        ff.fight_division,
+                        opp.first_name || ' ' || opp.last_name as opponent_name,
+                        ff.result,
+                        ff.decision,
+                        ff.decision_round
+                    from fighter_fights ff
+                    inner join ufc_events e on ff.event_uid = e.event_uid
+                    inner join ufc_fighters opp on ff.opponent_uid = opp.fighter_uid
+                    order by e.event_date desc
+                    limit :limit
+                    """
+                ),
+                {"fighter_uid": fighter_uid, "limit": limit},
+            ).mappings()
+        ]
+
+
+def get_divisions() -> list[str]:
+    engine = get_read_engine()
+    with engine.connect() as conn:
+        return [
+            row[0]
+            for row in conn.execute(
+                text(
+                    """
+                    select distinct fight_division as division
+                    from ufc_fights
+                    where fight_division is not null
+                    order by fight_division
+                    """
+                )
+            ).fetchall()
+        ]
+
+
+def get_fight_detail(
+    fight_uid: str,
+) -> tuple[Optional[dict[str, Any]], list[dict[str, Any]]]:
     engine = get_read_engine()
     with engine.connect() as conn:
         fight_query = """
@@ -829,11 +855,11 @@ def get_fight_detail(fight_uid: str) -> tuple[Optional[pl.DataFrame], Optional[p
         inner join ufc_fighters f2 on f.fighter2_uid = f2.fighter_uid
         where f.fight_uid = :fight_uid
         """
-        fight_df = pl.read_database(
-            text(fight_query).bindparams(fight_uid=fight_uid), connection=conn
+        fight_mapping = (
+            conn.execute(text(fight_query), {"fight_uid": fight_uid}).mappings().first()
         )
-        if fight_df.height == 0:
-            return None, None
+        if fight_mapping is None:
+            return None, []
 
         stats_query = """
         select
@@ -853,8 +879,9 @@ def get_fight_detail(fight_uid: str) -> tuple[Optional[pl.DataFrame], Optional[p
         where fs.fight_uid = :fight_uid
         order by fs.fighter_uid, fs.round_num
         """
-        stats_df = pl.read_database(
-            text(stats_query).bindparams(fight_uid=fight_uid), connection=conn
-        )
+        stats_rows = [
+            dict(row)
+            for row in conn.execute(text(stats_query), {"fight_uid": fight_uid}).mappings()
+        ]
 
-        return fight_df, stats_df
+        return dict(fight_mapping), stats_rows
