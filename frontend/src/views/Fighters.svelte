@@ -2,15 +2,26 @@
   import { onDestroy } from 'svelte';
   import { createRefresh } from '../lib/refresh';
   import { api, errorMessage } from '../lib/api';
-  import type { FighterProfile, FighterSummary } from '../lib/types';
+  import type { FighterProfile, FighterSummary, Metadata } from '../lib/types';
   import { date, fighterHref, inches, label, number, odds } from '../lib/format';
   import State from '../lib/State.svelte';
   import Headshot from '../lib/Headshot.svelte';
   import FighterSearch from '../lib/FighterSearch.svelte';
   import Chart from '../lib/Chart.svelte';
   import { timeline, outcomes, strikes, accuracy, targets } from '../lib/fighterCharts';
-  let { fighter = '', openFighter, active, refresh }: { fighter?: string; openFighter: (uid: string) => void; active: boolean; refresh: number } =
-    $props();
+  let {
+    fighter = '',
+    openFighter,
+    metadata,
+    active,
+    refresh,
+  }: {
+    fighter?: string;
+    openFighter: (uid: string) => void;
+    metadata: Metadata | null;
+    active: boolean;
+    refresh: number;
+  } = $props();
   let profile = $state.raw<FighterProfile | null>(null);
   let error = $state('');
   let loading = $state(true);
@@ -52,7 +63,10 @@
   const request = createRefresh<{ profile: FighterProfile; id: string }>({
     load: async (key, signal, bypass) => {
       const selected = key.slice('/fighter/'.length, -'/analytics'.length);
-      const id = selected ? decodeURIComponent(selected) : (await api<FighterSummary[]>('/fighter?name=Max%20Holloway&limit=1', signal, bypass))[0]?.fighter_uid;
+      const id = selected
+        ? decodeURIComponent(selected)
+        : metadata?.default_fighter_uid ||
+          (await api<FighterSummary[]>('/fighter?name=Max%20Holloway&limit=1', signal, bypass))[0]?.fighter_uid;
       if (!id) throw new Error('No fighter records are available.');
       return { id, profile: await api<FighterProfile>(`/fighter/${encodeURIComponent(id)}/analytics`, signal, bypass) };
     },

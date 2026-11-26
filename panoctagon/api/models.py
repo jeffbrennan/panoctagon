@@ -228,6 +228,7 @@ class DashboardMetadata(BaseModel):
     fights: int
     first_year: Optional[int]
     last_year: Optional[int]
+    default_fighter_uid: Optional[str] = None
 
 
 class CareerFight(BaseModel):

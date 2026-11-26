@@ -17,7 +17,6 @@ from panoctagon.api.models import (
     NetworkAnalytics,
     RosterAnalytics,
 )
-from panoctagon.api.queries import get_fighter_detail
 from panoctagon.api.database import current_revision, get_read_engine
 
 router = APIRouter(tags=["Dashboard analytics"])
@@ -44,7 +43,18 @@ def metadata() -> dict[str, Any]:
             (select count(*) from ufc_fighters) as fighters,
             (select count(*) from ufc_fights where fighter1_result is not null) as fights,
             (select min(year(cast(event_date as date))) from ufc_events) as first_year,
-            (select max(year(cast(event_date as date))) from ufc_events) as last_year
+            (select max(year(cast(event_date as date))) from ufc_events) as last_year,
+            coalesce(
+                (select fighter_uid from ufc_fighters
+                 where lower(first_name || ' ' || last_name) like '%max holloway%'
+                 order by fighter_uid limit 1),
+                (select fighter_uid from (
+                    select fighter1_uid as fighter_uid from ufc_fights where fighter1_result is not null
+                    union all
+                    select fighter2_uid as fighter_uid from ufc_fights where fighter2_result is not null
+                ) group by fighter_uid order by count(*) desc, fighter_uid limit 1),
+                (select fighter_uid from ufc_fighters order by fighter_uid limit 1)
+            ) as default_fighter_uid
     """)[0]
     revision = current_revision()
     return {**result, "current_year": current_year(), "revision": revision.revision if revision.published_at else None, "published_at": revision.published_at}
@@ -62,11 +72,60 @@ def headshot(fighter_uid: str) -> FileResponse:
     raise HTTPException(status_code=404, detail="Headshot not found")
 
 
+_BIO_KEYS = (
+    "fighter_uid",
+    "first_name",
+    "last_name",
+    "full_name",
+    "nickname",
+    "dob",
+    "place_of_birth",
+    "stance",
+    "style",
+    "height_inches",
+    "reach_inches",
+    "leg_reach_inches",
+)
+_RECORD_KEYS = ("wins", "losses", "draws", "no_contests", "total_fights")
+
+
 @router.get("/fighter/{fighter_uid}/analytics", response_model=FighterAnalytics)
 def fighter_analytics(fighter_uid: str) -> dict[str, Any]:
-    bio, record, _ = get_fighter_detail(fighter_uid)
-    if bio is None or bio.height == 0:
+    summary = rows(
+        """
+        with fighter_fights as (
+            select fighter1_result as result from ufc_fights
+            where fighter1_uid = :uid and fighter1_result is not null
+            union all
+            select fighter2_result as result from ufc_fights
+            where fighter2_uid = :uid and fighter2_result is not null
+        ), rec as (
+            select
+                sum(case when result = 'WIN' then 1 else 0 end) as wins,
+                sum(case when result = 'LOSS' then 1 else 0 end) as losses,
+                sum(case when result = 'DRAW' then 1 else 0 end) as draws,
+                sum(case when result = 'NO_CONTEST' then 1 else 0 end) as no_contests,
+                count(*) as total_fights
+            from fighter_fights
+        )
+        select f.fighter_uid, f.first_name, f.last_name,
+            f.first_name || ' ' || f.last_name as full_name,
+            f.nickname, f.dob, f.place_of_birth, f.stance, f.style,
+            f.height_inches, f.reach_inches, f.leg_reach_inches,
+            coalesce(r.wins, 0) as wins,
+            coalesce(r.losses, 0) as losses,
+            coalesce(r.draws, 0) as draws,
+            coalesce(r.no_contests, 0) as no_contests,
+            coalesce(r.total_fights, 0) as total_fights
+        from ufc_fighters f
+        cross join rec r
+        where f.fighter_uid = :uid
+        """,
+        uid=fighter_uid,
+    )
+    if not summary:
         raise HTTPException(status_code=404, detail="Fighter not found")
+    row = summary[0]
     fights = rows(
         """
         with totals as (
@@ -112,8 +171,8 @@ def fighter_analytics(fighter_uid: str) -> dict[str, Any]:
         uid=fighter_uid,
     )
     return {
-        "bio": bio.row(0, named=True),
-        "record": {key: value or 0 for key, value in record.row(0, named=True).items()},
+        "bio": {key: row[key] for key in _BIO_KEYS},
+        "record": {key: int(row[key] or 0) for key in _RECORD_KEYS},
         "fights": fights,
     }
 

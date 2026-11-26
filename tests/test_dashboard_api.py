@@ -44,7 +44,17 @@ def test_metadata_counts_completed_fights(client):
         "fights": 6,
         "first_year": 2024,
         "last_year": 2099,
+        "default_fighter_uid": "alpha",
     }
+
+
+def test_metadata_prefers_max_holloway_as_default_fighter(client, tmp_path):
+    with duckdb.connect(str(tmp_path / "dashboard.duckdb")) as db:
+        db.execute(
+            "insert into ufc_fighters values ('holloway', 'Max', 'Holloway', 'Blessed', null, null, 'Orthodox', null, 71, 69, null)"
+        )
+    analytics._cached_rows.cache_clear()
+    assert client.get("/metadata").json()["default_fighter_uid"] == "holloway"
 
 
 def test_profile_keeps_fights_without_stats_and_uses_latest_odds(client):

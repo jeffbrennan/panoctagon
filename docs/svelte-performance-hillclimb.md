@@ -172,7 +172,7 @@ repeatable measurements.
   Validation: `svelte-check` (0 errors), Vitest (13/13), Playwright desktop +
   mobile + axe (36/36), Python dashboard/web/snapshot/cutover tests (17/17).
 
-### Experiment 2: Overlap chart-family loading with view intent and activation (kept)
+### Experiment 2: Overlap chart-family loading with view intent and activation (kept — `a134352`)
 
 - **Hypothesis:** Preloading the view's ECharts family on nav hover/focus (when
   `navigator.connection.saveData` is unset) and queueing `preloadChart(family)`
@@ -211,6 +211,58 @@ repeatable measurements.
 - **Decision:** Kept. Artifacts: `.scratch/release-gates/transition-{baseline,exp2b}-*.json`.
   Validation: `svelte-check` (0 errors), Vitest (13/13), Playwright desktop +
   mobile + axe (36/36).
+
+### Experiment 3: Eliminate default-fighter waterfall, cache fighter bio/record, and overlap view data with module load (kept)
+
+- **Hypothesis:** Resolving `default_fighter_uid` inside cached `DashboardMetadata`,
+  caching fighter bio/record in `fighter_analytics()` (instead of running uncached
+  `get_fighter_detail()` and discarding `recent_fights`), and warming the active
+  view's first API request in parallel with `loaders[next]()` in `App.svelte`
+  removes the two-step fighter search waterfall and cuts both data and chart readiness.
+- **Change:**
+  - `panoctagon/api/models.py` & `panoctagon/api/analytics.py`: add additive
+    `default_fighter_uid: Optional[str] = None` to `DashboardMetadata` (prefers
+    Max Holloway, else most completed fights, else first fighter); replace
+    uncached `get_fighter_detail()` inside `fighter_analytics()` with a single
+    revision-pinned cached `rows()` query for bio + record.
+  - `frontend/src/lib/api.ts`: add revision-safe `warmApi(path)` with in-flight
+    deduplication (`inflight` map cleared on `invalidateCache()`), honoring
+    `AbortSignal` and `bypass`.
+  - `frontend/src/views/Fighters.svelte` & `frontend/src/App.svelte`: read
+    `metadata?.default_fighter_uid` (falling back to `/fighter?name=Max%20Holloway&limit=1`
+    when absent) and call `warmViewData(next)` on first view load (`!pages[next]`)
+    only after the user navigates to `next` (no speculative prefetch of hidden views).
+- **Controlled A/B results (`transition-benchmark.cjs`, 20 fresh contexts per
+  scenario, warm local server, 0 errors/failures):**
+
+| Scenario / Metric | Baseline (`a134352`) p50 / p95 / max (ms) | Candidate p50 / p95 / max (ms) |
+| --- | ---: | ---: |
+| `desktop-immediate` Fighter data | **114.0 / 115.7 / 116.2** | **34.7 / 35.8 / 48.3** |
+| `desktop-immediate` Fighter chart | **131.0 / 132.8 / 143.7** | **112.1 / 130.4 / 130.4** |
+| `desktop-immediate` Roster data | **43.6 / 70.0 / 90.7** | **38.6 / 43.4 / 54.4** |
+| `desktop-immediate` Roster chart | **83.8 / 99.4 / 100.6** | **84.0 / 85.4 / 100.0** |
+| `desktop-hover` Fighter data | **95.6 / 99.3 / 113.8** | **37.9 / 38.8 / 72.7** |
+| `desktop-hover` Fighter chart | **113.4 / 114.6 / 132.2** | **96.0 / 97.1 / 97.5** |
+| `desktop-hover` Network chart | 65.3 / 83.0 / 113.9 | 64.7 / 80.3 / 81.9 |
+| `desktop-hover` Roster chart | 80.7 / 98.1 / 147.1 | 80.6 / 96.9 / 97.1 |
+| `mobile-touch` Fighter chart | **229.3 / 231.1 / 243.4** | **213.6 / 230.5 / 230.7** |
+| `mobile-touch` Network chart | **150.7 / 165.8 / 167.0** | **150.5 / 151.2 / 151.3** |
+| `mobile-touch` Roster data | **115.4 / 146.1 / 147.9** | **115.7 / 117.2 / 117.6** |
+| `mobile-touch` Roster chart | 150.9 / 166.7 / 167.0 | 165.5 / 166.4 / 167.1 |
+
+- **Cost and trade-offs:** Upcoming transfer changed from 27,032 to 27,298 bytes
+  (+266 bytes for `warmApi` + `default_fighter_uid` field); total transfer across
+  all views changed from 377,250 to 377,402 bytes (+152 bytes). Zero extra
+  requests occur on Upcoming or on hover; `warmViewData` fires only on actual
+  activation of an unloaded view. On desktop, `fighterDataMs` p95 dropped by
+  80 ms (`desktop-immediate`) and 60 ms (`desktop-hover`), bringing `desktop-hover`
+  `fighterChartMs` p95 under 100 ms (97.1 ms). On `mobile-touch`, Playwright's
+  `link.tap()` actionability check accounts for ~90 ms of the measured window
+  and `set-option` → `data-frame` still takes ~54 ms (44 ms on desktop) because
+  of ECharts `lazyUpdate: true` + initial paint scheduling (next target: Experiment 4).
+- **Decision:** Kept. Artifacts: `.scratch/release-gates/transition-{exp2b,exp3}-*.json`.
+  Validation: Python suite (18/18), `svelte-check` (0 errors), Vitest (14/14),
+  Playwright desktop + mobile + axe (36/36), Playwright integration (2/2).
 
 ## Keep-or-revert loop
 

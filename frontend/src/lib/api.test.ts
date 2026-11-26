@@ -89,3 +89,25 @@ it('allows an explicit cache bypass', async () => {
   await api('/upcoming');
   expect(await api('/upcoming', undefined, true)).toEqual([2]);
 });
+
+it('reuses an in-flight warmed request while still respecting abort and cache invalidation', async () => {
+  let finish!: (value: unknown) => void;
+  const fetch = vi.fn().mockResolvedValue({
+    ok: true,
+    json: () => new Promise((resolve) => (finish = resolve)),
+  });
+  vi.stubGlobal('fetch', fetch);
+  const { api, warmApi, invalidateCache, isAbort } = await import('./api');
+  warmApi('/analytics/roster?division=MIDDLEWEIGHT');
+  const controller = new AbortController();
+  const first = api('/analytics/roster?division=MIDDLEWEIGHT', controller.signal);
+  expect(fetch).toHaveBeenCalledTimes(1);
+  controller.abort();
+  await expect(first).rejects.toSatisfy(isAbort);
+  invalidateCache();
+  finish({ stale: true });
+  await Promise.resolve();
+  fetch.mockResolvedValueOnce(new Response('{"fresh":true}'));
+  expect(await api('/analytics/roster?division=MIDDLEWEIGHT')).toEqual({ fresh: true });
+  expect(fetch).toHaveBeenCalledTimes(2);
+});

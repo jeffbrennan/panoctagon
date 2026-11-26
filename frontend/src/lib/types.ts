@@ -47,12 +47,13 @@ export interface Metadata {
   fights: number;
   first_year: number;
   last_year: number;
+  default_fighter_uid?: string | null;
 }
 export interface FighterBio {
   fighter_uid: string;
-  full_name: string;
   first_name: string;
   last_name: string;
+  full_name: string;
   nickname: string | null;
   dob: string | null;
   place_of_birth: string | null;

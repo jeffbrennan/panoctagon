@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import type { Component } from 'svelte';
   import type { Metadata, View } from './lib/types';
-  import { api, invalidateCache } from './lib/api';
+  import { api, invalidateCache, warmApi } from './lib/api';
   import { createRefresh } from './lib/refresh';
   import { preloadChart, type ChartFamily } from './lib/chartLoader';
   import State from './lib/State.svelte';
@@ -44,6 +44,18 @@
   function saveDataEnabled(): boolean {
     return Boolean((navigator as { connection?: { saveData?: boolean } }).connection?.saveData);
   }
+  function warmViewData(next: View) {
+    if (pages[next]) return;
+    if (next === 'fighters') {
+      const id = fighter || metadata?.default_fighter_uid;
+      if (id) warmApi(`/fighter/${encodeURIComponent(id)}/analytics`);
+    } else if (next === 'roster') {
+      warmApi('/analytics/roster?division=MIDDLEWEIGHT');
+    } else if (next === 'network' && metadata?.current_year) {
+      const end = metadata.current_year;
+      warmApi(`/analytics/network?division=HEAVYWEIGHT&start_year=${end - 5}&end_year=${end}`);
+    }
+  }
   async function show(next: View, uid?: string, push = true) {
     view = next;
     if (next === 'fighters' && uid !== undefined) fighter = uid;
@@ -61,6 +73,7 @@
       loading = false;
       return;
     }
+    warmViewData(next);
     const family = chartFamilies[next];
     const existing = modules.get(next);
     if (existing) {
