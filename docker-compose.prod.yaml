@@ -1,0 +1,15 @@
+# Production overlay pulling prebuilt images from GHCR instead of building on the VPS.
+# Used by scripts/deploy.sh:
+#   docker compose -f docker-compose.yaml -f docker-compose.svelte.yaml -f docker-compose.prod.yaml ...
+services:
+  panoctagon_backend:
+    image: ghcr.io/jeffbrennan/panoctagon-backend:${IMAGE_TAG:-latest}
+
+  panoctagon_daemon:
+    image: ghcr.io/jeffbrennan/panoctagon-backend:${IMAGE_TAG:-latest}
+
+  panoctagon_code_server:
+    image: ghcr.io/jeffbrennan/panoctagon-backend:${IMAGE_TAG:-latest}
+
+  panoctagon_frontend:
+    image: ghcr.io/jeffbrennan/panoctagon-frontend:${IMAGE_TAG:-latest}

@@ -23,6 +23,7 @@ tmp*
 
 *.env
 *.sh
+!scripts/deploy.sh
 
 data/dagster/*
 !data/dagster/dagster.yaml
