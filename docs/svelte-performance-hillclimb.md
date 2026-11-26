@@ -123,7 +123,7 @@ repeatable measurements.
 
 ## Experiment log
 
-### Experiment 1: Revisit delays and redundant Network option application (kept)
+### Experiment 1: Revisit delays and redundant Network option application (kept — `d1bef52`)
 
 - **Environment:** Apple M1 Pro, macOS, Node 26.13.0, Python 3.12.10, headless
   Chromium 1440×900, copied 2026-02-08 dataset, warm local server (`127.0.0.1:18751`).
@@ -171,6 +171,46 @@ repeatable measurements.
   Artifacts: `.scratch/release-gates/revisit-{baseline,exp1}-*.json`.
   Validation: `svelte-check` (0 errors), Vitest (13/13), Playwright desktop +
   mobile + axe (36/36), Python dashboard/web/snapshot/cutover tests (17/17).
+
+### Experiment 2: Overlap chart-family loading with view intent and activation (kept)
+
+- **Hypothesis:** Preloading the view's ECharts family on nav hover/focus (when
+  `navigator.connection.saveData` is unset) and queueing `preloadChart(family)`
+  right after view mount in `show()` lets chart module download/parse overlap
+  with hover dwell and API requests instead of waiting for `IntersectionObserver`.
+- **Change:** Memoize `loadChart` with failure eviction and add `preloadChart`
+  in `frontend/src/lib/chartLoader.ts`; call `preloadChart` in `prefetch()`
+  (respecting `saveData`) and via `queueMicrotask` after mount in `show()` in
+  `frontend/src/App.svelte`.
+- **Controlled A/B results (`transition-benchmark.cjs`, 20 fresh contexts per
+  scenario, warm local server, 0 errors/failures):**
+
+| Scenario / Metric | Baseline (`d1bef52`) p50 / p95 / max (ms) | Candidate p50 / p95 / max (ms) |
+| --- | ---: | ---: |
+| `desktop-immediate` Upcoming | 60.7 / 63.4 / 67.2 | 60.3 / 62.9 / 67.1 |
+| `desktop-immediate` Fighter data | 92.6 / 93.7 / 94.4 | 114.0 / 115.7 / 116.2 |
+| `desktop-immediate` Fighter chart | **147.2 / 149.7 / 158.3** | **131.0 / 132.8 / 143.7** |
+| `desktop-immediate` Network chart | 67.3 / 75.7 / 77.1 | 67.5 / 83.6 / 84.3 |
+| `desktop-immediate` Roster chart | 84.1 / 100.8 / 101.8 | 83.8 / 99.4 / 100.6 |
+| `desktop-hover` (150 ms) Fighter chart | **146.3 / 148.6 / 154.5** | **113.4 / 114.6 / 132.2** |
+| `desktop-hover` (150 ms) Network chart | **64.9 / 95.8 / 96.7** | **65.3 / 83.0 / 113.9** |
+| `desktop-hover` (150 ms) Roster chart | 82.6 / 99.0 / 195.1 | 80.7 / 98.1 / 147.1 |
+| `mobile-touch` (390×844) Fighter chart | **231.2 / 248.4 / 261.6** | **229.3 / 231.1 / 243.4** |
+| `mobile-touch` (390×844) Roster chart | **166.5 / 167.6 / 167.8** | **150.9 / 166.7 / 167.0** |
+
+- **Cost and trade-offs:** Upcoming initial transfer changed from 26,601 to
+  27,032 bytes (+431 bytes); total transfer across all views was unchanged
+  (377,168 → 377,250 bytes). Zero ECharts chunks load on Upcoming. On
+  `desktop-immediate`, parsing ECharts during the fighter API wait shifts
+  `fighterDataMs` from 93.7 → 115.7 ms while cutting total `fighterChartMs`
+  from 149.7 → 132.8 ms (-17 ms); on `desktop-hover`, parse completes during
+  hover dwell (-34 ms on `fighterChartMs`). On `mobile-touch`, `modules-start`
+  → `modules-ready` dropped from 33.2 ms to 0.1 ms, cutting p95 by 17 ms,
+  leaving the two-step default-fighter API waterfall as the remaining mobile
+  bottleneck above 200 ms.
+- **Decision:** Kept. Artifacts: `.scratch/release-gates/transition-{baseline,exp2b}-*.json`.
+  Validation: `svelte-check` (0 errors), Vitest (13/13), Playwright desktop +
+  mobile + axe (36/36).
 
 ## Keep-or-revert loop
 

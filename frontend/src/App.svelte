@@ -4,6 +4,7 @@
   import type { Metadata, View } from './lib/types';
   import { api, invalidateCache } from './lib/api';
   import { createRefresh } from './lib/refresh';
+  import { preloadChart, type ChartFamily } from './lib/chartLoader';
   import State from './lib/State.svelte';
   import Upcoming from './views/Upcoming.svelte';
 
@@ -18,6 +19,11 @@
     fighters: () => import('./views/Fighters.svelte'),
     network: () => import('./views/Network.svelte'),
     roster: () => import('./views/Roster.svelte'),
+  };
+  const chartFamilies: Partial<Record<View, ChartFamily>> = {
+    fighters: 'fighter',
+    network: 'network',
+    roster: 'roster',
   };
   const modules = new Map<string, Component<any>>();
   const initialParams = new URLSearchParams(location.search);
@@ -35,6 +41,9 @@
   let refresh = $state(0);
   let visible = $state(!document.hidden);
 
+  function saveDataEnabled(): boolean {
+    return Boolean((navigator as { connection?: { saveData?: boolean } }).connection?.saveData);
+  }
   async function show(next: View, uid?: string, push = true) {
     view = next;
     if (next === 'fighters' && uid !== undefined) fighter = uid;
@@ -52,17 +61,22 @@
       loading = false;
       return;
     }
+    const family = chartFamilies[next];
     const existing = modules.get(next);
     if (existing) {
       pages[next] = existing;
       loading = false;
+      if (family) queueMicrotask(() => preloadChart(family));
       return;
     }
     loading = true;
     try {
       const module = await loaders[next]();
       modules.set(next, module.default);
-      if (current === sequence) pages[next] = module.default;
+      if (current === sequence) {
+        pages[next] = module.default;
+        if (family) queueMicrotask(() => preloadChart(family));
+      }
     } catch {
       if (current === sequence) viewError = true;
     } finally {
@@ -94,10 +108,13 @@
     }
   }
   function prefetch(next: View) {
-    if (next !== 'upcoming' && !modules.has(next))
+    if (next === 'upcoming' || saveDataEnabled()) return;
+    if (!modules.has(next))
       void loaders[next]()
         .then((module) => modules.set(next, module.default))
         .catch(() => {});
+    const family = chartFamilies[next];
+    if (family) preloadChart(family);
   }
   onMount(() => {
     readLocation();
