@@ -2,7 +2,7 @@
 
 UFC fight data, stats, and visualizations — live at [panoctagon.jeffbrennan.dev](https://panoctagon.jeffbrennan.dev).
 
-Scrapes UFC Stats and Best Fight Odds on a schedule, crunches everything in DuckDB with Dagster and dbt, and serves a fast Svelte + ECharts dashboard alongside a FastAPI backend and CLI.
+Scrapes UFC Stats and Best Fight Odds on a schedule, crunches everything in DuckDB with Dagster and dbt, and serves a Svelte + ECharts dashboard alongside a FastAPI backend and CLI.
 
 ## The site
 
@@ -61,13 +61,13 @@ panoctagon roster
 
 ## Pipeline
 
-Scraping, parsing, and transformations run through Dagster and dbt into DuckDB. After a clean refresh, the pipeline publishes a read-only snapshot under `data/api_snapshots` so the web/API readers never contend with writes.
+Scraping, parsing, and transformations run through Dagster and dbt into DuckDB. After each refresh, the pipeline publishes a read-only snapshot under `data/api_snapshots` so the web app and API never contend with writes.
 
 ![pipeline](docs/pipeline.jpg)
 
 ## Running locally
 
-The dashboard lives in [`frontend/`](frontend/README.md) (Svelte 5 + TypeScript + ECharts) and is served together with `/api` by FastAPI (`panoctagon.web.server:app`).
+The dashboard lives in [`frontend/`](frontend/README.md) (Svelte 5 + TypeScript + ECharts) and is served alongside `/api` by FastAPI (`panoctagon.web.server:app`).
 
 ```sh
 # dev mode (separate terminals, proxies /api automatically)
@@ -78,7 +78,7 @@ just web
 just webpreview
 ```
 
-For frontend checks, Playwright tests, and deployment notes, see [`frontend/README.md`](frontend/README.md) and [`docs/svelte-cutover-runbook.md`](docs/svelte-cutover-runbook.md). To opt into the single-container Svelte + API stack in Docker, layer `docker-compose.svelte.yaml` on top of `docker-compose.yaml`.
+More on frontend dev and Playwright tests in [`frontend/README.md`](frontend/README.md).
 
 ## Stack
 
