@@ -264,7 +264,7 @@ repeatable measurements.
   Validation: Python suite (18/18), `svelte-check` (0 errors), Vitest (14/14),
   Playwright desktop + mobile + axe (36/36), Playwright integration (2/2).
 
-### Experiment 4: Synchronous chart option flush, Network series-key dedupe, and near-fold intersection margin (kept)
+### Experiment 4: Synchronous chart option flush, Network series-key dedupe, and near-fold intersection margin (kept — `df981f3`)
 
 - **Hypothesis:** `Chart.svelte` marks showed `set-option` → `data-frame` taking
   33–55 ms because `lazyUpdate: true` defers ECharts rendering to a subsequent
@@ -310,6 +310,68 @@ repeatable measurements.
 - **Decision:** Kept. Artifacts: `.scratch/release-gates/transition-{exp3,exp4b}-*.json`.
   Validation: `svelte-check` (0 errors), Vitest (14/14), Playwright desktop +
   mobile + axe (36/36), Playwright integration (2/2).
+
+### Experiment 5: Eliminate cold-process API lazy-import spikes, optimize Upcoming/Roster SQL, and remove snapshot cache rollover (kept)
+
+- **Root-cause profiling (fresh Python processes on copied 2026-02-08 dataset):**
+  1. **First parameterized DuckDB query (`roster` 249.5 ms cold p95):** The 3
+     roster SQL queries themselves took only ~50 ms combined; **227.7 ms** was
+     spent on DuckDB's C++ Python parameter converter lazily importing 533
+     Python modules (`pandas`, `dateutil`, `pytz`, etc.) during the very first
+     parameterized query in a fresh process.
+  2. **First `/api/upcoming` request (171.1 ms cold p95 for 0 rows):**
+     `get_upcoming_fights()` called `pl.read_database()`, lazily importing
+     `pyarrow`, `numpy`, and `duckdb_engine` (~140 ms), while also scanning and
+     window-sorting the entire `bfo_ufc_link × bfo_parsed_odds` table and all
+     2,637 fighters' records before filtering to upcoming fights.
+  3. **First `/api/analytics/network` request (169.8 ms cold p95):**
+     `_network()` lazily ran `import networkx as nx` (~50 ms) inside the
+     request handler.
+  4. **Published snapshot cache rollover:** `_cached_rows` and `_network`
+     keyed on `int(time.monotonic() // 120)` even for immutable published
+     snapshot revisions, causing avoidable cold spikes every 2 minutes.
+- **Change:**
+  - `panoctagon/api/database.py`, `panoctagon/api/server.py`, `panoctagon/web/server.py`:
+    add `warm_runtime()` in FastAPI `lifespan` to load the `duckdb_engine`
+    dialect and DuckDB's parameter type registry once against `:memory:` before
+    serving traffic; cache the read-only `NullPool` SQLAlchemy engine keyed by
+    `(path, st_dev, st_ino, st_mtime_ns, st_size)` so unlink/publish/rollback
+    immediately invalidates and disposes the old engine without holding open
+    DuckDB file handles between requests.
+  - `panoctagon/api/queries.py` & `panoctagon/api/server.py`: filter `upcoming`
+    fights first in `_UPCOMING_FIGHTS_SQL` before joining `fighter_records` and
+    `bfo_parsed_odds`; add `get_upcoming_rows()` returning SQLAlchemy mappings
+    directly without the Polars/PyArrow round-trip.
+  - `panoctagon/api/analytics.py`: hoist `import networkx as nx` to module
+    import time; filter `eligible` fighters before the `striking` self-join and
+    `opposition` join in `roster_analytics()`; key immutable published
+    snapshots (`revision.published_at is not None`) with `period = 0` so
+    caches stay warm until publication or rollback while preserving the
+    120 s bucket for mutable local databases.
+- **Controlled A/B results (`cold-api-benchmark.py`, 20 fresh server processes
+  each, warm OS file cache, identical response byte sizes):**
+
+| Endpoint (fresh server process) | Baseline (`df981f3`) p50 / p95 / max (ms) | Candidate p50 / p95 / max (ms) | p95 delta |
+| --- | ---: | ---: | ---: |
+| `/api/upcoming` (empty, 2 B) | 161.65 / **171.11** / 172.15 | 16.55 / **17.53** / 19.40 | **-153.58 ms** |
+| `/api/analytics/roster?division=MIDDLEWEIGHT` (53,109 B) | 246.89 / **249.53** / 251.02 | 76.56 / **81.44** / 98.31 | **-168.09 ms** |
+| `/api/analytics/network?division=HEAVYWEIGHT&start_year=1997&end_year=2026` (~132,518 B) | 164.46 / **169.75** / 173.76 | 118.02 / **123.89** / 123.94 | **-45.86 ms** |
+
+- **Warm API results (`api-benchmark.py`, 20 requests each on a running server):**
+  - `upcoming`: p50 13.10 ms / p95 14.38 ms (vs Nov 1 18.16 / 18.90 ms)
+  - `roster`: p50 1.53 ms / p95 1.95 ms (vs Nov 1 2.01 / 31.51 ms)
+  - `network_all_years`: p50 3.07 ms / p95 27.32 ms (first cold miss 114.8 ms,
+    warm hits ~3.0 ms)
+- **Cost and trade-offs:** Moving DuckDB dialect/parameter-registry warming and
+  `networkx` import into startup brings total process boot-to-`/readyz` time to
+  **687 ms median** (5 boots: 672–712 ms, ~280 ms added once per process boot)
+  in exchange for cutting ~367 ms across the first live requests and eliminating
+  2-minute snapshot rollover spikes. Memory footprint is unchanged once
+  parameterized queries and network views have run (the same modules were
+  already imported lazily on first request). Snapshot publication time, disk
+  use, and read-only isolation are unchanged.
+- **Decision:** Kept. Artifacts: `.scratch/release-gates/api-process-cold-{baseline,exp5}.json`,
+  `.scratch/release-gates/api-bench.json`.
 
 ## Keep-or-revert loop
 

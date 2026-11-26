@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from starlette.responses import JSONResponse
 
-from panoctagon.api.database import _active, resolve_revision
+from panoctagon.api.database import _active, dispose_cached_engines, resolve_revision, warm_runtime
 from fastapi.middleware.gzip import GZipMiddleware
 
 from panoctagon.api.analytics import router as analytics_router
@@ -39,15 +40,26 @@ from panoctagon.api.queries import (
     get_fighter_stats,
     get_rankings,
     get_roster,
-    get_upcoming_fights,
+    get_upcoming_rows,
     search_events,
     search_fighters,
 )
+
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    warm_runtime()
+    try:
+        yield
+    finally:
+        dispose_cached_engines()
+
 
 app = FastAPI(
     title="Panoctagon API",
     description="UFC fight data API",
     version="0.1.0",
+    lifespan=_lifespan,
 )
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 @app.middleware("http")
@@ -161,14 +173,14 @@ def get_fighter_stats_endpoint(fighter_uid: str) -> FighterStats:
 
 @app.get("/upcoming", response_model=list[UpcomingEvent])
 def list_upcoming() -> list[UpcomingEvent]:
-    df = get_upcoming_fights()
+    upcoming_rows = get_upcoming_rows()
 
-    if df.height == 0:
+    if not upcoming_rows:
         return []
 
     events: dict[str, UpcomingEvent] = {}
 
-    for row in df.iter_rows(named=True):
+    for row in upcoming_rows:
         event_uid = row["event_uid"]
 
         matchup = UpcomingMatchup(

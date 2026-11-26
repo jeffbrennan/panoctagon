@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 import re
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from sqlalchemy import text
 
-from panoctagon.api.database import get_read_engine
+from panoctagon.api.database import dispose_cached_engines, get_read_engine, warm_runtime
 from fastapi.middleware.gzip import GZipMiddleware
 from starlette.responses import Response
 from starlette.staticfiles import StaticFiles
@@ -29,8 +30,17 @@ class FrontendFiles(StaticFiles):
         return response
 
 
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    warm_runtime()
+    try:
+        yield
+    finally:
+        dispose_cached_engines()
+
+
 def create_app(frontend_directory: Path = FRONTEND_DIRECTORY) -> FastAPI:
-    app = FastAPI(title="Panoctagon", docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(title="Panoctagon", docs_url=None, redoc_url=None, openapi_url=None, lifespan=_lifespan)
     app.add_middleware(GZipMiddleware, minimum_size=1000)
     @app.get("/healthz")
     def healthz():
@@ -44,7 +54,6 @@ def create_app(frontend_directory: Path = FRONTEND_DIRECTORY) -> FastAPI:
             engine = get_read_engine()
             with engine.connect() as connection:
                 connection.execute(text("select count(*) from ufc_events"))
-            engine.dispose()
         except Exception:
             raise HTTPException(status_code=503, detail="Database unavailable")
         return {"status": "ready"}

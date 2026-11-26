@@ -4,8 +4,9 @@ from dataclasses import dataclass
 import json
 import os
 from pathlib import Path
+import threading
 
-from sqlalchemy import Engine, create_engine
+from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.pool import NullPool
 
 
@@ -17,6 +18,10 @@ class DatabaseRevision:
 
 
 _active: ContextVar[DatabaseRevision | None] = ContextVar('api_database_revision', default=None)
+_engine_lock = threading.Lock()
+_cached_engine_key: tuple[str, int, int, int, int] | None = None
+_cached_engine: Engine | None = None
+_runtime_warmed = False
 
 
 def resolve_revision() -> DatabaseRevision:
@@ -40,6 +45,56 @@ def current_revision() -> DatabaseRevision:
     return _active.get() or resolve_revision()
 
 
+def warm_runtime() -> None:
+    """Preload DuckDB's SQLAlchemy dialect and Python parameter type registry once at startup."""
+    global _runtime_warmed
+    if _runtime_warmed:
+        return
+    with _engine_lock:
+        if _runtime_warmed:
+            return
+        engine = create_engine('duckdb:///:memory:', poolclass=NullPool)
+        try:
+            with engine.connect() as conn:
+                conn.execute(text('select :probe'), {'probe': ''}).fetchall()
+        finally:
+            engine.dispose()
+        _runtime_warmed = True
+
+
+def dispose_cached_engines() -> None:
+    """Dispose any cached read-only DuckDB engine."""
+    global _cached_engine, _cached_engine_key
+    with _engine_lock:
+        engine = _cached_engine
+        _cached_engine = None
+        _cached_engine_key = None
+    if engine is not None:
+        engine.dispose()
+
+
 def get_read_engine() -> Engine:
-    return create_engine(f'duckdb:///{current_revision().path}', poolclass=NullPool,
-                         connect_args={'read_only': True})
+    """Return a revision- and file-stat-keyed read-only DuckDB engine."""
+    global _cached_engine, _cached_engine_key
+    path = current_revision().path
+    try:
+        st = path.stat()
+    except FileNotFoundError:
+        dispose_cached_engines()
+        raise
+    key = (str(path), st.st_dev, st.st_ino, st.st_mtime_ns, st.st_size)
+    old_engine: Engine | None = None
+    with _engine_lock:
+        if _cached_engine is not None and _cached_engine_key == key:
+            return _cached_engine
+        old_engine = _cached_engine
+        engine = create_engine(
+            f'duckdb:///{path}',
+            poolclass=NullPool,
+            connect_args={'read_only': True},
+        )
+        _cached_engine = engine
+        _cached_engine_key = key
+    if old_engine is not None:
+        old_engine.dispose()
+    return engine

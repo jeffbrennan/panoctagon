@@ -245,90 +245,122 @@ def get_fighter_stats(fighter_uid: str) -> Optional[pl.DataFrame]:
         return df
 
 
+_UPCOMING_FIGHTS_SQL = """
+with upcoming as (
+    select
+        f.fight_uid,
+        f.event_uid,
+        e.title as event_title,
+        e.event_date,
+        e.event_location,
+        f.fight_division,
+        f.fight_type,
+        f.fight_order,
+        f.fighter1_uid,
+        f.fighter2_uid
+    from ufc_fights f
+    inner join ufc_events e on f.event_uid = e.event_uid
+    where f.fighter1_result is null
+      and e.event_date::date >= current_date
+),
+upcoming_fighters as (
+    select fighter1_uid as fighter_uid from upcoming
+    union
+    select fighter2_uid as fighter_uid from upcoming
+),
+fighter_info as (
+    select
+        f.fighter_uid,
+        f.first_name || ' ' || f.last_name as fighter_name,
+        f.reach_inches,
+        f.height_inches,
+        f.stance
+    from ufc_fighters f
+    inner join upcoming_fighters uf on f.fighter_uid = uf.fighter_uid
+),
+fighter_records as (
+    select
+        fighter_uid,
+        count(*) as total_fights,
+        sum(case when result = 'WIN' then 1 else 0 end) as wins,
+        sum(case when result = 'LOSS' then 1 else 0 end) as losses,
+        sum(case when result = 'DRAW' then 1 else 0 end) as draws
+    from (
+        select f.fighter1_uid as fighter_uid, f.fighter1_result as result
+        from ufc_fights f
+        inner join upcoming_fighters uf on f.fighter1_uid = uf.fighter_uid
+        where f.fighter1_result is not null
+        union all
+        select f.fighter2_uid as fighter_uid, f.fighter2_result as result
+        from ufc_fights f
+        inner join upcoming_fighters uf on f.fighter2_uid = uf.fighter_uid
+        where f.fighter2_result is not null
+    )
+    group by fighter_uid
+),
+odds as (
+    select bl.fight_uid, bl.fighter_uid, bo.closing_odds,
+        row_number() over (
+            partition by bl.fight_uid, bl.fighter_uid
+            order by bo.event_date desc, bo.slug desc
+        ) as rn
+    from bfo_ufc_link bl
+    inner join upcoming u on bl.fight_uid = u.fight_uid
+    inner join bfo_parsed_odds bo
+        on bl.match_id = bo.match_id and bl.fighter = bo.fighter
+)
+select
+    u.fight_uid,
+    u.event_uid,
+    u.event_title,
+    u.event_date,
+    u.event_location,
+    u.fight_division,
+    u.fight_type,
+    u.fight_order,
+    u.fighter1_uid,
+    f1.fighter_name as fighter1_name,
+    cast(coalesce(fr1.wins, 0) as varchar) || '-' ||
+    cast(coalesce(fr1.losses, 0) as varchar) || '-' ||
+    cast(coalesce(fr1.draws, 0) as varchar) as fighter1_record,
+    f1.reach_inches as fighter1_reach,
+    f1.height_inches as fighter1_height,
+    f1.stance as fighter1_stance,
+    coalesce(fr1.total_fights, 0) as fighter1_total_fights,
+    odds1.closing_odds as fighter1_closing_odds,
+    u.fighter2_uid,
+    f2.fighter_name as fighter2_name,
+    cast(coalesce(fr2.wins, 0) as varchar) || '-' ||
+    cast(coalesce(fr2.losses, 0) as varchar) || '-' ||
+    cast(coalesce(fr2.draws, 0) as varchar) as fighter2_record,
+    f2.reach_inches as fighter2_reach,
+    f2.height_inches as fighter2_height,
+    f2.stance as fighter2_stance,
+    coalesce(fr2.total_fights, 0) as fighter2_total_fights,
+    odds2.closing_odds as fighter2_closing_odds
+from upcoming u
+inner join fighter_info f1 on u.fighter1_uid = f1.fighter_uid
+inner join fighter_info f2 on u.fighter2_uid = f2.fighter_uid
+left join fighter_records fr1 on u.fighter1_uid = fr1.fighter_uid
+left join fighter_records fr2 on u.fighter2_uid = fr2.fighter_uid
+left join odds odds1 on u.fight_uid = odds1.fight_uid
+    and u.fighter1_uid = odds1.fighter_uid and odds1.rn = 1
+left join odds odds2 on u.fight_uid = odds2.fight_uid
+    and u.fighter2_uid = odds2.fighter_uid and odds2.rn = 1
+order by u.event_date asc, u.fight_order asc nulls last
+"""
+
+
+def get_upcoming_rows() -> list[dict]:
+    engine = get_read_engine()
+    with engine.connect() as conn:
+        return [dict(row) for row in conn.execute(text(_UPCOMING_FIGHTS_SQL)).mappings()]
+
+
 def get_upcoming_fights() -> pl.DataFrame:
     engine = get_read_engine()
     with engine.connect() as conn:
-        return pl.read_database(
-            """
-            with fighter_info as (
-                select
-                    fighter_uid,
-                    first_name || ' ' || last_name as fighter_name,
-                    reach_inches,
-                    height_inches,
-                    stance
-                from ufc_fighters
-            ),
-            fighter_records as (
-                select
-                    fighter_uid,
-                    count(*) as total_fights,
-                    sum(case when result = 'WIN' then 1 else 0 end) as wins,
-                    sum(case when result = 'LOSS' then 1 else 0 end) as losses,
-                    sum(case when result = 'DRAW' then 1 else 0 end) as draws
-                from (
-                    select fighter1_uid as fighter_uid, fighter1_result as result
-                    from ufc_fights where fighter1_result is not null
-                    union all
-                    select fighter2_uid as fighter_uid, fighter2_result as result
-                    from ufc_fights where fighter2_result is not null
-                )
-                group by fighter_uid
-            ),
-            odds as (
-                select bl.fight_uid, bl.fighter_uid, bo.closing_odds,
-                    row_number() over (
-                        partition by bl.fight_uid, bl.fighter_uid
-                        order by bo.event_date desc, bo.slug desc
-                    ) as rn
-                from bfo_ufc_link bl join bfo_parsed_odds bo
-                    on bl.match_id = bo.match_id and bl.fighter = bo.fighter
-            )
-            select
-                f.fight_uid,
-                f.event_uid,
-                e.title as event_title,
-                e.event_date,
-                e.event_location,
-                f.fight_division,
-                f.fight_type,
-                f.fight_order,
-                f.fighter1_uid,
-                f1.fighter_name as fighter1_name,
-                cast(coalesce(fr1.wins, 0) as varchar) || '-' ||
-                cast(coalesce(fr1.losses, 0) as varchar) || '-' ||
-                cast(coalesce(fr1.draws, 0) as varchar) as fighter1_record,
-                f1.reach_inches as fighter1_reach,
-                f1.height_inches as fighter1_height,
-                f1.stance as fighter1_stance,
-                coalesce(fr1.total_fights, 0) as fighter1_total_fights,
-                odds1.closing_odds as fighter1_closing_odds,
-                f.fighter2_uid,
-                f2.fighter_name as fighter2_name,
-                cast(coalesce(fr2.wins, 0) as varchar) || '-' ||
-                cast(coalesce(fr2.losses, 0) as varchar) || '-' ||
-                cast(coalesce(fr2.draws, 0) as varchar) as fighter2_record,
-                f2.reach_inches as fighter2_reach,
-                f2.height_inches as fighter2_height,
-                f2.stance as fighter2_stance,
-                coalesce(fr2.total_fights, 0) as fighter2_total_fights,
-                odds2.closing_odds as fighter2_closing_odds
-            from ufc_fights f
-            inner join ufc_events e on f.event_uid = e.event_uid
-            inner join fighter_info f1 on f.fighter1_uid = f1.fighter_uid
-            inner join fighter_info f2 on f.fighter2_uid = f2.fighter_uid
-            left join fighter_records fr1 on f.fighter1_uid = fr1.fighter_uid
-            left join fighter_records fr2 on f.fighter2_uid = fr2.fighter_uid
-            left join odds odds1 on f.fight_uid = odds1.fight_uid
-                and f.fighter1_uid = odds1.fighter_uid and odds1.rn = 1
-            left join odds odds2 on f.fight_uid = odds2.fight_uid
-                and f.fighter2_uid = odds2.fighter_uid and odds2.rn = 1
-            where f.fighter1_result is null
-            and e.event_date::date >= current_date
-            order by e.event_date asc, f.fight_order asc nulls last
-            """,
-            connection=conn,
-        )
+        return pl.read_database(_UPCOMING_FIGHTS_SQL, connection=conn)
 
 
 def get_rankings(

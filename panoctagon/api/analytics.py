@@ -9,6 +9,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
+import networkx as nx
 from sqlalchemy import text
 
 from panoctagon.api.models import (
@@ -28,8 +29,17 @@ def _cached_rows(sql: str, params: tuple, period: int, revision: str) -> list[di
         return [dict(row) for row in conn.execute(text(sql), dict(params)).mappings()]
 
 
+def _cache_scope() -> tuple[int, str]:
+    revision = current_revision()
+    # Published snapshots are immutable files keyed by a unique revision UUID,
+    # so they stay cached until publication or rollback without a 2-minute rollover spike.
+    period = 0 if revision.published_at is not None else int(time.monotonic() // 120)
+    return period, revision.revision
+
+
 def rows(sql: str, **params: Any) -> list[dict[str, Any]]:
-    return _cached_rows(sql, tuple(sorted(params.items())), int(time.monotonic() // 120), current_revision().revision)
+    period, revision = _cache_scope()
+    return _cached_rows(sql, tuple(sorted(params.items())), period, revision)
 
 
 def current_year() -> int:
@@ -179,8 +189,6 @@ def fighter_analytics(fighter_uid: str) -> dict[str, Any]:
 
 @lru_cache(maxsize=24)
 def _network(division: str, start_year: int, end_year: int, period: int, revision: str) -> dict[str, Any]:
-    import networkx as nx
-
     fights = rows(
         """
         select f.fighter1_uid, f.fighter2_uid, f.fighter1_result, f.fighter2_result,
@@ -264,7 +272,8 @@ def network(
     end_year = end_year if end_year is not None else year
     if start_year > end_year:
         raise HTTPException(status_code=422, detail="Start year must not exceed end year")
-    return _network(division, start_year, end_year, int(time.monotonic() // 120), current_revision().revision)
+    period, revision = _cache_scope()
+    return _network(division, start_year, end_year, period, revision)
 
 
 @router.get("/analytics/roster", response_model=RosterAnalytics)
@@ -284,28 +293,36 @@ def roster_analytics(division: str = "MIDDLEWEIGHT") -> dict[str, Any]:
             select fighter_uid, count(*) as total_fights,
                 count(case when result = 'WIN' then 1 end) as wins
             from results where result is not null group by fighter_uid
+        ), eligible as (
+            select f.fighter_uid, f.first_name || ' ' || f.last_name as fighter_name,
+                r.total_fights, r.wins
+            from ufc_fighters f
+            join records r on f.fighter_uid = r.fighter_uid
+            left join primary_division d on f.fighter_uid = d.fighter_uid and d.rn = 1
+            where r.total_fights >= 5 and (:division = 'ALL' or d.fight_division = :division)
         ), opposition as (
             select r.fighter_uid, sum(coalesce(o.wins, 0)) as opposition_strength
-            from results r left join records o on r.opponent_uid = o.fighter_uid
+            from results r
+            join eligible e on r.fighter_uid = e.fighter_uid
+            left join records o on r.opponent_uid = o.fighter_uid
             where r.result = 'WIN' group by r.fighter_uid
         ), striking as (
             select a.fighter_uid, median(a.total_strikes_landed) as landed,
                 median(b.total_strikes_landed) as absorbed
-            from ufc_fight_stats a join ufc_fight_stats b
+            from ufc_fight_stats a
+            join eligible e on a.fighter_uid = e.fighter_uid
+            join ufc_fight_stats b
                 on a.fight_uid = b.fight_uid and a.round_num = b.round_num and a.fighter_uid != b.fighter_uid
             group by a.fighter_uid
         )
-        select f.fighter_uid, f.first_name || ' ' || f.last_name as fighter_name,
-            r.total_fights, r.wins, s.landed, s.absorbed,
+        select e.fighter_uid, e.fighter_name,
+            e.total_fights, e.wins, s.landed, s.absorbed,
             coalesce(o.opposition_strength, 0) as opposition_strength
-        from ufc_fighters f
-        join records r on f.fighter_uid = r.fighter_uid
-        join striking s on f.fighter_uid = s.fighter_uid
-        left join primary_division d on f.fighter_uid = d.fighter_uid and d.rn = 1
-        left join opposition o on f.fighter_uid = o.fighter_uid
-        where r.total_fights >= 5 and (:division = 'ALL' or d.fight_division = :division)
-            and s.landed is not null and s.absorbed is not null
-        order by r.total_fights desc, f.fighter_uid
+        from eligible e
+        join striking s on e.fighter_uid = s.fighter_uid
+        left join opposition o on e.fighter_uid = o.fighter_uid
+        where s.landed is not null and s.absorbed is not null
+        order by e.total_fights desc, e.fighter_uid
     """,
         division=division,
     )

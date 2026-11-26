@@ -31,6 +31,7 @@ def test_publish_checkpoints_and_keeps_previous_revision_after_failure(tmp_path:
 
 def test_api_switches_revisions_and_isolates_cached_metadata(tmp_path: Path, monkeypatch):
     from fastapi.testclient import TestClient
+    from panoctagon.api import analytics
     from panoctagon.api.server import app
 
     working = tmp_path / 'working.duckdb'
@@ -38,9 +39,15 @@ def test_api_switches_revisions_and_isolates_cached_metadata(tmp_path: Path, mon
     seed_dashboard(working)
     first = publish_snapshot(working, directory)
     monkeypatch.setenv('PANOCTAGON_API_SNAPSHOT_DIR', str(directory))
+    analytics._cached_rows.cache_clear()
+    clock = [100.0]
+    monkeypatch.setattr(analytics.time, 'monotonic', lambda: clock[0])
     with TestClient(app) as client:
         assert client.get('/metadata').json()['revision'] == first['revision']
+        misses_after_first = analytics._cached_rows.cache_info().misses
+        clock[0] += 600.0  # advance past legacy 120 s rollover bucket
         assert client.get('/metadata').json()['fighters'] == 3
+        assert analytics._cached_rows.cache_info().misses == misses_after_first
         with duckdb.connect(str(working)) as db:
             db.execute("insert into ufc_fighters values ('delta', 'D', 'Delta', null, null, null, null, null, 70, 70, null)")
         second = publish_snapshot(working, directory)
