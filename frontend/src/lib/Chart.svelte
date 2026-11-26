@@ -29,6 +29,12 @@
   let renderedOption: EChartsOption | undefined;
   let renderedLabel = '';
   let renderedMotion = false;
+  // The release-gate harness opts in before page load; normal sessions do not
+  // collect performance entries or expose benchmark state.
+  const measuring = typeof window !== 'undefined' && Boolean((window as any).__chartPerformanceGate);
+  function mark(stage: string) {
+    if (measuring) performance.mark(`chart:${family}:${stage}`);
+  }
   export function resetGraphView() {
     const series = (chart?.getOption().series as GraphSeriesOption[] | undefined)?.find(
       (series) => series.type === 'graph',
@@ -40,6 +46,7 @@
     const width = container.clientWidth,
       height = container.clientHeight;
     if (width > 0 && (width !== measuredWidth || height !== measuredHeight)) {
+      mark('resize');
       chart.resize();
       measuredWidth = width;
       measuredHeight = height;
@@ -59,17 +66,21 @@
       async (entries) => {
         if (disposed) return;
         visible = entries.some((entry) => entry.isIntersecting);
+        mark(visible ? 'visible' : 'hidden');
         if (visible) chart?.getZr().animation.resume();
         else chart?.getZr().animation.pause();
         if (!visible || chart || initializing) return;
         initializing = true;
         try {
+          mark('modules-start');
           const { init } = await loadChart(family);
+          mark('modules-ready');
           if (disposed || !visible || container.clientWidth === 0) return;
           chart = init(container, undefined, {
             renderer: 'canvas',
             devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
           });
+          mark('initialized');
           measuredWidth = container.clientWidth;
           measuredHeight = container.clientHeight;
           chart.on('click', (params: any) => onselect?.(params.data));
@@ -103,7 +114,22 @@
     if (chart && visible) {
       resizeChart();
       const current = option;
-      if (current !== renderedOption)
+      if (current !== renderedOption) {
+        if (measuring) {
+          delete container.dataset.gateRendered;
+          const instance = chart;
+          const onRendered = () => {
+            instance.off('rendered', onRendered);
+            requestAnimationFrame(() => {
+              if (chart === instance && renderedOption === current) {
+                container.dataset.gateRendered = 'true';
+                mark('data-frame');
+              }
+            });
+          };
+          instance.on('rendered', onRendered);
+        }
+        mark('set-option');
         chart.setOption(
           {
             ...current,
@@ -112,7 +138,7 @@
           },
           { replaceMerge: ['series', ...(family === 'fighter' ? ['dataZoom'] : family === 'roster' ? ['visualMap'] : [])], lazyUpdate: true },
         );
-      else if (renderedLabel !== label || renderedMotion !== reducedMotion)
+      } else if (renderedLabel !== label || renderedMotion !== reducedMotion)
         chart.setOption({
           animation: !reducedMotion,
           aria: { enabled: true, label: { description: label } },

@@ -121,6 +121,57 @@ repeatable measurements.
    and the effect on small as well as large datasets. Do not add this complexity
    without a measured win.
 
+## Experiment log
+
+### Experiment 1: Revisit delays and redundant Network option application (kept)
+
+- **Environment:** Apple M1 Pro, macOS, Node 26.13.0, Python 3.12.10, headless
+  Chromium 1440×900, copied 2026-02-08 dataset, warm local server (`127.0.0.1:18751`).
+  21 cycles per mode (1 initial load + 20 revisits), 0 errors/failures.
+- **Root-cause findings (from trace `.scratch/release-gates/revisit-diagnostic.trace.json`
+  and Playwright source inspection):**
+  1. **Harness artifact (bimodal 231–250 ms vs 881–884 ms cycles):**
+     `.view:not([hidden])` plays `animation: enter 160ms ease-out` (`translateY(5px)` → `0`).
+     Playwright's `scrollIntoViewIfNeeded()` waits for `checkElementStates(["stable"])`
+     using retry backoff `[0, 20, 100, 100, 500]` ms. When the animation steps
+     between two consecutive rAFs, each chart view stalls for ~245 ms (~880 ms
+     for all three chart views + Upcoming). Switching to native instant scrolling
+     eliminates the stability wait; `prefers-reduced-motion: reduce` also drops
+     `scrollMs` from ~245 ms to ~61 ms (its `0.01ms` duration still triggers one
+     retry).
+  2. **Application defect (42 `chart:network:set-option` calls in 21 visits):**
+     `frontend/src/views/Network.svelte` bound `bind:clientWidth={graphWidth}`
+     directly into the `$derived` ECharts `option`. Hiding the view sets
+     `clientWidth` to `0` before `IntersectionObserver` sets `visible = false`,
+     triggering a spurious `setOption` with `graphWidth = 0` on hide and another
+     `setOption` on revisit (`0` → `1152`), adding ~52 ms to every Network revisit.
+- **Change:** Guard `graphWidth` in `frontend/src/views/Network.svelte` so zero
+  widths from hidden views are ignored while real viewport resizes still update
+  node sizing. Add opt-in chart marks (`window.__chartPerformanceGate`) in
+  `frontend/src/lib/Chart.svelte`, comparison modes in
+  `scripts/release-gates/revisit-diagnostic.cjs`, and a fresh-context
+  first-frame harness in `scripts/release-gates/transition-benchmark.cjs`.
+- **Controlled A/B results (20 revisits per mode, `GATE_TRACE=0`, 0 errors):**
+
+| Mode / View | Baseline p50 / p95 / max (ms) | Candidate p50 / p95 / max (ms) | `network:set-option` count (21 visits) |
+| --- | ---: | ---: | ---: |
+| `playwright-scroll` Fighters | 298.7 / 300.1 / 301.1 | 299.0 / 300.5 / 301.1 | — |
+| `playwright-scroll` Network | 298.8 / 299.8 / 300.7 | 298.8 / 300.0 / 300.5 | 42 → 1 |
+| `playwright-scroll` Roster | 298.8 / 300.4 / 315.1 | 298.6 / 300.0 / 300.6 | — |
+| `user-pointer` Fighters | 47.6 / 48.8 / 49.6 | 47.6 / 49.1 / 49.3 | — |
+| `user-pointer` Network | **99.9 / 100.2 / 100.3** | **49.0 / 50.9 / 51.4** | **42 → 1** |
+| `user-pointer` Roster | 48.1 / 49.1 / 49.9 | 48.5 / 49.5 / 49.8 | — |
+| `user-keyboard` Fighters | 12.7 / 14.4 / 18.6 | 13.1 / 14.5 / 18.9 | — |
+| `user-keyboard` Network | **66.8 / 68.4 / 68.7** | **16.2 / 16.5 / 16.6** | **42 → 1** |
+| `user-keyboard` Roster | 15.0 / 15.3 / 30.6 | 15.5 / 15.8 / 15.8 | — |
+| `reduced-motion` Network | 115.1 / 115.9 / 116.5 | 115.9 / 116.9 / 117.6 | 42 → 1 |
+
+- **Decision:** Kept. All real-user revisits are now well under 200 ms p95
+  (14–16 ms keyboard, 49–51 ms pointer including ~36 ms Playwright click check).
+  Artifacts: `.scratch/release-gates/revisit-{baseline,exp1}-*.json`.
+  Validation: `svelte-check` (0 errors), Vitest (13/13), Playwright desktop +
+  mobile + axe (36/36), Python dashboard/web/snapshot/cutover tests (17/17).
+
 ## Keep-or-revert loop
 
 For each experiment, record the hypothesis, exact change and commit, baseline

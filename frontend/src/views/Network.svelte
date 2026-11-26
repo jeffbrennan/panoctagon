@@ -24,7 +24,11 @@
   let selected = $state('');
   let focus = $state(false);
   let retry = $state(0);
+  let measuredGraphWidth = $state(0);
   let graphWidth = $state(1000);
+  $effect(() => {
+    if (measuredGraphWidth > 0 && measuredGraphWidth !== graphWidth) graphWidth = measuredGraphWidth;
+  });
   let graph = $state.raw<{ resetGraphView: () => void }>();
   let minYear = $derived(metadata?.first_year || 1993);
   let maxYear = $derived(Math.max(metadata?.last_year || 1993, metadata?.current_year || new Date().getUTCFullYear()));
@@ -215,7 +219,7 @@
         ><input type="checkbox" bind:checked={focus} disabled={!selected} /> Opponents only</label
       >
     </div>
-    <div class="network-graph" class:updating={loading} bind:clientWidth={graphWidth}>
+    <div class="network-graph" class:updating={loading} bind:clientWidth={measuredGraphWidth}>
       <Chart
         family="network"
         bind:this={graph}
