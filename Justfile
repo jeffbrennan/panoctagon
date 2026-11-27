@@ -18,6 +18,21 @@ dbw:
 viz:
     uv run python panoctagon/dashboard/main.py
 
+api:
+    uv run --python 3.12 uvicorn panoctagon.api.server:app --host 127.0.0.1 --port 8000
+
+web:
+    npm --prefix frontend run dev
+
+webpreview:
+    npm --prefix frontend run build
+    uv run --python 3.12 uvicorn panoctagon.web.server:app --host 127.0.0.1 --port 8080
+
+webcheck:
+    npm --prefix frontend run check
+    npm --prefix frontend test
+    npm --prefix frontend run build
+
 check:
     uv run pyright .
     uv run ruff check --fix
@@ -28,3 +43,6 @@ up:
     rm ~/panoctagon/data/panoctagon_orm.duckdb.wal  || echo 'wal does not exist'
     rm ~/panoctagon/data/panoctagon_orm.duckdb.lock || echo 'lock does not exist'
     docker compose up --build -d
+
+deploy:
+    ./scripts/deploy.sh

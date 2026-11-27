@@ -23,6 +23,7 @@ tmp*
 
 *.env
 *.sh
+!scripts/deploy.sh
 
 data/dagster/*
 !data/dagster/dagster.yaml
@@ -36,3 +37,11 @@ data/raw/ufc/betting_odds/parsed_slugs.json
 data/raw/ufc/betting_odds/attempted_links.json
 
 !docs/**
+
+# Local frontend rewrite workspace
+.scratch/
+frontend/node_modules/
+frontend/dist/
+frontend/.svelte-kit/
+!frontend/index.html
+/data/raw/ufc/fighter_headshots

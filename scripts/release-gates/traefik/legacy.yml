@@ -1,0 +1,32 @@
+http:
+  routers:
+    frontend:
+      rule: "Host(`panoctagon.test`)"
+      priority: 1
+      service: dash
+      entryPoints: [web]
+    api:
+      rule: "Host(`panoctagon.test`) && PathPrefix(`/api`)"
+      priority: 10
+      middlewares: [strip-api]
+      service: api
+      entryPoints: [web]
+    dagster:
+      rule: "Host(`panoctagon.test`) && PathPrefix(`/dagster`)"
+      priority: 20
+      service: dagster
+      entryPoints: [web]
+  middlewares:
+    strip-api:
+      stripPrefix:
+        prefixes: [/api]
+  services:
+    dash:
+      loadBalancer:
+        servers: [{url: "http://host.docker.internal:18750"}]
+    api:
+      loadBalancer:
+        servers: [{url: "http://host.docker.internal:18752"}]
+    dagster:
+      loadBalancer:
+        servers: [{url: "http://host.docker.internal:18753"}]

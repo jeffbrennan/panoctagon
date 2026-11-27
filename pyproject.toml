@@ -41,6 +41,17 @@ dependencies = [
     "python-dotenv>=1.0.1,<2",
 ]
 
+[dependency-groups]
+web = [
+    "fastapi==0.115.12",
+    "uvicorn==0.34.2",
+    "pydantic==2.12.5",
+    "sqlalchemy>=2.0,<3",
+    "duckdb==1.1.0",
+    "duckdb-engine==0.13.2",
+    "numpy>=2.0",
+]
+
 [tool.pyright]
 venvPath = "."
 venv = ".venv"

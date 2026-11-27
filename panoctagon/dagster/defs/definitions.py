@@ -19,6 +19,7 @@ from panoctagon.dagster.defs.assets import (
     dagster_scrape_fighters,
     dagster_scrape_fights,
     panoctagon_dbt_assets,
+    publish_api_snapshot,
     upcoming_fights_not_empty,
 )
 from panoctagon.dagster.defs.jobs import refresh
@@ -28,6 +29,7 @@ from panoctagon.dagster.defs.schedules import schedules
 defs = Definitions(
     assets=[
         panoctagon_dbt_assets,
+        publish_api_snapshot,
         dagster_scrape_events,
         dagster_scrape_fights,
         dagster_parse_fights,

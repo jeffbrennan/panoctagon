@@ -1,0 +1,24 @@
+profile 203
+canvas 283 requests [
+  [ 71, '/assets/Fighters-D81LzmwJ.css' ],
+  [ 71, '/assets/chartTheme-DNFeBiss.js' ],
+  [ 72, '/assets/Fighters-z1aceGTa.js' ],
+  [ 89, '/api/fighter' ],
+  [ 102, '/api/fighter/150ff4cc642270b9/analytics' ],
+  [ 128, '/assets/chart-DZsQEc3N.js' ],
+  [ 132, '/api/fighter/150ff4cc642270b9/headshot' ],
+  [ 132, '/assets/install-BasRGEUy.js' ],
+  [ 138, '/assets/echarts-fighter-h6r8lBEV.js' ],
+  [ 139, '/assets/install-CqBgdmov.js' ],
+  [ 144, '/assets/RoamController-DiLWDJgC.js' ],
+  [ 144, '/assets/SymbolDraw-C_1Pu3P5.js' ],
+  [ 150, '/assets/labelLayoutHelper-CBrEmFI6.js' ]
+]
+roster data 122
+canvas 372 requests [
+  [ 53, '/assets/Roster-BaEZB2QY.css' ],
+  [ 53, '/assets/Roster-KoN2i0Hf.js' ],
+  [ 60, '/api/analytics/roster' ],
+  [ 89, '/assets/LineDraw-PMYWBknW.js' ],
+  [ 92, '/assets/echarts-roster-BkuOq8Ot.js' ]
+]

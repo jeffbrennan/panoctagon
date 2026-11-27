@@ -1,36 +1,36 @@
 # panoctagon
 
-UFC fight data aggregation, analysis, and visualization
+UFC fight data, stats, and visualizations — live at [panoctagon.jeffbrennan.dev](https://panoctagon.jeffbrennan.dev).
 
-Live at [panoctagon.jeffbrennan.dev](https://panoctagon.jeffbrennan.dev)
+Scrapes UFC Stats and Best Fight Odds on a schedule, crunches everything in DuckDB with Dagster and dbt, and serves a Svelte + ECharts dashboard alongside a FastAPI backend and CLI.
 
-## Site
+## The site
 
-The dashboard has four main views:
+Four main views, built for both desktop and mobile:
 
 ### Upcoming
-Shows upcoming UFC events with fighter matchup comparisons, physical stats, records, and betting odds.
+Next UFC card at a glance — head-to-head physical stats, records, reach/height deltas, and closing odds.
 
- ![upcoming](docs/upcoming.png)
+![upcoming](docs/upcoming.png)
 
 ### Fighters
-Individual fighter profiles with career stats, fight history, and performance breakdowns.
+Search any UFC fighter for their bio, career timeline, finish breakdown, fight history, and striking charts.
 
- ![fighters](docs/fighters.png)
+![fighters](docs/fighters.png)
 
 ### Network
-Visual graph of fighter matchup connections.
+Interactive matchup graph showing how a division connects over any span of years. Click a fighter to isolate their opponents and pull up head-to-head records.
 
- ![network](docs/network.png)
+![network](docs/network.png)
 
 ### Roster
-Searchable roster with division filtering and stat comparisons.
+Division-wide striking styles, target distributions, matchup discrepancy trends, and a sortable fighter table.
 
- ![roster](docs/roster.png)
+![roster](docs/roster.png)
 
 ## API
 
-Available at `/api`. Full docs at `/api/docs`.
+Served under `/api`, with interactive Swagger docs at `/api/docs`.
 
 | Endpoint | Description |
 | --- | --- |
@@ -48,9 +48,9 @@ Available at `/api`. Full docs at `/api/docs`.
 
 ## CLI
 
-The `panoctagon` CLI provides terminal access to the same data.
+Same data, straight from the terminal:
 
-```
+```sh
 panoctagon upcoming
 panoctagon fighter "Max Holloway"
 panoctagon compare "Max Holloway" "Ilia Topuria"
@@ -61,15 +61,30 @@ panoctagon roster
 
 ## Pipeline
 
-Data is scraped, parsed, and transformed using Dagster and dbt.
+Scraping, parsing, and transformations run through Dagster and dbt into DuckDB. After each refresh, the pipeline publishes a read-only snapshot under `data/api_snapshots` so the web app and API never contend with writes.
 
- ![pipeline](docs/pipeline.jpg)
+![pipeline](docs/pipeline.jpg)
+
+## Running locally
+
+The dashboard lives in [`frontend/`](frontend/README.md) (Svelte 5 + TypeScript + ECharts) and is served alongside `/api` by FastAPI (`panoctagon.web.server:app`).
+
+```sh
+# dev mode (separate terminals, proxies /api automatically)
+just api
+just web
+
+# or build and serve everything from one process on :8080
+just webpreview
+```
+
+More on frontend dev and Playwright tests in [`frontend/README.md`](frontend/README.md).
 
 ## Stack
 
-Python, FastAPI, Dash, DuckDB, Dagster, dbt
+Svelte 5, TypeScript, ECharts, Python, FastAPI, DuckDB, Dagster, dbt
 
 ## Sources
 
-- [ufcstats.com](http://ufcstats.com) - fight stats and decisions
-- [bestfightodds.com](https://www.bestfightodds.com) - betting odds
+- [ufcstats.com](http://ufcstats.com) — fight stats and results
+- [bestfightodds.com](https://www.bestfightodds.com) — betting odds

@@ -1,19 +1,24 @@
-FROM python:3.12-slim AS base
+FROM node:26.13.0-slim AS frontend-build
+WORKDIR /build
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
 
+FROM python:3.12-slim AS python-deps
+ENV UV_PYTHON_DOWNLOADS=never
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+WORKDIR /panoctagon
+COPY pyproject.toml uv.lock readme.md ./
+RUN uv sync --frozen --only-group web --no-install-project
+
+FROM python:3.12-slim AS runtime
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH="/panoctagon"
-
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
-
 WORKDIR /panoctagon
-
-COPY pyproject.toml uv.lock readme.md ./
-RUN uv sync --frozen --no-dev --no-install-project
-
+COPY --from=python-deps /panoctagon/.venv ./.venv
 COPY panoctagon/ ./panoctagon
-COPY gunicorn_config.py .
-
+COPY --from=frontend-build /build/dist ./frontend/dist
 EXPOSE 8050
-
-ENTRYPOINT ["uv", "run", "gunicorn", "--config", "gunicorn_config.py", "panoctagon.dashboard.main:server"]
+ENTRYPOINT ["/panoctagon/.venv/bin/uvicorn", "panoctagon.web.server:app", "--host", "0.0.0.0", "--port", "8050", "--workers", "1"]
