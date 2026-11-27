@@ -136,16 +136,20 @@ jobs:
           fi
           chmod 644 ~/.ssh/known_hosts
 
-          # Pass the short-lived GITHUB_TOKEN over stdin so newly created or private
-          # GHCR packages pull cleanly without storing a permanent token on the VPS.
+          # Wrap in `bash -c` so this works regardless of the VPS login shell (e.g. fish).
+          # Pass the short-lived GITHUB_TOKEN over stdin so no permanent token lives on the VPS.
           printf '%s' "$GHCR_TOKEN" | ssh -i ~/.ssh/deploy_key -p "$PORT" -o BatchMode=yes \
             "${VPS_USER}@${VPS_HOST}" \
-            "set -eu
-            GHCR_TOKEN=\$(cat)
-            printf '%s' \"\$GHCR_TOKEN\" | docker login ghcr.io -u '${GHCR_USER}' --password-stdin >/dev/null
-            trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
-            cd '${REMOTE_PATH}'
-            git fetch origin main
-            git checkout main
-            git reset --hard origin/main
-            IMAGE_TAG='${IMAGE_TAG}' ./scripts/deploy.sh"
+            "bash -euo pipefail -c '
+              GHCR_USER=\"\$1\"
+              REMOTE_PATH=\"\$2\"
+              IMAGE_TAG=\"\$3\"
+              GHCR_TOKEN=\"\$(cat)\"
+              printf \"%s\" \"\$GHCR_TOKEN\" | docker login ghcr.io -u \"\$GHCR_USER\" --password-stdin >/dev/null
+              trap \"docker logout ghcr.io >/dev/null 2>&1 || true\" EXIT
+              cd \"\$REMOTE_PATH\"
+              git fetch origin main
+              git checkout main
+              git reset --hard origin/main
+              IMAGE_TAG=\"\$IMAGE_TAG\" ./scripts/deploy.sh
+            ' _ '${GHCR_USER}' '${REMOTE_PATH}' '${IMAGE_TAG}'"
